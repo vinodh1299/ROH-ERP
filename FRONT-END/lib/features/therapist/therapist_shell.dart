@@ -7,9 +7,15 @@ import '../auth/auth_service.dart';
 import 'dashboard/therapist_dashboard_page.dart';
 import 'vb_assessment/vb_assessment_page.dart';
 import 'vb_milestone/vb_milestone_page.dart';
+import 'barriers_assessment/barriers_assessment_page.dart';
+import 'transition_assessment/transition_assessment_page.dart';
+import 'ees_assessment/ees_assessment_page.dart';
+import 'reinforcers/reinforcer_page.dart';
 import 'iep/iep_page.dart';
 import 'daily_data_sheet/daily_data_sheet_page.dart';
-import 'reinforcers/reinforcer_page.dart';
+import 'manding_sheet/manding_sheet_page.dart';
+import 'abc_data_sheet/abc_data_sheet_page.dart';
+import 'brp/brp_page.dart';
 import 'profile/profile_page.dart';
 
 class TherapistShell extends StatefulWidget {
@@ -24,22 +30,34 @@ class _TherapistShellState extends State<TherapistShell> {
   bool _sidebarExpanded = true;
 
   static const List<_NavItem> _navItems = [
-    _NavItem(icon: Icons.dashboard_outlined, activeIcon: Icons.dashboard,            label: 'Dashboard'),
-    _NavItem(icon: Icons.assessment_outlined, activeIcon: Icons.assessment,          label: 'VB Assessment'),
-    _NavItem(icon: Icons.flag_outlined,        activeIcon: Icons.flag,               label: 'VB Milestone'),
-    _NavItem(icon: Icons.bar_chart_outlined,   activeIcon: Icons.bar_chart,          label: 'IEP'),
-    _NavItem(icon: Icons.table_chart_outlined, activeIcon: Icons.table_chart,        label: 'Daily Data Sheet'),
-    _NavItem(icon: Icons.star_outline,         activeIcon: Icons.star,               label: 'Reinforcers'),
-    _NavItem(icon: Icons.person_outline,       activeIcon: Icons.person,             label: 'Profile'),
+    _NavItem(icon: Icons.dashboard_outlined,           activeIcon: Icons.dashboard,            label: 'Dashboard'),
+    _NavItem(icon: Icons.assessment_outlined,          activeIcon: Icons.assessment,          label: 'VB Assessment'),
+    _NavItem(icon: Icons.flag_outlined,                activeIcon: Icons.flag,               label: 'VB Milestone'),
+    _NavItem(icon: Icons.warning_amber_outlined,       activeIcon: Icons.warning_amber,        label: 'Barriers'),
+    _NavItem(icon: Icons.transfer_within_a_station,    activeIcon: Icons.transfer_within_a_station, label: 'Transition'),
+    _NavItem(icon: Icons.record_voice_over_outlined,   activeIcon: Icons.record_voice_over,    label: 'EES Echoic'),
+    _NavItem(icon: Icons.star_outline,                 activeIcon: Icons.star,               label: 'Reinforcers'),
+    _NavItem(icon: Icons.bar_chart_outlined,           activeIcon: Icons.bar_chart,          label: 'IEP & Reports'),
+    _NavItem(icon: Icons.table_chart_outlined,         activeIcon: Icons.table_chart,        label: 'Daily Data Sheet'),
+    _NavItem(icon: Icons.equalizer_outlined,           activeIcon: Icons.equalizer,          label: 'Manding Sheet'),
+    _NavItem(icon: Icons.receipt_long_outlined,        activeIcon: Icons.receipt_long,       label: 'ABC Data'),
+    _NavItem(icon: Icons.shield_outlined,              activeIcon: Icons.shield,             label: 'BRP Interventions'),
+    _NavItem(icon: Icons.person_outline,               activeIcon: Icons.person,             label: 'Profile'),
   ];
 
   final List<Widget> _pages = const [
     TherapistDashboardPage(),
     VbAssessmentPage(),
     VbMilestonePage(),
+    BarriersAssessmentPage(),
+    TransitionAssessmentPage(),
+    EesAssessmentPage(),
+    ReinforcerPage(),
     TherapistIepPage(),
     DailyDataSheetPage(),
-    ReinforcerPage(),
+    MandingSheetPage(),
+    AbcDataSheetPage(),
+    BrpPage(),
     TherapistProfilePage(),
   ];
 
