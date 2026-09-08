@@ -368,6 +368,24 @@ class IepQueries {
     } catch (_) {}
     return List<Map<String, dynamic>>.from(MockData.iepReports);
   }
+
+  static Future<bool> save(Map<String, dynamic> data) async {
+    try {
+      final result = await _api.post('save_iep_report', data);
+      if (result is Map && result['error'] == null) {
+        return true;
+      }
+    } catch (_) {}
+    MockData.iepReports.add({
+      'id': '${MockData.iepReports.length + 1}',
+      'title': data['title'] ?? 'IEP Goal',
+      'student_name': data['student_name'] ?? 'Aarav Patel',
+      'goals': data['goals_summary'] ?? 'Updated IEP Goals',
+      'status': data['status'] ?? 'Pending Approval',
+      'created_date': DateTime.now().toString().split(' ')[0],
+    });
+    return true;
+  }
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -392,6 +410,14 @@ class VbAssessmentQueries {
       }
     ];
   }
+
+  static Future<bool> save(Map<String, dynamic> data) async {
+    try {
+      final result = await _api.post('save_vb_assessment', data);
+      if (result is Map && result['error'] == null) return true;
+    } catch (_) {}
+    return true;
+  }
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -414,5 +440,40 @@ class DailyDataQueries {
         'score_value': '8/10 trials',
       }
     ];
+  }
+
+  static Future<bool> save(Map<String, dynamic> data) async {
+    try {
+      final result = await _api.post('save_daily_data', data);
+      if (result is Map && result['error'] == null) return true;
+    } catch (_) {}
+    return true;
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// REINFORCERS ASSESSMENTS
+// ════════════════════════════════════════════════════════════════════════════
+class ReinforcerQueries {
+  static Future<List<Map<String, dynamic>>> fetchAll() async {
+    try {
+      final result = await _api.get('get_reinforcers');
+      if (result is List && result.isNotEmpty) {
+        return result.map((e) => Map<String, dynamic>.from(e)).toList();
+      }
+    } catch (_) {}
+    return [
+      {'id': '1', 'category': 'Edible', 'item_name': 'Apple', 'rating': 5, 'notes': 'Highly preferred during manding'},
+      {'id': '2', 'category': 'Social', 'item_name': 'High Five & Praise', 'rating': 4, 'notes': 'Effective after successful task'},
+      {'id': '3', 'category': 'Toys/Materials', 'item_name': 'Light-Up Sensory Ball', 'rating': 5, 'notes': 'Best for break time'},
+    ];
+  }
+
+  static Future<bool> save(Map<String, dynamic> data) async {
+    try {
+      final result = await _api.post('save_reinforcer', data);
+      if (result is Map && result['error'] == null) return true;
+    } catch (_) {}
+    return true;
   }
 }

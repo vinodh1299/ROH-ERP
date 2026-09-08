@@ -9,6 +9,7 @@ import 'vb_assessment/vb_assessment_page.dart';
 import 'vb_milestone/vb_milestone_page.dart';
 import 'iep/iep_page.dart';
 import 'daily_data_sheet/daily_data_sheet_page.dart';
+import 'reinforcers/reinforcer_page.dart';
 import 'profile/profile_page.dart';
 
 class TherapistShell extends StatefulWidget {
@@ -28,6 +29,7 @@ class _TherapistShellState extends State<TherapistShell> {
     _NavItem(icon: Icons.flag_outlined,        activeIcon: Icons.flag,               label: 'VB Milestone'),
     _NavItem(icon: Icons.bar_chart_outlined,   activeIcon: Icons.bar_chart,          label: 'IEP'),
     _NavItem(icon: Icons.table_chart_outlined, activeIcon: Icons.table_chart,        label: 'Daily Data Sheet'),
+    _NavItem(icon: Icons.star_outline,         activeIcon: Icons.star,               label: 'Reinforcers'),
     _NavItem(icon: Icons.person_outline,       activeIcon: Icons.person,             label: 'Profile'),
   ];
 
@@ -37,6 +39,7 @@ class _TherapistShellState extends State<TherapistShell> {
     VbMilestonePage(),
     TherapistIepPage(),
     DailyDataSheetPage(),
+    ReinforcerPage(),
     TherapistProfilePage(),
   ];
 
