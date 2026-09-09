@@ -28,22 +28,7 @@ class TherapistShell extends StatefulWidget {
 class _TherapistShellState extends State<TherapistShell> {
   int _selectedIndex = 0;
   bool _sidebarExpanded = true;
-
-  static const List<_NavItem> _navItems = [
-    _NavItem(icon: Icons.dashboard_outlined,           activeIcon: Icons.dashboard,            label: 'Dashboard'),
-    _NavItem(icon: Icons.assessment_outlined,          activeIcon: Icons.assessment,          label: 'VB Assessment'),
-    _NavItem(icon: Icons.flag_outlined,                activeIcon: Icons.flag,               label: 'VB Milestone'),
-    _NavItem(icon: Icons.warning_amber_outlined,       activeIcon: Icons.warning_amber,        label: 'Barriers'),
-    _NavItem(icon: Icons.transfer_within_a_station,    activeIcon: Icons.transfer_within_a_station, label: 'Transition'),
-    _NavItem(icon: Icons.record_voice_over_outlined,   activeIcon: Icons.record_voice_over,    label: 'EES Echoic'),
-    _NavItem(icon: Icons.star_outline,                 activeIcon: Icons.star,               label: 'Reinforcers'),
-    _NavItem(icon: Icons.bar_chart_outlined,           activeIcon: Icons.bar_chart,          label: 'IEP & Reports'),
-    _NavItem(icon: Icons.table_chart_outlined,         activeIcon: Icons.table_chart,        label: 'Daily Data Sheet'),
-    _NavItem(icon: Icons.equalizer_outlined,           activeIcon: Icons.equalizer,          label: 'Manding Sheet'),
-    _NavItem(icon: Icons.receipt_long_outlined,        activeIcon: Icons.receipt_long,       label: 'ABC Data'),
-    _NavItem(icon: Icons.shield_outlined,              activeIcon: Icons.shield,             label: 'BRP Interventions'),
-    _NavItem(icon: Icons.person_outline,               activeIcon: Icons.person,             label: 'Profile'),
-  ];
+  bool _vbAssessmentExpanded = true; // Dropdown toggle state matching Figma media_1788948308194.png
 
   final List<Widget> _pages = const [
     TherapistDashboardPage(),
@@ -61,6 +46,22 @@ class _TherapistShellState extends State<TherapistShell> {
     TherapistProfilePage(),
   ];
 
+  final List<String> _pageTitles = const [
+    'Dashboard',
+    'VB Assessment Overview',
+    'Milestone Assessment',
+    'Barriers Assessment',
+    'Transition Assessment',
+    'EES Echoic Assessment',
+    'Preference Assessment',
+    'IEP & Reports',
+    'Daily Data Sheet',
+    'Manding Sheet',
+    'ABC Data Sheet',
+    'BRP Interventions',
+    'Therapist Profile',
+  ];
+
   @override
   Widget build(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
@@ -69,7 +70,7 @@ class _TherapistShellState extends State<TherapistShell> {
 
     if (isMobile) return _buildMobileScaffold();
 
-    final sidebarW = (isTablet || !_sidebarExpanded) ? 70.0 : 230.0;
+    final sidebarW = (isTablet || !_sidebarExpanded) ? 70.0 : 240.0;
 
     return Scaffold(
       backgroundColor: AppColors.scaffold,
@@ -79,19 +80,18 @@ class _TherapistShellState extends State<TherapistShell> {
             duration: const Duration(milliseconds: 200),
             width: sidebarW,
             child: _Sidebar(
-              items: _navItems,
               selectedIndex: _selectedIndex,
               expanded: _sidebarExpanded && !isTablet,
+              vbExpanded: _vbAssessmentExpanded,
+              onToggleVb: () => setState(() => _vbAssessmentExpanded = !_vbAssessmentExpanded),
               onItemSelected: (i) => setState(() => _selectedIndex = i),
-              onToggle: isTablet
-                  ? null
-                  : () => setState(() => _sidebarExpanded = !_sidebarExpanded),
+              onToggleSidebar: isTablet ? null : () => setState(() => _sidebarExpanded = !_sidebarExpanded),
             ),
           ),
           Expanded(
             child: Column(
               children: [
-                _TopBar(title: _navItems[_selectedIndex].label),
+                _TopBar(title: _pageTitles[_selectedIndex]),
                 Expanded(child: _pages[_selectedIndex]),
               ],
             ),
@@ -106,13 +106,14 @@ class _TherapistShellState extends State<TherapistShell> {
       backgroundColor: AppColors.scaffold,
       appBar: PreferredSize(
         preferredSize: const Size.fromHeight(64),
-        child: _TopBar(title: _navItems[_selectedIndex].label),
+        child: _TopBar(title: _pageTitles[_selectedIndex]),
       ),
       drawer: Drawer(
         child: _Sidebar(
-          items: _navItems,
           selectedIndex: _selectedIndex,
           expanded: true,
+          vbExpanded: _vbAssessmentExpanded,
+          onToggleVb: () => setState(() => _vbAssessmentExpanded = !_vbAssessmentExpanded),
           onItemSelected: (i) {
             setState(() => _selectedIndex = i);
             Navigator.of(context).pop();
@@ -120,35 +121,26 @@ class _TherapistShellState extends State<TherapistShell> {
         ),
       ),
       body: _pages[_selectedIndex],
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _selectedIndex > 4 ? 0 : _selectedIndex,
-        onDestinationSelected: (i) => setState(() => _selectedIndex = i),
-        backgroundColor: Colors.white,
-        indicatorColor: AppColors.primary.withOpacity(0.15),
-        destinations: _navItems.take(5).map((item) => NavigationDestination(
-          icon: Icon(item.icon, size: 22),
-          selectedIcon: Icon(item.activeIcon, color: AppColors.primary, size: 22),
-          label: item.label,
-        )).toList(),
-      ),
     );
   }
 }
 
-// ── Sidebar ───────────────────────────────────────────────────────────────────
+// ── Custom Expandable Sidebar matching Figma media_1788948308194.png ──────────
 class _Sidebar extends StatelessWidget {
-  final List<_NavItem> items;
   final int selectedIndex;
   final bool expanded;
+  final bool vbExpanded;
+  final VoidCallback? onToggleVb;
   final ValueChanged<int> onItemSelected;
-  final VoidCallback? onToggle;
+  final VoidCallback? onToggleSidebar;
 
   const _Sidebar({
-    required this.items,
     required this.selectedIndex,
     required this.expanded,
+    required this.vbExpanded,
+    this.onToggleVb,
     required this.onItemSelected,
-    this.onToggle,
+    this.onToggleSidebar,
   });
 
   @override
@@ -157,7 +149,7 @@ class _Sidebar extends StatelessWidget {
       color: Colors.white,
       child: Column(
         children: [
-          // Logo
+          // Logo Header
           Container(
             height: 64,
             padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -171,104 +163,87 @@ class _Sidebar extends StatelessWidget {
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: const Center(
-                    child: Text('ROH',
-                        style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w800)),
+                    child: Text('ROH', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w800)),
                   ),
                 ),
                 if (expanded) ...[
                   const SizedBox(width: 10),
                   const Expanded(
-                    child: Text('ROH',
-                        style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w800,
-                            color: AppColors.textPrimary)),
+                    child: Text('ROH Therapist', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
                   ),
-                  if (onToggle != null)
-                    IconButton(
-                      icon: const Icon(Icons.menu, size: 20),
-                      onPressed: onToggle,
-                      color: AppColors.textSecondary,
-                    ),
-                ] else if (onToggle != null)
-                  IconButton(
-                    icon: const Icon(Icons.menu, size: 20),
-                    onPressed: onToggle,
-                    color: AppColors.textSecondary,
-                  ),
+                  if (onToggleSidebar != null)
+                    IconButton(icon: const Icon(Icons.menu, size: 20), onPressed: onToggleSidebar, color: AppColors.textSecondary),
+                ] else if (onToggleSidebar != null)
+                  IconButton(icon: const Icon(Icons.menu, size: 20), onPressed: onToggleSidebar, color: AppColors.textSecondary),
               ],
             ),
           ),
           const Divider(height: 1, color: AppColors.divider),
           const SizedBox(height: 8),
           Expanded(
-            child: ListView.builder(
+            child: ListView(
               padding: const EdgeInsets.symmetric(horizontal: 8),
-              itemCount: items.length,
-              itemBuilder: (ctx, i) {
-                final item = items[i];
-                final isSelected = i == selectedIndex;
-                return Tooltip(
-                  message: expanded ? '' : item.label,
-                  child: InkWell(
-                    onTap: () => onItemSelected(i),
-                    borderRadius: BorderRadius.circular(10),
-                    child: Container(
-                      margin: const EdgeInsets.only(bottom: 4),
-                      padding: EdgeInsets.symmetric(
-                          horizontal: expanded ? 14 : 0, vertical: 12),
-                      decoration: BoxDecoration(
-                        color: isSelected
-                            ? AppColors.sidebarSelectedBg
-                            : Colors.transparent,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: expanded
-                            ? MainAxisAlignment.start
-                            : MainAxisAlignment.center,
-                        children: [
-                          if (isSelected)
-                            Container(
-                              width: 3,
-                              height: 18,
-                              margin: const EdgeInsets.only(right: 8),
-                              decoration: BoxDecoration(
-                                color: AppColors.primary,
-                                borderRadius: BorderRadius.circular(2),
-                              ),
+              children: [
+                // 1. Dashboard
+                _buildNavItem(0, Icons.dashboard_outlined, Icons.dashboard, 'Dashboard'),
+
+                // 2. VB Assessment Dropdown Parent (Matching Figma Frame media_1788948308194.png)
+                InkWell(
+                  onTap: () {
+                    onItemSelected(1);
+                    if (onToggleVb != null) onToggleVb!();
+                  },
+                  borderRadius: BorderRadius.circular(10),
+                  child: Container(
+                    margin: const EdgeInsets.only(bottom: 2),
+                    padding: EdgeInsets.symmetric(horizontal: expanded ? 14 : 0, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: selectedIndex == 1 ? AppColors.sidebarSelectedBg : Colors.transparent,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.assessment_outlined, size: 20, color: AppColors.primary),
+                        if (expanded) ...[
+                          const SizedBox(width: 12),
+                          const Expanded(
+                            child: Text(
+                              'VB Assessment',
+                              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.primary),
                             ),
-                          Icon(
-                            isSelected ? item.activeIcon : item.icon,
-                            size: 20,
-                            color: isSelected
-                                ? AppColors.primary
-                                : AppColors.textSecondary,
                           ),
-                          if (expanded) ...[
-                            const SizedBox(width: 12),
-                            Text(
-                              item.label,
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: isSelected
-                                    ? FontWeight.w600
-                                    : FontWeight.w400,
-                                color: isSelected
-                                    ? AppColors.primary
-                                    : AppColors.textSecondary,
-                              ),
-                            ),
-                          ],
+                          Icon(
+                            vbExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                            size: 18,
+                            color: AppColors.primary,
+                          ),
                         ],
-                      ),
+                      ],
                     ),
                   ),
-                );
-              },
+                ),
+
+                // Sub-Items under VB Assessment (Indented matching Figma)
+                if (vbExpanded && expanded) ...[
+                  _buildSubNavItem(2, 'Milestone Assessment'),
+                  _buildSubNavItem(3, 'Barriers Assessment'),
+                  _buildSubNavItem(4, 'Transition Assessment'),
+                  _buildSubNavItem(5, 'EES Assessment'),
+                  _buildSubNavItem(6, 'Preference Assessment'),
+                ],
+
+                const SizedBox(height: 6),
+                const Divider(height: 1, color: AppColors.divider),
+                const SizedBox(height: 6),
+
+                // Remaining Modules
+                _buildNavItem(7, Icons.bar_chart_outlined, Icons.bar_chart, 'IEP & Reports'),
+                _buildNavItem(8, Icons.table_chart_outlined, Icons.table_chart, 'Daily Data Sheet'),
+                _buildNavItem(9, Icons.equalizer_outlined, Icons.equalizer, 'Manding Sheet'),
+                _buildNavItem(10, Icons.receipt_long_outlined, Icons.receipt_long, 'ABC Data Sheet'),
+                _buildNavItem(11, Icons.shield_outlined, Icons.shield, 'BRP Interventions'),
+                _buildNavItem(12, Icons.person_outline, Icons.person, 'Profile'),
+              ],
             ),
           ),
           // Logout
@@ -278,26 +253,19 @@ class _Sidebar extends StatelessWidget {
               onTap: () async {
                 await context.read<AuthService>().logout();
                 if (context.mounted) {
-                  Navigator.of(context)
-                      .pushReplacementNamed(AppConstants.routeLogin);
+                  Navigator.of(context).pushReplacementNamed(AppConstants.routeLogin);
                 }
               },
               borderRadius: BorderRadius.circular(10),
               child: Container(
-                padding: EdgeInsets.symmetric(
-                    horizontal: expanded ? 14 : 0, vertical: 12),
+                padding: EdgeInsets.symmetric(horizontal: expanded ? 14 : 0, vertical: 12),
                 child: Row(
-                  mainAxisAlignment: expanded
-                      ? MainAxisAlignment.start
-                      : MainAxisAlignment.center,
+                  mainAxisAlignment: expanded ? MainAxisAlignment.start : MainAxisAlignment.center,
                   children: [
-                    const Icon(Icons.logout,
-                        size: 20, color: AppColors.textSecondary),
+                    const Icon(Icons.logout, size: 20, color: AppColors.textSecondary),
                     if (expanded) ...[
                       const SizedBox(width: 12),
-                      const Text('Logout',
-                          style: TextStyle(
-                              fontSize: 13, color: AppColors.textSecondary)),
+                      const Text('Logout', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
                     ],
                   ],
                 ),
@@ -305,6 +273,85 @@ class _Sidebar extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildNavItem(int index, IconData icon, IconData activeIcon, String label) {
+    final isSelected = selectedIndex == index;
+    return Tooltip(
+      message: expanded ? '' : label,
+      child: InkWell(
+        onTap: () => onItemSelected(index),
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 4),
+          padding: EdgeInsets.symmetric(horizontal: expanded ? 14 : 0, vertical: 12),
+          decoration: BoxDecoration(
+            color: isSelected ? AppColors.sidebarSelectedBg : Colors.transparent,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Row(
+            mainAxisAlignment: expanded ? MainAxisAlignment.start : MainAxisAlignment.center,
+            children: [
+              if (isSelected)
+                Container(
+                  width: 3,
+                  height: 18,
+                  margin: const EdgeInsets.only(right: 8),
+                  decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(2)),
+                ),
+              Icon(isSelected ? activeIcon : icon, size: 20, color: isSelected ? AppColors.primary : AppColors.textSecondary),
+              if (expanded) ...[
+                const SizedBox(width: 12),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                    color: isSelected ? AppColors.primary : AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSubNavItem(int index, String label) {
+    final isSelected = selectedIndex == index;
+    return InkWell(
+      onTap: () => onItemSelected(index),
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        margin: const EdgeInsets.only(left: 24, bottom: 2, top: 2),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: isSelected ? AppColors.primary.withOpacity(0.12) : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              isSelected ? Icons.arrow_right : Icons.circle_outlined,
+              size: 14,
+              color: isSelected ? AppColors.primary : AppColors.textSecondary,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.w400,
+                  color: isSelected ? AppColors.primary : AppColors.textSecondary.withOpacity(0.85),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -324,34 +371,29 @@ class _TopBar extends StatelessWidget {
       color: Colors.white,
       child: Row(
         children: [
-          // Center title
           Expanded(
             child: Text(
-              AppConstants.centerName.toUpperCase(),
-              textAlign: TextAlign.center,
+              '${AppConstants.centerName.toUpperCase()} — $title',
               style: const TextStyle(
-                fontSize: 14,
+                fontSize: 13,
                 fontWeight: FontWeight.w700,
                 color: AppColors.primary,
                 letterSpacing: 0.5,
               ),
             ),
           ),
-          // Notification bell
           IconButton(
             icon: Stack(
               clipBehavior: Clip.none,
               children: [
-                const Icon(Icons.notifications_none_outlined,
-                    size: 22, color: AppColors.textSecondary),
+                const Icon(Icons.notifications_none_outlined, size: 22, color: AppColors.textSecondary),
                 Positioned(
                   top: -2,
                   right: -2,
                   child: Container(
                     width: 8,
                     height: 8,
-                    decoration: const BoxDecoration(
-                        color: Colors.red, shape: BoxShape.circle),
+                    decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
                   ),
                 ),
               ],
@@ -359,31 +401,16 @@ class _TopBar extends StatelessWidget {
             onPressed: () {},
           ),
           const SizedBox(width: 8),
-          // Avatar
           CircleAvatar(
             radius: 18,
             backgroundColor: AppColors.primary.withOpacity(0.15),
             child: Text(
-              user?.name.isNotEmpty == true
-                  ? user!.name[0].toUpperCase()
-                  : 'T',
-              style: const TextStyle(
-                  color: AppColors.primary,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 14),
+              user?.name.isNotEmpty == true ? user!.name[0].toUpperCase() : 'T',
+              style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.w700, fontSize: 14),
             ),
           ),
         ],
       ),
     );
   }
-}
-
-// ── Nav item model ────────────────────────────────────────────────────────────
-class _NavItem {
-  final IconData icon;
-  final IconData activeIcon;
-  final String label;
-  const _NavItem(
-      {required this.icon, required this.activeIcon, required this.label});
 }
