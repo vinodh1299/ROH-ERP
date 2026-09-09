@@ -1,50 +1,6 @@
 // lib/features/admin/students/admin_students_page.dart
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
-import '../../../core/services/db_queries.dart';
-import '../../director/students_section/widgets/add_student_dialog.dart';
-
-class StudentCardItem {
-  final String id;
-  final String name;
-  final String dob;
-  final String phone;
-  final String email;
-  final String parentName;
-
-  const StudentCardItem({
-    required this.id,
-    required this.name,
-    required this.dob,
-    required this.phone,
-    required this.email,
-    required this.parentName,
-  });
-
-  int get calculatedAge {
-    if (dob.isEmpty) return 0;
-    try {
-      final birth = DateTime.parse(dob);
-      final now = DateTime.now();
-      int age = now.year - birth.year;
-      if (now.month < birth.month || (now.month == birth.month && now.day < birth.day)) age--;
-      return age < 0 ? 0 : age;
-    } catch (_) {
-      return 0;
-    }
-  }
-
-  factory StudentCardItem.fromMap(Map<String, dynamic> map) {
-    return StudentCardItem(
-      id: map['id']?.toString() ?? '',
-      name: map['name'] ?? '',
-      dob: map['dob'] ?? '',
-      phone: map['phone_number'] ?? map['phone'] ?? '',
-      email: map['email'] ?? '',
-      parentName: map['parent_name'] ?? '',
-    );
-  }
-}
 
 class AdminStudentsPage extends StatefulWidget {
   const AdminStudentsPage({super.key});
@@ -53,247 +9,262 @@ class AdminStudentsPage extends StatefulWidget {
   State<AdminStudentsPage> createState() => _AdminStudentsPageState();
 }
 
-class _AdminStudentsPageState extends State<AdminStudentsPage> {
-  List<StudentCardItem> _students = [];
-  bool _isLoading = true;
+class _AdminStudentsPageState extends State<AdminStudentsPage> with SingleTickerProviderStateMixin {
+  late TabController _tabController;
 
   @override
   void initState() {
     super.initState();
-    _fetchStudents();
+    _tabController = TabController(length: 4, vsync: this);
   }
 
-  Future<void> _fetchStudents() async {
-    if (!mounted) return;
-    setState(() => _isLoading = true);
-
-    final list = await StudentQueries.fetchAll();
-
-    if (!mounted) return;
-
-    setState(() {
-      _students = list.map((json) => StudentCardItem.fromMap(json)).toList();
-      _isLoading = false;
-    });
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
   }
 
-  Future<void> _deleteStudent(String id) async {
-    final success = await StudentQueries.delete(id);
-    if (success) {
-      _fetchStudents();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Student profile deleted.'), backgroundColor: Colors.orange),
-        );
-      }
-    }
-  }
-
-  void _openAddStudentDialog() {
-    showDialog(
-      context: context,
-      barrierColor: Colors.black54,
-      builder: (_) => AddStudentDialog(
-        onSaved: () => _fetchStudents(),
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.scaffold,
+      body: Column(
+        children: [
+          // Sub-Tab Switcher Bar matching ADMIN STUDENTS *.png
+          Container(
+            color: Colors.white,
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+            child: TabBar(
+              controller: _tabController,
+              indicatorColor: AppColors.primary,
+              indicatorWeight: 3,
+              labelColor: AppColors.primary,
+              unselectedLabelColor: AppColors.textSecondary,
+              labelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+              tabs: const [
+                Tab(icon: Icon(Icons.info_outline), text: 'Student Info'),
+                Tab(icon: Icon(Icons.trending_up), text: 'Progress Overview'),
+                Tab(icon: Icon(Icons.medical_information_outlined), text: 'Medication History'),
+                Tab(icon: Icon(Icons.emergency_outlined), text: 'Emergency Contacts'),
+              ],
+            ),
+          ),
+          Expanded(
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                _buildInfoTab(context),
+                _buildProgressTab(context),
+                _buildMedicationTab(context),
+                _buildEmergencyTab(context),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  void _confirmDelete(StudentCardItem student) {
+  // ── Tab 1: Student Info (ADMIN STUDENTS INFO.png) ──────────────────────────
+  Widget _buildInfoTab(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.divider)),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const CircleAvatar(radius: 30, backgroundColor: Colors.purple, child: Text('A', style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold))),
+                const SizedBox(width: 16),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: const [
+                    Text('Aarav Patel', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                    SizedBox(height: 2),
+                    Text('DOB: 2018-04-12 | Age: 8 | Gender: Male | ID: STU-1002', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                  ],
+                ),
+              ],
+            ),
+            const Divider(height: 32),
+            const Text('Guardian Details:', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            const Text('Parent Name: Rajesh Patel | Phone: +1 (555) 345-6789 | Email: rajesh.patel@gmail.com', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+            const SizedBox(height: 16),
+            const Text('Therapy Enrollment:', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            const Text('Primary Therapist: Sarah Adams (BCBA) | Center Branch: Main Campus | Hours/Wk: 25 hrs', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Tab 2: Progress Overview (ADMIN STUDENTS PROGRESS.png) ────────────────
+  Widget _buildProgressTab(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.divider)),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Student Progress Summary & Domain Achievements', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 16),
+            _buildProgressBar('VB-MAPP Milestone Level 1', 1.0, Colors.green),
+            const SizedBox(height: 12),
+            _buildProgressBar('VB-MAPP Milestone Level 2', 0.85, Colors.orange),
+            const SizedBox(height: 12),
+            _buildProgressBar('VB-MAPP Milestone Level 3', 0.70, Colors.blue),
+            const SizedBox(height: 12),
+            _buildProgressBar('Behavior Reduction Target Baseline', 0.90, Colors.purple),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Tab 3: Medication History (ADMIN STUDENTS MEDICATION HISTORY.png) ────
+  Widget _buildMedicationTab(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.divider)),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Text('Medication & Medical Log', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                const Spacer(),
+                OutlinedButton.icon(onPressed: () {}, icon: const Icon(Icons.add, size: 16), label: const Text('Add Medication Entry')),
+              ],
+            ),
+            const SizedBox(height: 16),
+            DataTable(
+              columns: const [
+                DataColumn(label: Text('Medication')),
+                DataColumn(label: Text('Dosage')),
+                DataColumn(label: Text('Schedule')),
+                DataColumn(label: Text('Prescribing Doctor')),
+              ],
+              rows: const [
+                DataRow(cells: [
+                  DataCell(Text('Multivitamin Chewables', style: TextStyle(fontWeight: FontWeight.bold))),
+                  DataCell(Text('1 Tablet')),
+                  DataCell(Text('Daily 9:00 AM')),
+                  DataCell(Text('Dr. H. Vance')),
+                ]),
+                DataRow(cells: [
+                  DataCell(Text('Melatonin (Optional)', style: TextStyle(fontWeight: FontWeight.bold))),
+                  DataCell(Text('2.5 mg')),
+                  DataCell(Text('As Needed (Evening)')),
+                  DataCell(Text('Dr. H. Vance')),
+                ]),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Tab 4: Emergency Contacts (ADMIN STUDENTS EMERGENCY CONTACT.png & Add.png)
+  Widget _buildEmergencyTab(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.divider)),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Text('Emergency Contacts & Medical Alerts', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                const Spacer(),
+                ElevatedButton.icon(
+                  onPressed: () => _showAddEmergencyContactDialog(context),
+                  icon: const Icon(Icons.add, size: 16),
+                  label: const Text('Add Emergency Contact'),
+                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            DataTable(
+              columns: const [
+                DataColumn(label: Text('Contact Name')),
+                DataColumn(label: Text('Relationship')),
+                DataColumn(label: Text('Phone Number')),
+                DataColumn(label: Text('Priority')),
+              ],
+              rows: const [
+                DataRow(cells: [
+                  DataCell(Text('Rajesh Patel', style: TextStyle(fontWeight: FontWeight.bold))),
+                  DataCell(Text('Father')),
+                  DataCell(Text('+1 (555) 345-6789')),
+                  DataCell(Text('Primary Emergency')),
+                ]),
+                DataRow(cells: [
+                  DataCell(Text('Priya Patel', style: TextStyle(fontWeight: FontWeight.bold))),
+                  DataCell(Text('Mother')),
+                  DataCell(Text('+1 (555) 345-6790')),
+                  DataCell(Text('Secondary Emergency')),
+                ]),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProgressBar(String title, double factor, Color color) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(title, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+            const Spacer(),
+            Text('${(factor * 100).toInt()}%', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: color)),
+          ],
+        ),
+        const SizedBox(height: 6),
+        LinearProgressIndicator(value: factor, backgroundColor: Colors.grey.shade200, color: color, minHeight: 8),
+      ],
+    );
+  }
+
+  void _showAddEmergencyContactDialog(BuildContext context) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Delete Student Profile'),
-        content: Text('Are you sure you want to delete profile for "${student.name}"?'),
+        title: const Text('Add Emergency Contact'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: const [
+            TextField(decoration: InputDecoration(labelText: 'Full Name')),
+            SizedBox(height: 12),
+            TextField(decoration: InputDecoration(labelText: 'Relationship (e.g. Mother, Uncle)')),
+            SizedBox(height: 12),
+            TextField(decoration: InputDecoration(labelText: 'Phone Number')),
+          ],
+        ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Cancel'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
           ElevatedButton(
             onPressed: () {
-              Navigator.of(ctx).pop();
-              _deleteStudent(student.id);
+              Navigator.pop(ctx);
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Emergency Contact Added!'), backgroundColor: Colors.green));
             },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: const [
-                  Text(
-                    'Student Profile Intake & Records',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
-                  ),
-                  SizedBox(height: 4),
-                  Text(
-                    'Create comprehensive 3-tab student profiles and medical records',
-                    style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                  ),
-                ],
-              ),
-              const Spacer(),
-              ElevatedButton.icon(
-                onPressed: _openAddStudentDialog,
-                icon: const Icon(Icons.add, size: 18),
-                label: const Text('Add Student Profile'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-
-          Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
-                : _students.isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(Icons.school_outlined, size: 48, color: AppColors.textSecondary),
-                            const SizedBox(height: 12),
-                            const Text('No student profiles found', style: TextStyle(fontSize: 16, color: AppColors.textSecondary)),
-                            const SizedBox(height: 16),
-                            ElevatedButton.icon(
-                              onPressed: _openAddStudentDialog,
-                              icon: const Icon(Icons.add, size: 18),
-                              label: const Text('Add Student Profile'),
-                            ),
-                          ],
-                        ),
-                      )
-                    : LayoutBuilder(builder: (ctx, constraints) {
-                        int cols = 4;
-                        if (constraints.maxWidth < 400) {
-                          cols = 1;
-                        } else if (constraints.maxWidth < 650) {
-                          cols = 2;
-                        } else if (constraints.maxWidth < 950) {
-                          cols = 3;
-                        }
-
-                        return GridView.builder(
-                          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: cols,
-                            crossAxisSpacing: 16,
-                            mainAxisSpacing: 16,
-                            childAspectRatio: 0.82,
-                          ),
-                          itemCount: _students.length,
-                          itemBuilder: (ctx, i) => _AdminStudentCard(
-                            student: _students[i],
-                            onDelete: () => _confirmDelete(_students[i]),
-                          ),
-                        );
-                      }),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _AdminStudentCard extends StatelessWidget {
-  final StudentCardItem student;
-  final VoidCallback onDelete;
-
-  const _AdminStudentCard({required this.student, required this.onDelete});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.divider),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          Expanded(
-            flex: 6,
-            child: Container(
-              width: double.infinity,
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [Color(0xFFF3C6E8), Color(0xFFE9A8DC)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-              ),
-              child: Center(
-                child: CircleAvatar(
-                  radius: 34,
-                  backgroundColor: Colors.white.withOpacity(0.9),
-                  child: Text(
-                    student.name.isNotEmpty ? student.name[0].toUpperCase() : 'S',
-                    style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: AppColors.primary),
-                  ),
-                ),
-              ),
-            ),
-          ),
-          Expanded(
-            flex: 5,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    student.name,
-                    textAlign: TextAlign.center,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    'Age: ${student.calculatedAge > 0 ? '${student.calculatedAge} yrs' : 'N/A'}',
-                    style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.delete_outline, size: 18, color: Colors.redAccent),
-                        onPressed: onDelete,
-                        tooltip: 'Delete Profile',
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
+            child: const Text('Add Contact'),
           ),
         ],
       ),

@@ -8,7 +8,8 @@ import 'dashboard/admin_dashboard_page.dart';
 import 'therapists/admin_therapists_page.dart';
 import 'students/admin_students_page.dart';
 import 'parents/admin_parents_page.dart';
-import '../../core/widgets/coming_soon_page.dart';
+import 'iep_reports/admin_iep_reports_page.dart';
+import 'settings/admin_settings_page.dart';
 
 class AdminShell extends StatefulWidget {
   const AdminShell({super.key});
@@ -26,6 +27,7 @@ class _AdminShellState extends State<AdminShell> {
     _NavItem(icon: Icons.medical_services_outlined,      activeIcon: Icons.medical_services,      label: 'Therapist Accounts'),
     _NavItem(icon: Icons.school_outlined,                activeIcon: Icons.school,                label: 'Student Profiles'),
     _NavItem(icon: Icons.family_restroom_outlined,       activeIcon: Icons.family_restroom,       label: 'Parent Accounts'),
+    _NavItem(icon: Icons.assignment_outlined,            activeIcon: Icons.assignment,            label: 'IEP Reports'),
     _NavItem(icon: Icons.settings_outlined,              activeIcon: Icons.settings,              label: 'Settings'),
   ];
 
@@ -34,7 +36,8 @@ class _AdminShellState extends State<AdminShell> {
     AdminTherapistsPage(),
     AdminStudentsPage(),
     AdminParentsPage(),
-    ComingSoonPage(title: 'Admin Settings', icon: Icons.settings_outlined),
+    AdminIepReportsPage(),
+    AdminSettingsPage(),
   ];
 
   @override
@@ -97,11 +100,11 @@ class _AdminShellState extends State<AdminShell> {
       ),
       body: _pages[_selectedIndex],
       bottomNavigationBar: NavigationBar(
-        selectedIndex: _selectedIndex,
+        selectedIndex: _selectedIndex > 4 ? 0 : _selectedIndex,
         onDestinationSelected: (i) => setState(() => _selectedIndex = i),
         backgroundColor: Colors.white,
         indicatorColor: AppColors.primary.withOpacity(0.15),
-        destinations: _navItems.map((item) => NavigationDestination(
+        destinations: _navItems.take(5).map((item) => NavigationDestination(
           icon: Icon(item.icon, size: 22),
           selectedIcon: Icon(item.activeIcon, color: AppColors.primary, size: 22),
           label: item.label,
