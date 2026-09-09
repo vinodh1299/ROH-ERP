@@ -10,6 +10,8 @@ import 'iep_goal_data/iep_goal_data_page.dart';
 import 'graphs/graphs_page.dart';
 import 'profile/profile_page.dart';
 
+import 'test_complete/test_complete_page.dart';
+
 class ParentShell extends StatefulWidget {
   const ParentShell({super.key});
 
@@ -23,6 +25,7 @@ class _ParentShellState extends State<ParentShell> {
 
   static const List<_NavItem> _navItems = [
     _NavItem(icon: Icons.dashboard_outlined,   activeIcon: Icons.dashboard,    label: 'Dashboard'),
+    _NavItem(icon: Icons.check_circle_outline, activeIcon: Icons.check_circle, label: 'Test Complete'),
     _NavItem(icon: Icons.bar_chart_outlined,   activeIcon: Icons.bar_chart,    label: 'Progress Reports'),
     _NavItem(icon: Icons.person_outline,       activeIcon: Icons.person,       label: 'IEP Goal Data'),
     _NavItem(icon: Icons.show_chart_outlined,  activeIcon: Icons.show_chart,   label: 'Graphs'),
@@ -31,6 +34,7 @@ class _ParentShellState extends State<ParentShell> {
 
   final List<Widget> _pages = const [
     ParentDashboardPage(),
+    ParentTestCompletePage(),
     ProgressReportsPage(),
     IepGoalDataPage(),
     GraphsPage(),
