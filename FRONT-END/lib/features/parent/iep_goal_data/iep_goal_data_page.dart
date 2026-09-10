@@ -1,151 +1,258 @@
 // lib/features/parent/iep_goal_data/iep_goal_data_page.dart
 import 'package:flutter/material.dart';
-import '../../../core/constants/app_colors.dart';
+import 'package:roh_erp/core/constants/app_colors.dart';
 
-class IepGoalDataPage extends StatefulWidget {
+class IepGoalDataPage extends StatelessWidget {
   const IepGoalDataPage({super.key});
-
-  @override
-  State<IepGoalDataPage> createState() => _IepGoalDataPageState();
-}
-
-class _IepGoalDataPageState extends State<IepGoalDataPage> {
-  final List<Map<String, dynamic>> _goals = [
-    {
-      'domain': 'Language & Communication',
-      'title': 'Mand for 10 Items using 2-Word Phrases',
-      'baseline': '20%',
-      'current': '78%',
-      'target': '85%',
-      'status': 'On Track',
-      'progress': 0.78,
-    },
-    {
-      'domain': 'Behavior Reduction',
-      'title': 'Decrease Transition Disruption to < 2 / Week',
-      'baseline': '8 / week',
-      'current': '3 / week',
-      'target': '< 2 / week',
-      'status': 'On Track',
-      'progress': 0.85,
-    },
-    {
-      'domain': 'Social Interaction',
-      'title': 'Peer Play Initiation for 5 Minutes',
-      'baseline': '1 min',
-      'current': '4 mins',
-      'target': '5 mins',
-      'status': 'Near Mastered',
-      'progress': 0.80,
-    },
-    {
-      'domain': 'Fine Motor Skills',
-      'title': '3-Step Motor Imitation Sequences',
-      'baseline': '40%',
-      'current': '90%',
-      'target': '90%',
-      'status': 'Mastered 🎉',
-      'progress': 1.0,
-    },
-  ];
 
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(24.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Banner
+          // Header Banner
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFF5E35B1), Color(0xFF7E57C2)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
+              gradient: AppColors.welcomeGradient,
               borderRadius: BorderRadius.circular(16),
             ),
-            child: Row(
+            child: const Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(Icons.assignment_outlined, color: Colors.white, size: 28),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: const [
-                      Text('Noah\'s Active IEP Goals & Achievement Data', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-                      SizedBox(height: 2),
-                      Text('Updated weekly by Primary BCBA', style: TextStyle(color: Colors.white70, fontSize: 12)),
-                    ],
+                Text(
+                  'IEP Goal Mastery & VB-MAPP Tracking',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                    fontFamily: 'Poppins',
                   ),
                 ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
-                  child: const Text('Overall Goal Completion: 83%', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF5E35B1))),
+                SizedBox(height: 6),
+                Text(
+                  'Student: Alex Thomas Sam • Comprehensive Individualized Education Plan Status',
+                  style: TextStyle(fontSize: 13, color: Colors.white70),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 24),
 
-          // Goals List
-          ListView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: _goals.length,
-            itemBuilder: (ctx, i) {
-              final g = _goals[i];
-              Color statusColor = Colors.orange;
-              if (g['status'].toString().contains('Mastered')) statusColor = Colors.green;
-              else if (g['status'] == 'On Track') statusColor = Colors.blue;
+          // Overview KPI Cards
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final isNarrow = constraints.maxWidth < 600;
+              final crossAxisCount = isNarrow ? 2 : 4;
 
-              return Container(
-                margin: const EdgeInsets.only(bottom: 16),
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppColors.divider),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(color: AppColors.primary.withOpacity(0.1), borderRadius: BorderRadius.circular(6)),
-                          child: Text(g['domain'], style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.primary)),
-                        ),
-                        const Spacer(),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(color: statusColor.withOpacity(0.12), borderRadius: BorderRadius.circular(12)),
-                          child: Text(g['status'], style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: statusColor)),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    Text(g['title'], style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-                    const SizedBox(height: 14),
-                    LinearProgressIndicator(value: g['progress'] as double, backgroundColor: Colors.grey.shade200, color: statusColor, minHeight: 8),
-                    const SizedBox(height: 12),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text('Baseline: ${g['baseline']}', style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-                        Text('Current: ${g['current']}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-                        Text('Target: ${g['target']}', style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-                      ],
-                    ),
-                  ],
-                ),
+              return GridView.count(
+                crossAxisCount: crossAxisCount,
+                crossAxisSpacing: 14,
+                mainAxisSpacing: 14,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                childAspectRatio: isNarrow ? 1.4 : 1.8,
+                children: [
+                  _buildStatCard('Active IEP Goals', '8', 'Active Programs', AppColors.primary),
+                  _buildStatCard('Targets Mastered', '42', '+4 this month', Colors.green),
+                  _buildStatCard('In Maintenance', '15', 'Generalizing', Colors.blue),
+                  _buildStatCard('Next Audit Due', '18 Oct', '6-Month Review', Colors.orange),
+                ],
               );
             },
           ),
+          const SizedBox(height: 24),
+
+          // Clinical Domain Goal Breakdown Cards
+          const Text(
+            'Clinical Domains & Active Milestones',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+          ),
+          const SizedBox(height: 14),
+
+          _buildDomainProgressCard(
+            domain: '1. MANDING (Spontaneous Verbal Requests)',
+            level: 'VB-MAPP Level 2 • Milestones 6-10',
+            masteryRatio: 0.80,
+            masteredCount: 8,
+            totalCount: 10,
+            color: Colors.purple,
+            activeGoals: [
+              'Mand 7-M: Emits 5 different mands without prompt (Mastered)',
+              'Mand 8-M: Emits 2-word requests with carrier phrase (e.g. "want juice") (85% Independent)',
+              'Mand 9-M: Spontaneously mands for missing items needed for an activity (Acquisition)',
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          _buildDomainProgressCard(
+            domain: '2. TACTING (Expressive Labeling of Environment)',
+            level: 'VB-MAPP Level 2 • Milestones 6-10',
+            masteryRatio: 0.60,
+            masteredCount: 6,
+            totalCount: 10,
+            color: Colors.teal,
+            activeGoals: [
+              'Tact 6-M: Labels 25 common items across 5 categories (Mastered)',
+              'Tact 7-M: Generalizes labels across 3 different pictures/exemplars (Mastered)',
+              'Tact 8-M: Labels 10 ongoing actions/verbs (e.g. "jumping", "cutting") (60% Independent)',
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          _buildDomainProgressCard(
+            domain: '3. INTRAVERBALS & CONVERSATIONAL PROBES',
+            level: 'VB-MAPP Level 2/3 • Milestones 11-15',
+            masteryRatio: 0.40,
+            masteredCount: 4,
+            totalCount: 10,
+            color: Colors.orange,
+            activeGoals: [
+              'Intraverbal 6-M: Completes 10 song lyrics and playful fill-ins (Mastered)',
+              'Intraverbal 7-M: Answers simple "What is your name?" and "How old are you?" (Mastered)',
+              'Intraverbal 8-M: Answers "What do you do when you are thirsty/hungry?" (In Probe)',
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          _buildDomainProgressCard(
+            domain: '4. BEHAVIOR INTERVENTION & REGULATION PLAN (BIP)',
+            level: 'Functional Replacement Behavior Protocol',
+            masteryRatio: 0.90,
+            masteredCount: 9,
+            totalCount: 10,
+            color: Colors.indigo,
+            activeGoals: [
+              'BIP Target 1: Functional communication card exchange for "Break Please" (95% Independent)',
+              'BIP Target 2: Tolerates 5-minute work interval with visual timer (Mastered)',
+              'BIP Target 3: Gentle hands transition between activity rooms (Consistent)',
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatCard(String label, String value, String subtext, Color color) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.divider),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(label, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+          const SizedBox(height: 6),
+          Text(
+            value,
+            style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: color, fontFamily: 'Poppins'),
+          ),
+          const SizedBox(height: 2),
+          Text(subtext, style: const TextStyle(fontSize: 11, color: AppColors.textHint)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDomainProgressCard({
+    required String domain,
+    required String level,
+    required double masteryRatio,
+    required int masteredCount,
+    required int totalCount,
+    required Color color,
+    required List<String> activeGoals,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.divider),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 12,
+                height: 12,
+                decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  domain,
+                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  '$masteredCount / $totalCount Targets',
+                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: color),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Padding(
+            padding: const EdgeInsets.only(left: 20),
+            child: Text(level, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+          ),
+          const SizedBox(height: 12),
+
+          // Progress Bar
+          ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: LinearProgressIndicator(
+              value: masteryRatio,
+              backgroundColor: const Color(0xFFEEEEEE),
+              valueColor: AlwaysStoppedAnimation<Color>(color),
+              minHeight: 8,
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Active Goals List
+          ...activeGoals.map((goal) {
+            final isMastered = goal.contains('(Mastered)');
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    isMastered ? Icons.check_circle : Icons.radio_button_unchecked,
+                    size: 16,
+                    color: isMastered ? Colors.green : AppColors.textHint,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      goal,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: isMastered ? AppColors.textPrimary : const Color(0xFF4B5563),
+                        fontWeight: isMastered ? FontWeight.w600 : FontWeight.normal,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
         ],
       ),
     );

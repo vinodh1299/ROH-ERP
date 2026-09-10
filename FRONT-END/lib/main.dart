@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'core/constants/app_constants.dart';
 import 'core/theme/app_theme.dart';
+import 'core/services/schedule_service.dart';
 import 'features/auth/auth_service.dart';
 import 'features/auth/login_page.dart';
 import 'features/admin/admin_shell.dart';
@@ -22,9 +23,13 @@ void main() async {
   }
   final authService = AuthService();
   await authService.loadSession();
+  final scheduleService = ScheduleService();
   runApp(
-    ChangeNotifierProvider<AuthService>.value(
-      value: authService,
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider<AuthService>.value(value: authService),
+        ChangeNotifierProvider<ScheduleService>.value(value: scheduleService),
+      ],
       child: const RohApp(),
     ),
   );

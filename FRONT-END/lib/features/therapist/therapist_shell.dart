@@ -1,21 +1,20 @@
-// lib/features/therapist/therapist_shell.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../core/constants/app_colors.dart';
-import '../../core/constants/app_constants.dart';
+import 'package:roh_erp/core/constants/app_colors.dart';
+import 'package:roh_erp/core/constants/app_constants.dart';
+import 'package:roh_erp/core/constants/app_images.dart';
+import '../../core/widgets/custom_mobile_bottom_bar.dart';
 import '../auth/auth_service.dart';
 import 'dashboard/therapist_dashboard_page.dart';
-import 'vb_assessment/vb_assessment_page.dart';
-import 'vb_milestone/vb_milestone_page.dart';
-import 'barriers_assessment/barriers_assessment_page.dart';
-import 'transition_assessment/transition_assessment_page.dart';
-import 'ees_assessment/ees_assessment_page.dart';
-import 'reinforcers/reinforcer_page.dart';
+import 'timetable/therapist_timetable_page.dart';
+import 'vb_assessment/milestone_assessment_page.dart';
+import 'vb_assessment/barriers_assessment_page.dart';
+import 'vb_assessment/transition_assessment_page.dart';
+import 'vb_assessment/ees_assessment_page.dart';
+import 'vb_assessment/preference_assessment_page.dart';
+import 'vb_assessment/vb_mapp_report_page.dart';
 import 'iep/iep_page.dart';
 import 'daily_data_sheet/daily_data_sheet_page.dart';
-import 'manding_sheet/manding_sheet_page.dart';
-import 'abc_data_sheet/abc_data_sheet_page.dart';
-import 'brp/brp_page.dart';
 import 'profile/profile_page.dart';
 
 class TherapistShell extends StatefulWidget {
@@ -27,72 +26,311 @@ class TherapistShell extends StatefulWidget {
 
 class _TherapistShellState extends State<TherapistShell> {
   int _selectedIndex = 0;
-  bool _sidebarExpanded = true;
-  bool _vbAssessmentExpanded = true; // Dropdown toggle state matching Figma media_1788948308194.png
+  bool _isVbAssessmentExpanded = true;
 
-  final List<Widget> _pages = const [
-    TherapistDashboardPage(),
-    VbAssessmentPage(),
-    VbMilestonePage(),
-    BarriersAssessmentPage(),
-    TransitionAssessmentPage(),
-    EesAssessmentPage(),
-    ReinforcerPage(),
-    TherapistIepPage(),
-    DailyDataSheetPage(),
-    MandingSheetPage(),
-    AbcDataSheetPage(),
-    BrpPage(),
-    TherapistProfilePage(),
+  late final List<Widget> _pages = [
+    TherapistDashboardPage(onNavigateTab: _onItemTapped),
+    TherapistTimetablePage(onNavigateTab: _onItemTapped),
+    const MilestoneAssessmentPage(),
+    const BarriersAssessmentPage(),
+    const TransitionAssessmentPage(),
+    const EesAssessmentPage(),
+    const PreferenceAssessmentPage(),
+    const VbMappReportPage(),
+    const IepPage(),
+    const DailyDataSheetPage(),
+    const ProfilePage(),
   ];
 
-  final List<String> _pageTitles = const [
-    'Dashboard',
-    'VB Assessment Overview',
-    'Milestone Assessment',
-    'Barriers Assessment',
-    'Transition Assessment',
-    'EES Echoic Assessment',
-    'Preference Assessment',
-    'IEP & Reports',
-    'Daily Data Sheet',
-    'Manding Sheet',
-    'ABC Data Sheet',
-    'BRP Interventions',
-    'Therapist Profile',
-  ];
+  void _onItemTapped(int index) {
+    setState(() {
+      _selectedIndex = index;
+    });
+  }
+
+  void _toggleVbAssessment() {
+    setState(() {
+      _isVbAssessmentExpanded = !_isVbAssessmentExpanded;
+    });
+  }
+
+  bool _isVbChildSelected() {
+    return _selectedIndex >= 2 && _selectedIndex <= 6;
+  }
 
   @override
   Widget build(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
     final isMobile = width < 768;
-    final isTablet = width >= 768 && width < 1100;
 
-    if (isMobile) return _buildMobileScaffold();
+    final sidebarWidget = Container(
+      width: 250,
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(
+          right: BorderSide(color: Color(0xFFE6EFF5), width: 1),
+        ),
+      ),
+      child: Column(
+        children: [
+          // Authentic Figma ROH Logo (Puzzle + Flame + "ROH" text)
+          InkWell(
+            onTap: () {
+              if (isMobile) Navigator.of(context).maybePop();
+              _onItemTapped(0);
+            },
+            borderRadius: BorderRadius.circular(8),
+            child: Container(
+              height: 84,
+              alignment: Alignment.centerLeft,
+              padding: const EdgeInsets.only(left: 28),
+              child: AppImages.rohLogo(height: 38),
+            ),
+          ),
+          
+          // Menu Items
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              children: [
+                _buildMenuItem(
+                  index: 0,
+                  title: 'Dashboard',
+                  icon: Icons.home,
+                  isDrawer: isMobile,
+                ),
+                _buildMenuItem(
+                  index: 1,
+                  title: 'Time Table',
+                  icon: Icons.calendar_today_outlined,
+                  isDrawer: isMobile,
+                ),
+                
+                // VB Assessment - Expandable with 5 sub-items
+                _buildExpandableMenuItem(isDrawer: isMobile),
 
-    final sidebarW = (isTablet || !_sidebarExpanded) ? 70.0 : 240.0;
+                // VB Milestone / Report
+                _buildMenuItem(
+                  index: 7,
+                  title: 'VB Milestone',
+                  icon: Icons.person,
+                  isDrawer: isMobile,
+                ),
+                
+                _buildMenuItem(
+                  index: 8,
+                  title: 'IEP',
+                  icon: Icons.bar_chart,
+                  isDrawer: isMobile,
+                ),
+                _buildMenuItem(
+                  index: 9,
+                  title: 'Daily Data Sheet',
+                  icon: Icons.credit_card,
+                  isDrawer: isMobile,
+                ),
+                _buildMenuItem(
+                  index: 10,
+                  title: 'Profile',
+                  icon: Icons.settings,
+                  isDrawer: isMobile,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+
+    final topBarWidget = Container(
+      height: 72,
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(
+          bottom: BorderSide(color: Color(0xFFE6EFF5), width: 1),
+        ),
+      ),
+      padding: EdgeInsets.symmetric(horizontal: isMobile ? 12 : 28),
+      child: Row(
+        children: [
+          if (isMobile)
+            Builder(
+              builder: (ctx) => IconButton(
+                icon: const Icon(Icons.menu, color: Color(0xFFAB47BC)),
+                onPressed: () => Scaffold.of(ctx).openDrawer(),
+              ),
+            ),
+          Expanded(
+            child: Center(
+              child: Text(
+                'RAY OF HOPE CENTER FOR AUTISM',
+                style: TextStyle(
+                  fontFamily: 'Poppins',
+                  fontSize: isMobile ? 12 : 16,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.5,
+                  color: const Color(0xFFAB47BC),
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ),
+          Container(
+            width: isMobile ? 36 : 40,
+            height: isMobile ? 36 : 40,
+            decoration: const BoxDecoration(
+              color: Color(0xFFF5F6FA),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.notifications_none,
+              color: Color(0xFFAB47BC),
+              size: 20,
+            ),
+          ),
+          SizedBox(width: isMobile ? 8 : 16),
+          PopupMenuButton<String>(
+            tooltip: 'Profile & Portal Switcher',
+            offset: const Offset(0, 48),
+            onSelected: (value) async {
+              if (value == 'logout') {
+                await context.read<AuthService>().logout();
+                if (context.mounted) {
+                  Navigator.of(context).pushReplacementNamed(AppConstants.routeLogin);
+                }
+              } else {
+                Navigator.of(context).pushReplacementNamed(value);
+              }
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                enabled: false,
+                child: Text('Switch Portal', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+              ),
+              const PopupMenuItem(
+                value: AppConstants.routeAdmin,
+                child: Row(
+                  children: [
+                    Icon(Icons.admin_panel_settings, size: 18, color: AppColors.primary),
+                    SizedBox(width: 8),
+                    Text('Admin Panel'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: AppConstants.routeTherapist,
+                child: Row(
+                  children: [
+                    Icon(Icons.medical_services, size: 18, color: AppColors.primary),
+                    SizedBox(width: 8),
+                    Text('Therapist Panel'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: AppConstants.routeParent,
+                child: Row(
+                  children: [
+                    Icon(Icons.family_restroom, size: 18, color: AppColors.primary),
+                    SizedBox(width: 8),
+                    Text('Parent Panel'),
+                  ],
+                ),
+              ),
+              const PopupMenuDivider(),
+              const PopupMenuItem(
+                value: 'logout',
+                child: Row(
+                  children: [
+                    Icon(Icons.logout, size: 18, color: Colors.red),
+                    SizedBox(width: 8),
+                    Text('Logout', style: TextStyle(color: Colors.red)),
+                  ],
+                ),
+              ),
+            ],
+            child: AppImages.therapistAvatar(radius: isMobile ? 16 : 20),
+          ),
+        ],
+      ),
+    );
+
+    final contentWidget = Container(
+      color: AppColors.scaffold,
+      padding: EdgeInsets.all(isMobile ? 12 : 24),
+      child: IndexedStack(
+        index: _selectedIndex,
+        children: _pages,
+      ),
+    );
+
+    if (isMobile) {
+      return Scaffold(
+        backgroundColor: AppColors.scaffold,
+        drawer: Drawer(child: SafeArea(child: sidebarWidget)),
+        body: SafeArea(
+          child: Column(
+            children: [
+              topBarWidget,
+              Expanded(child: contentWidget),
+            ],
+          ),
+        ),
+        bottomNavigationBar: CustomMobileBottomBar(
+          currentIndex: () {
+            if (_selectedIndex == 0) return 0; // Dashboard
+            if (_selectedIndex == 1) return 1; // Timetable / Sessions
+            if (_isVbChildSelected() || _selectedIndex == 7) return 2; // VB Assessment / Milestones
+            if (_selectedIndex == 8) return 3; // IEP
+            if (_selectedIndex == 9) return 4; // Daily Data Sheet
+            return -1;
+          }(),
+          onTap: (index) {
+            const mapping = [0, 1, 2, 8, 9];
+            setState(() => _selectedIndex = mapping[index]);
+          },
+          items: const [
+            CustomMobileBottomBarItem(
+              icon: Icons.dashboard_outlined,
+              activeIcon: Icons.dashboard,
+              label: 'Dashboard',
+            ),
+            CustomMobileBottomBarItem(
+              icon: Icons.calendar_today_outlined,
+              activeIcon: Icons.calendar_today,
+              label: 'Timetable',
+            ),
+            CustomMobileBottomBarItem(
+              icon: Icons.medical_services_outlined,
+              activeIcon: Icons.medical_services,
+              label: 'Assessment',
+            ),
+            CustomMobileBottomBarItem(
+              icon: Icons.assignment_outlined,
+              activeIcon: Icons.assignment,
+              label: 'IEP',
+            ),
+            CustomMobileBottomBarItem(
+              icon: Icons.credit_card_outlined,
+              activeIcon: Icons.credit_card,
+              label: 'Data Sheet',
+            ),
+          ],
+        ),
+      );
+    }
 
     return Scaffold(
       backgroundColor: AppColors.scaffold,
       body: Row(
         children: [
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            width: sidebarW,
-            child: _Sidebar(
-              selectedIndex: _selectedIndex,
-              expanded: _sidebarExpanded && !isTablet,
-              vbExpanded: _vbAssessmentExpanded,
-              onToggleVb: () => setState(() => _vbAssessmentExpanded = !_vbAssessmentExpanded),
-              onItemSelected: (i) => setState(() => _selectedIndex = i),
-              onToggleSidebar: isTablet ? null : () => setState(() => _sidebarExpanded = !_sidebarExpanded),
-            ),
-          ),
+          sidebarWidget,
           Expanded(
             child: Column(
               children: [
-                _TopBar(title: _pageTitles[_selectedIndex]),
-                Expanded(child: _pages[_selectedIndex]),
+                topBarWidget,
+                Expanded(child: contentWidget),
               ],
             ),
           ),
@@ -101,253 +339,64 @@ class _TherapistShellState extends State<TherapistShell> {
     );
   }
 
-  Widget _buildMobileScaffold() {
-    return Scaffold(
-      backgroundColor: AppColors.scaffold,
-      appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(64),
-        child: _TopBar(title: _pageTitles[_selectedIndex]),
-      ),
-      drawer: Drawer(
-        child: _Sidebar(
-          selectedIndex: _selectedIndex,
-          expanded: true,
-          vbExpanded: _vbAssessmentExpanded,
-          onToggleVb: () => setState(() => _vbAssessmentExpanded = !_vbAssessmentExpanded),
-          onItemSelected: (i) {
-            setState(() => _selectedIndex = i);
-            Navigator.of(context).pop();
-          },
-        ),
-      ),
-      body: _pages[_selectedIndex],
-    );
-  }
-}
+  Widget _buildMenuItem({
+    required int index,
+    required String title,
+    required IconData icon,
+    bool isDrawer = false,
+  }) {
+    final bool isSelected = _selectedIndex == index;
+    const Color activeColor = Color(0xFFAB47BC);
+    const Color inactiveColor = Color(0xFFA0A5BA);
 
-// ── Custom Expandable Sidebar matching Figma media_1788948308194.png ──────────
-class _Sidebar extends StatelessWidget {
-  final int selectedIndex;
-  final bool expanded;
-  final bool vbExpanded;
-  final VoidCallback? onToggleVb;
-  final ValueChanged<int> onItemSelected;
-  final VoidCallback? onToggleSidebar;
-
-  const _Sidebar({
-    required this.selectedIndex,
-    required this.expanded,
-    required this.vbExpanded,
-    this.onToggleVb,
-    required this.onItemSelected,
-    this.onToggleSidebar,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      color: Colors.white,
-      child: Column(
-        children: [
-          // Logo Header
-          Container(
-            height: 64,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Row(
-              children: [
-                Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    gradient: AppColors.welcomeGradient,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Center(
-                    child: Text('ROH', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w800)),
-                  ),
-                ),
-                if (expanded) ...[
-                  const SizedBox(width: 10),
-                  const Expanded(
-                    child: Text('ROH Therapist', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
-                  ),
-                  if (onToggleSidebar != null)
-                    IconButton(icon: const Icon(Icons.menu, size: 20), onPressed: onToggleSidebar, color: AppColors.textSecondary),
-                ] else if (onToggleSidebar != null)
-                  IconButton(icon: const Icon(Icons.menu, size: 20), onPressed: onToggleSidebar, color: AppColors.textSecondary),
-              ],
-            ),
-          ),
-          const Divider(height: 1, color: AppColors.divider),
-          const SizedBox(height: 8),
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              children: [
-                // 1. Dashboard
-                _buildNavItem(0, Icons.dashboard_outlined, Icons.dashboard, 'Dashboard'),
-
-                // 2. VB Assessment Dropdown Parent (Matching Figma Frame media_1788948308194.png)
-                InkWell(
-                  onTap: () {
-                    onItemSelected(1);
-                    if (onToggleVb != null) onToggleVb!();
-                  },
-                  borderRadius: BorderRadius.circular(10),
-                  child: Container(
-                    margin: const EdgeInsets.only(bottom: 2),
-                    padding: EdgeInsets.symmetric(horizontal: expanded ? 14 : 0, vertical: 12),
-                    decoration: BoxDecoration(
-                      color: selectedIndex == 1 ? AppColors.sidebarSelectedBg : Colors.transparent,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.assessment_outlined, size: 20, color: AppColors.primary),
-                        if (expanded) ...[
-                          const SizedBox(width: 12),
-                          const Expanded(
-                            child: Text(
-                              'VB Assessment',
-                              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.primary),
-                            ),
-                          ),
-                          Icon(
-                            vbExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
-                            size: 18,
-                            color: AppColors.primary,
-                          ),
-                        ],
-                      ],
+    return InkWell(
+      onTap: () {
+        _onItemTapped(index);
+        if (isDrawer) {
+          Navigator.of(context).pop();
+        }
+      },
+      hoverColor: const Color(0xFFF9FAFB),
+      child: SizedBox(
+        height: 52,
+        child: Stack(
+          alignment: Alignment.centerLeft,
+          children: [
+            if (isSelected)
+              Positioned(
+                left: 0,
+                child: Container(
+                  width: 6,
+                  height: 44,
+                  decoration: const BoxDecoration(
+                    color: activeColor,
+                    borderRadius: BorderRadius.only(
+                      topRight: Radius.circular(6),
+                      bottomRight: Radius.circular(6),
                     ),
                   ),
-                ),
-
-                // Sub-Items under VB Assessment (Indented matching Figma)
-                if (vbExpanded && expanded) ...[
-                  _buildSubNavItem(2, 'Milestone Assessment'),
-                  _buildSubNavItem(3, 'Barriers Assessment'),
-                  _buildSubNavItem(4, 'Transition Assessment'),
-                  _buildSubNavItem(5, 'EES Assessment'),
-                  _buildSubNavItem(6, 'Preference Assessment'),
-                ],
-
-                const SizedBox(height: 6),
-                const Divider(height: 1, color: AppColors.divider),
-                const SizedBox(height: 6),
-
-                // Remaining Modules
-                _buildNavItem(7, Icons.bar_chart_outlined, Icons.bar_chart, 'IEP & Reports'),
-                _buildNavItem(8, Icons.table_chart_outlined, Icons.table_chart, 'Daily Data Sheet'),
-                _buildNavItem(9, Icons.equalizer_outlined, Icons.equalizer, 'Manding Sheet'),
-                _buildNavItem(10, Icons.receipt_long_outlined, Icons.receipt_long, 'ABC Data Sheet'),
-                _buildNavItem(11, Icons.shield_outlined, Icons.shield, 'BRP Interventions'),
-                _buildNavItem(12, Icons.person_outline, Icons.person, 'Profile'),
-              ],
-            ),
-          ),
-          // Logout
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: InkWell(
-              onTap: () async {
-                await context.read<AuthService>().logout();
-                if (context.mounted) {
-                  Navigator.of(context).pushReplacementNamed(AppConstants.routeLogin);
-                }
-              },
-              borderRadius: BorderRadius.circular(10),
-              child: Container(
-                padding: EdgeInsets.symmetric(horizontal: expanded ? 14 : 0, vertical: 12),
-                child: Row(
-                  mainAxisAlignment: expanded ? MainAxisAlignment.start : MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.logout, size: 20, color: AppColors.textSecondary),
-                    if (expanded) ...[
-                      const SizedBox(width: 12),
-                      const Text('Logout', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
-                    ],
-                  ],
                 ),
               ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildNavItem(int index, IconData icon, IconData activeIcon, String label) {
-    final isSelected = selectedIndex == index;
-    return Tooltip(
-      message: expanded ? '' : label,
-      child: InkWell(
-        onTap: () => onItemSelected(index),
-        borderRadius: BorderRadius.circular(10),
-        child: Container(
-          margin: const EdgeInsets.only(bottom: 4),
-          padding: EdgeInsets.symmetric(horizontal: expanded ? 14 : 0, vertical: 12),
-          decoration: BoxDecoration(
-            color: isSelected ? AppColors.sidebarSelectedBg : Colors.transparent,
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Row(
-            mainAxisAlignment: expanded ? MainAxisAlignment.start : MainAxisAlignment.center,
-            children: [
-              if (isSelected)
-                Container(
-                  width: 3,
-                  height: 18,
-                  margin: const EdgeInsets.only(right: 8),
-                  decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(2)),
-                ),
-              Icon(isSelected ? activeIcon : icon, size: 20, color: isSelected ? AppColors.primary : AppColors.textSecondary),
-              if (expanded) ...[
-                const SizedBox(width: 12),
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-                    color: isSelected ? AppColors.primary : AppColors.textSecondary,
+            Padding(
+              padding: const EdgeInsets.only(left: 28, right: 16),
+              child: Row(
+                children: [
+                  Icon(
+                    icon,
+                    color: isSelected ? activeColor : inactiveColor,
+                    size: 24,
                   ),
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSubNavItem(int index, String label) {
-    final isSelected = selectedIndex == index;
-    return InkWell(
-      onTap: () => onItemSelected(index),
-      borderRadius: BorderRadius.circular(8),
-      child: Container(
-        margin: const EdgeInsets.only(left: 24, bottom: 2, top: 2),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        decoration: BoxDecoration(
-          color: isSelected ? AppColors.primary.withOpacity(0.12) : Colors.transparent,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              isSelected ? Icons.arrow_right : Icons.circle_outlined,
-              size: 14,
-              color: isSelected ? AppColors.primary : AppColors.textSecondary,
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                label,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: isSelected ? FontWeight.bold : FontWeight.w400,
-                  color: isSelected ? AppColors.primary : AppColors.textSecondary.withOpacity(0.85),
-                ),
+                  const SizedBox(width: 16),
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontFamily: 'Poppins',
+                      fontSize: 15,
+                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                      color: isSelected ? activeColor : inactiveColor,
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -355,61 +404,122 @@ class _Sidebar extends StatelessWidget {
       ),
     );
   }
-}
 
-// ── Top Bar ───────────────────────────────────────────────────────────────────
-class _TopBar extends StatelessWidget {
-  final String title;
-  const _TopBar({required this.title});
+  Widget _buildExpandableMenuItem({bool isDrawer = false}) {
+    final bool isParentSelected = _isVbChildSelected();
+    const Color activeColor = Color(0xFFAB47BC);
+    const Color inactiveColor = Color(0xFFA0A5BA);
 
-  @override
-  Widget build(BuildContext context) {
-    final user = context.watch<AuthService>().currentUser;
-    return Container(
-      height: 64,
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      color: Colors.white,
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              '${AppConstants.centerName.toUpperCase()} — $title',
-              style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                color: AppColors.primary,
-                letterSpacing: 0.5,
-              ),
-            ),
-          ),
-          IconButton(
-            icon: Stack(
-              clipBehavior: Clip.none,
+    return Column(
+      children: [
+        InkWell(
+          onTap: _toggleVbAssessment,
+          hoverColor: const Color(0xFFF9FAFB),
+          child: SizedBox(
+            height: 52,
+            child: Stack(
+              alignment: Alignment.centerLeft,
               children: [
-                const Icon(Icons.notifications_none_outlined, size: 22, color: AppColors.textSecondary),
-                Positioned(
-                  top: -2,
-                  right: -2,
-                  child: Container(
-                    width: 8,
-                    height: 8,
-                    decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
+                if (isParentSelected)
+                  Positioned(
+                    left: 0,
+                    child: Container(
+                      width: 6,
+                      height: 44,
+                      decoration: const BoxDecoration(
+                        color: activeColor,
+                        borderRadius: BorderRadius.only(
+                          topRight: Radius.circular(6),
+                          bottomRight: Radius.circular(6),
+                        ),
+                      ),
+                    ),
+                  ),
+                Padding(
+                  padding: const EdgeInsets.only(left: 28, right: 16),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.volunteer_activism_outlined,
+                        color: isParentSelected ? activeColor : inactiveColor,
+                        size: 24,
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Text(
+                          'VB Assessment',
+                          style: TextStyle(
+                            fontFamily: 'Poppins',
+                            fontSize: 15,
+                            fontWeight: isParentSelected ? FontWeight.w600 : FontWeight.w500,
+                            color: isParentSelected ? activeColor : inactiveColor,
+                          ),
+                        ),
+                      ),
+                      AnimatedRotation(
+                        turns: _isVbAssessmentExpanded ? 0.5 : 0.0,
+                        duration: const Duration(milliseconds: 250),
+                        child: Icon(
+                          Icons.keyboard_arrow_down,
+                          color: isParentSelected ? activeColor : inactiveColor,
+                          size: 20,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
             ),
-            onPressed: () {},
           ),
-          const SizedBox(width: 8),
-          CircleAvatar(
-            radius: 18,
-            backgroundColor: AppColors.primary.withOpacity(0.15),
-            child: Text(
-              user?.name.isNotEmpty == true ? user!.name[0].toUpperCase() : 'T',
-              style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.w700, fontSize: 14),
-            ),
+        ),
+        AnimatedCrossFade(
+          duration: const Duration(milliseconds: 200),
+          crossFadeState: _isVbAssessmentExpanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+          firstChild: const SizedBox(width: double.infinity, height: 0),
+          secondChild: Column(
+            children: [
+              _buildSubMenuItem(index: 2, title: 'Milestone Assessment', isDrawer: isDrawer),
+              _buildSubMenuItem(index: 3, title: 'Barriers Assessment', isDrawer: isDrawer),
+              _buildSubMenuItem(index: 4, title: 'Transition Assessment', isDrawer: isDrawer),
+              _buildSubMenuItem(index: 5, title: 'EES Assessment', isDrawer: isDrawer),
+              _buildSubMenuItem(index: 6, title: 'Preference Assessment', isDrawer: isDrawer),
+            ],
           ),
-        ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSubMenuItem({
+    required int index,
+    required String title,
+    bool isDrawer = false,
+  }) {
+    final bool isSelected = _selectedIndex == index;
+    const Color activeColor = Color(0xFFAB47BC);
+    const Color inactiveColor = Color(0xFFA0A5BA);
+
+    return InkWell(
+      onTap: () {
+        _onItemTapped(index);
+        if (isDrawer) {
+          Navigator.of(context).pop();
+        }
+      },
+      hoverColor: const Color(0xFFF9FAFB),
+      child: Container(
+        height: 44,
+        padding: const EdgeInsets.only(left: 68, right: 16),
+        alignment: Alignment.centerLeft,
+        child: Text(
+          title,
+          style: TextStyle(
+            fontFamily: 'Poppins',
+            fontSize: 13,
+            fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+            color: isSelected ? activeColor : inactiveColor,
+          ),
+        ),
       ),
     );
   }

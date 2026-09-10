@@ -1,232 +1,610 @@
-// lib/features/therapist/dashboard/therapist_dashboard_page.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../../core/constants/app_colors.dart';
-import '../../auth/auth_service.dart';
+import 'package:roh_erp/core/constants/app_colors.dart';
+import 'package:roh_erp/core/models/schedule_model.dart';
+import 'package:roh_erp/core/services/schedule_service.dart';
 
 class TherapistDashboardPage extends StatelessWidget {
-  const TherapistDashboardPage({super.key});
+  final Function(int)? onNavigateTab;
+
+  const TherapistDashboardPage({super.key, this.onNavigateTab});
 
   @override
   Widget build(BuildContext context) {
-    final user = context.watch<AuthService>().currentUser;
-    final now = DateTime.now();
-    const dayNames = [
-      'Monday','Tuesday','Wednesday','Thursday',
-      'Friday','Saturday','Sunday'
-    ];
-    final dateStr =
-        '${now.day.toString().padLeft(2,'0')}-'
-        '${now.month.toString().padLeft(2,'0')}-'
-        '${now.year} ${dayNames[now.weekday - 1]}';
+    final scheduleService = context.watch<ScheduleService>();
+    final todaySessions = scheduleService.getSessionsForTherapist('T1');
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // ── Row 1: Welcome + Today's Sessions ──────────────────────────
-          LayoutBuilder(builder: (ctx, constraints) {
-            final isWide = constraints.maxWidth > 600;
-            return isWide
-                ? Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWide = constraints.maxWidth >= 1050;
+
+        final leftColumn = Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Welcome Banner
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                gradient: AppColors.welcomeGradient,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Hi, Therapist !',
+                    style: TextStyle(
+                      fontFamily: 'Poppins',
+                      fontSize: 24,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Welcome back to your therapist panel.',
+                    style: TextStyle(
+                      fontFamily: 'Poppins',
+                      fontSize: 14,
+                      color: Colors.white.withValues(alpha: 0.9),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            // Stats Row (Responsive)
+            LayoutBuilder(
+              builder: (context, statsConstraints) {
+                final isNarrow = statsConstraints.maxWidth < 450;
+                final studentsCard = _buildStatCard(
+                  'Total Students',
+                  '250',
+                  Icons.people_outline,
+                  Colors.pinkAccent,
+                );
+                final sessionsCard = _buildStatCard(
+                  'Todays Sessions',
+                  todaySessions.length.toString(),
+                  Icons.calendar_today_outlined,
+                  AppColors.accentTeal,
+                );
+
+                if (isNarrow) {
+                  return Column(
                     children: [
-                      Expanded(
-                        flex: 5,
-                        child: _WelcomeCard(
-                          name: user?.name ?? 'Therapist',
-                          dateStr: dateStr,
+                      studentsCard,
+                      const SizedBox(height: 12),
+                      sessionsCard,
+                    ],
+                  );
+                }
+
+                return Row(
+                  children: [
+                    Expanded(child: studentsCard),
+                    const SizedBox(width: 16),
+                    Expanded(child: sessionsCard),
+                  ],
+                );
+              },
+            ),
+            const SizedBox(height: 24),
+
+            // Recent Activities Table Container
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.divider),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Tabs
+                  Wrap(
+                    alignment: WrapAlignment.spaceBetween,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 12,
+                    runSpacing: 10,
+                    children: [
+                      const Text(
+                        'Recent Activities',
+                        style: TextStyle(
+                          fontFamily: 'Poppins',
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.textPrimary,
                         ),
                       ),
-                      const SizedBox(width: 20),
-                      const Expanded(flex: 6, child: _TodaysSessionsCard()),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _buildTabButton('Recent IEP Requested', true),
+                          const SizedBox(width: 12),
+                          _buildTabButton('Returned IEP', false),
+                        ],
+                      ),
                     ],
-                  )
-                : Column(children: [
-                    _WelcomeCard(
-                      name: user?.name ?? 'Therapist',
-                      dateStr: dateStr,
-                    ),
-                    const SizedBox(height: 16),
-                    const _TodaysSessionsCard(),
-                  ]);
-          }),
-          const SizedBox(height: 20),
+                  ),
+                  const SizedBox(height: 20),
 
-          // ── Row 2: Total Students + Today's Sessions stats ─────────────
-          Row(
-            children: const [
-              Expanded(
-                child: _StatCard(
-                  label: 'Total Students',
-                  icon: Icons.people_outline,
-                  iconColor: Color(0xFFE91E8C),
-                  iconBg: Color(0xFFFCE4EC),
-                ),
+                  // Horizontally Scrollable Table for Zero Mobile Squishing
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: SizedBox(
+                      width: 700,
+                      child: Column(
+                        children: [
+                          // Table Header
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            decoration: BoxDecoration(
+                              color: AppColors.primary.withValues(alpha: 0.05),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Row(
+                              children: [
+                                Expanded(flex: 2, child: _TableHeaderText('Name')),
+                                Expanded(flex: 2, child: _TableHeaderText('Email Id')),
+                                Expanded(flex: 2, child: _TableHeaderText('Phone')),
+                                Expanded(flex: 1, child: _TableHeaderText('Age')),
+                                Expanded(flex: 2, child: _TableHeaderText('Created Date')),
+                                Expanded(flex: 2, child: _TableHeaderText('Status')),
+                                Expanded(flex: 1, child: _TableHeaderText('Action')),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+
+                          // Table Content
+                          ...List.generate(5, (index) {
+                            return Column(
+                              children: [
+                                _buildTableRow(
+                                  name: 'John Doe',
+                                  email: 'john.doe@example.com',
+                                  phone: '+1 234 567 890',
+                                  age: '12',
+                                  date: '09 Sep 2026',
+                                  status: index % 2 == 0 ? 'Pending' : 'Returned',
+                                ),
+                                if (index < 4) const Divider(color: AppColors.divider),
+                              ],
+                            );
+                          }),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  // Pagination
+                  const SizedBox(height: 16),
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        _buildPaginationBtn('Previous', false),
+                        _buildPaginationBtn('1', true),
+                        _buildPaginationBtn('2', false),
+                        _buildPaginationBtn('3', false),
+                        _buildPaginationBtn('4', false),
+                        _buildPaginationBtn('Next', false),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-              SizedBox(width: 16),
-              Expanded(
-                child: _StatCard(
-                  label: 'Todays Sessions',
-                  icon: Icons.calendar_today_outlined,
-                  iconColor: AppColors.accentTeal,
-                  iconBg: Color(0xFFE0F7FA),
-                ),
+            ),
+          ],
+        );
+
+        final rightColumn = Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.divider),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header
+              Row(
+                children: [
+                  const Icon(Icons.calendar_today_outlined, size: 18, color: AppColors.primary),
+                  const SizedBox(width: 8),
+                  const Text(
+                    "Today's Timetable",
+                    style: TextStyle(
+                      fontFamily: 'Poppins',
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  const Spacer(),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: AppColors.primaryLight,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      '${todaySessions.length} Sessions',
+                      style: const TextStyle(
+                        color: AppColors.primary,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
               ),
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  const Text(
+                    'Director-Assigned Caseload',
+                    style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                  ),
+                  const Spacer(),
+                  if (onNavigateTab != null)
+                    InkWell(
+                      onTap: () => onNavigateTab!(1),
+                      child: const Text(
+                        'Full Schedule →',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 16),
+
+              // Sessions List
+              if (todaySessions.isEmpty)
+                Container(
+                  padding: const EdgeInsets.all(32),
+                  alignment: Alignment.center,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.event_available, size: 36, color: AppColors.textHint),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'No sessions today',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Director has not scheduled any sessions for today yet.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                      ),
+                    ],
+                  ),
+                )
+              else
+                ListView.separated(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: todaySessions.length,
+                  separatorBuilder: (context, index) => const SizedBox(height: 12),
+                  itemBuilder: (context, index) {
+                            final session = todaySessions[index];
+                            final isLive = session.status == SessionStatus.inProgress;
+                            final isDone = session.status == SessionStatus.completed;
+
+                            Color statusColor = isLive
+                                ? const Color(0xFF2E7D32)
+                                : isDone
+                                    ? Colors.grey.shade600
+                                    : AppColors.primary;
+                            Color statusBg = isLive
+                                ? const Color(0xFFE8F5E9)
+                                : isDone
+                                    ? Colors.grey.shade200
+                                    : AppColors.primaryLight;
+                            String statusText = isLive
+                                ? '● LIVE NOW'
+                                : isDone
+                                    ? '✓ Completed'
+                                    : 'Upcoming';
+
+                            return Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: isLive ? const Color(0xFFFAFFFA) : const Color(0xFFFAFAFA),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: isLive ? const Color(0xFF4CAF50) : AppColors.divider,
+                                  width: isLive ? 1.5 : 1,
+                                ),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  // Time & Status Row
+                                  Row(
+                                    children: [
+                                      Icon(Icons.access_time, size: 13, color: statusColor),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        '${session.startTime} - ${session.endTime}',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
+                                          color: statusColor,
+                                        ),
+                                      ),
+                                      const Spacer(),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: statusBg,
+                                          borderRadius: BorderRadius.circular(10),
+                                        ),
+                                        child: Text(
+                                          statusText,
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.bold,
+                                            color: statusColor,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 8),
+
+                                  // Student & Room Row
+                                  Row(
+                                    children: [
+                                      CircleAvatar(
+                                        radius: 14,
+                                        backgroundColor: AppColors.primaryLight,
+                                        child: Text(
+                                          session.studentName.isNotEmpty ? session.studentName[0] : 'S',
+                                          style: const TextStyle(
+                                            color: AppColors.primary,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 11,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              session.studentName,
+                                              style: const TextStyle(
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.bold,
+                                                color: AppColors.textPrimary,
+                                              ),
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                            Text(
+                                              'Age: ${session.studentAge}y • ${session.room}',
+                                              style: const TextStyle(
+                                                fontSize: 11,
+                                                color: AppColors.textSecondary,
+                                              ),
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 8),
+
+                                  // Program Tag
+                                  Container(
+                                    width: double.infinity,
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(6),
+                                      border: Border.all(color: const Color(0xFFEEEEEE)),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        const Icon(Icons.psychology, size: 13, color: AppColors.primary),
+                                        const SizedBox(width: 6),
+                                        Expanded(
+                                          child: Text(
+                                            session.programTitle,
+                                            style: const TextStyle(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w500,
+                                              color: AppColors.textPrimary,
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+
+                                  // Action Buttons Row
+                                  Row(
+                                    children: [
+                                      // Status toggler
+                                      if (session.status == SessionStatus.upcoming)
+                                        InkWell(
+                                          onTap: () => scheduleService.updateSessionStatus(
+                                              session.id, SessionStatus.inProgress),
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                            decoration: BoxDecoration(
+                                              border: Border.all(color: const Color(0xFF4CAF50)),
+                                              borderRadius: BorderRadius.circular(6),
+                                            ),
+                                            child: const Row(
+                                              children: [
+                                                Icon(Icons.play_arrow, size: 12, color: Color(0xFF2E7D32)),
+                                                SizedBox(width: 2),
+                                                Text(
+                                                  'Start',
+                                                  style: TextStyle(
+                                                    fontSize: 11,
+                                                    color: Color(0xFF2E7D32),
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        )
+                                      else if (session.status == SessionStatus.inProgress)
+                                        InkWell(
+                                          onTap: () => scheduleService.updateSessionStatus(
+                                              session.id, SessionStatus.completed),
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFF2E7D32),
+                                              borderRadius: BorderRadius.circular(6),
+                                            ),
+                                            child: const Row(
+                                              children: [
+                                                Icon(Icons.check, size: 12, color: Colors.white),
+                                                SizedBox(width: 2),
+                                                Text(
+                                                  'Complete',
+                                                  style: TextStyle(
+                                                    fontSize: 11,
+                                                    color: Colors.white,
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      const Spacer(),
+
+                                      // Open Data Sheet Button
+                                      InkWell(
+                                        onTap: () {
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            SnackBar(
+                                              content: Text('Opening Daily Data Sheet for ${session.studentName}...'),
+                                              backgroundColor: AppColors.primary,
+                                              duration: const Duration(seconds: 2),
+                                            ),
+                                          );
+                                          if (onNavigateTab != null) {
+                                            onNavigateTab!(9); // Daily Data Sheet
+                                          }
+                                        },
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                          decoration: BoxDecoration(
+                                            color: AppColors.primary,
+                                            borderRadius: BorderRadius.circular(6),
+                                          ),
+                                          child: const Row(
+                                            children: [
+                                              Icon(Icons.edit_note, size: 13, color: Colors.white),
+                                              SizedBox(width: 4),
+                                              Text(
+                                                'Data Sheet',
+                                                style: TextStyle(
+                                                  fontSize: 11,
+                                                  color: Colors.white,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+              ],
+            ),
+          );
+
+        if (isWide) {
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(flex: 7, child: leftColumn),
+              const SizedBox(width: 24),
+              Expanded(flex: 4, child: rightColumn),
+            ],
+          );
+        }
+
+        return SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              leftColumn,
+              const SizedBox(height: 24),
+              rightColumn,
             ],
           ),
-          const SizedBox(height: 28),
-
-          // ── Recent Activities ───────────────────────────────────────────
-          const _RecentActivitiesSection(),
-        ],
-      ),
+        );
+      },
     );
   }
-}
 
-// ── Welcome Card ──────────────────────────────────────────────────────────────
-class _WelcomeCard extends StatelessWidget {
-  final String name;
-  final String dateStr;
-  const _WelcomeCard({required this.name, required this.dateStr});
-
-  @override
-  Widget build(BuildContext context) {
-    // Extract first name for the greeting
-    final firstName = name.split(' ').first;
+  Widget _buildStatCard(String title, String value, IconData icon, Color iconColor) {
     return Container(
-      padding: const EdgeInsets.all(28),
+      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        gradient: AppColors.welcomeGradient,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Hi, $firstName !',
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 24,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 6),
-          const Text(
-            'Welcome back to the work station',
-            style: TextStyle(color: Colors.white70, fontSize: 13),
-          ),
-          const SizedBox(height: 24),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Text(
-              dateStr,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ── Today's Sessions Card ─────────────────────────────────────────────────────
-class _TodaysSessionsCard extends StatelessWidget {
-  const _TodaysSessionsCard();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppColors.cardBg,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.divider),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Todays Sessions',
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-              color: AppColors.textPrimary,
-            ),
-          ),
-          const SizedBox(height: 16),
-          // Empty state – populate from DB
-          const _EmptyState(
-            icon: Icons.event_note_outlined,
-            message: "Today's sessions will appear here\nonce connected to the database.",
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ── Stat Card ─────────────────────────────────────────────────────────────────
-class _StatCard extends StatelessWidget {
-  final String label;
-  final IconData icon;
-  final Color iconColor;
-  final Color iconBg;
-  const _StatCard({
-    required this.label,
-    required this.icon,
-    required this.iconColor,
-    required this.iconBg,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppColors.cardBg,
+        color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.divider),
       ),
       child: Row(
         children: [
           Container(
-            width: 52,
-            height: 52,
+            padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: iconBg,
-              borderRadius: BorderRadius.circular(14),
+              color: iconColor.withValues(alpha: 0.1),
+              shape: BoxShape.circle,
             ),
-            child: Icon(icon, color: iconColor, size: 26),
+            child: Icon(icon, color: iconColor, size: 28),
           ),
-          const SizedBox(width: 14),
+          const SizedBox(width: 16),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                label,
+                title,
                 style: const TextStyle(
-                  fontSize: 12,
-                  color: AppColors.primary,
-                  fontWeight: FontWeight.w500,
+                  fontFamily: 'Poppins',
+                  fontSize: 14,
+                  color: AppColors.textSecondary,
                 ),
               ),
               const SizedBox(height: 4),
-              const Text(
-                '—',
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w700,
+              Text(
+                value,
+                style: const TextStyle(
+                  fontFamily: 'Poppins',
+                  fontSize: 24,
+                  fontWeight: FontWeight.w800,
                   color: AppColors.textPrimary,
                 ),
               ),
@@ -236,282 +614,146 @@ class _StatCard extends StatelessWidget {
       ),
     );
   }
-}
 
-// ── Recent Activities Section ─────────────────────────────────────────────────
-class _RecentActivitiesSection extends StatefulWidget {
-  const _RecentActivitiesSection();
-
-  @override
-  State<_RecentActivitiesSection> createState() =>
-      _RecentActivitiesSectionState();
-}
-
-class _RecentActivitiesSectionState extends State<_RecentActivitiesSection>
-    with SingleTickerProviderStateMixin {
-  late TabController _tabController;
-
-  @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(length: 2, vsync: this);
-  }
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildTabButton(String label, bool isSelected) {
     return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
-        color: AppColors.cardBg,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.divider),
+        color: isSelected ? AppColors.primary : Colors.transparent,
+        borderRadius: BorderRadius.circular(20),
+        border: isSelected ? null : Border.all(color: AppColors.divider),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Padding(
-            padding: EdgeInsets.fromLTRB(20, 20, 20, 0),
-            child: Text(
-              'Recent Activities',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                color: AppColors.textPrimary,
-              ),
-            ),
-          ),
-          TabBar(
-            controller: _tabController,
-            labelColor: AppColors.primary,
-            unselectedLabelColor: AppColors.textSecondary,
-            indicatorColor: AppColors.primary,
-            indicatorSize: TabBarIndicatorSize.label,
-            labelStyle: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            tabs: const [
-              Tab(text: 'Recent IEP Requested'),
-              Tab(text: 'Returned IEP'),
-            ],
-          ),
-          const Divider(height: 1, color: AppColors.divider),
-          SizedBox(
-            height: 380,
-            child: TabBarView(
-              controller: _tabController,
-              children: [
-                _IepTable(),
-                _IepTable(isReturned: true),
-              ],
-            ),
-          ),
-          // ── Pagination ─────────────────────────────────────────────────
-          const _Pagination(),
-        ],
-      ),
-    );
-  }
-}
-
-// ── IEP Table ─────────────────────────────────────────────────────────────────
-class _IepTable extends StatelessWidget {
-  final bool isReturned;
-  const _IepTable({this.isReturned = false});
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(builder: (context, constraints) {
-      final isNarrow = constraints.maxWidth < 500;
-      return Column(
-        children: [
-          // Header
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-            color: const Color(0xFFFAF5FF),
-            child: Row(
-              children: [
-                const Expanded(flex: 3, child: _TH('Name')),
-                if (!isNarrow) const Expanded(flex: 3, child: _TH('Email Id')),
-                if (!isNarrow) const Expanded(flex: 2, child: _TH('Phone')),
-                const Expanded(flex: 1, child: _TH('Age')),
-                if (!isNarrow) const Expanded(flex: 3, child: _TH('Created Date')),
-                const Expanded(flex: 2, child: _TH('Status')),
-                const Expanded(flex: 2, child: _TH('')),
-              ],
-            ),
-          ),
-          const Divider(height: 1, color: AppColors.divider),
-          // Empty state
-          const Expanded(
-            child: Center(
-              child: _EmptyState(
-                icon: Icons.assignment_outlined,
-                message: 'IEP records will appear here\nonce connected to the database.',
-              ),
-            ),
-          ),
-        ],
-      );
-    });
-  }
-}
-
-// ── Pagination ────────────────────────────────────────────────────────────────
-class _Pagination extends StatefulWidget {
-  const _Pagination();
-
-  @override
-  State<_Pagination> createState() => _PaginationState();
-}
-
-class _PaginationState extends State<_Pagination> {
-  int _current = 1;
-  final int _total = 4;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          // Previous
-          _PagButton(
-            label: 'Previous',
-            isText: true,
-            enabled: _current > 1,
-            onTap: () => setState(() => _current--),
-          ),
-          const SizedBox(width: 4),
-          // Page numbers
-          ...List.generate(_total, (i) {
-            final page = i + 1;
-            return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 2),
-              child: _PagButton(
-                label: '$page',
-                isActive: _current == page,
-                onTap: () => setState(() => _current = page),
-              ),
-            );
-          }),
-          const SizedBox(width: 4),
-          // Next
-          _PagButton(
-            label: 'Next',
-            isText: true,
-            enabled: _current < _total,
-            onTap: () => setState(() => _current++),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _PagButton extends StatelessWidget {
-  final String label;
-  final bool isActive;
-  final bool isText;
-  final bool enabled;
-  final VoidCallback? onTap;
-
-  const _PagButton({
-    required this.label,
-    this.isActive = false,
-    this.isText = false,
-    this.enabled = true,
-    this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    if (isText) {
-      return TextButton(
-        onPressed: enabled ? onTap : null,
-        style: TextButton.styleFrom(
-          foregroundColor: AppColors.primary,
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          minimumSize: const Size(0, 32),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontFamily: 'Poppins',
+          fontSize: 13,
+          fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+          color: isSelected ? Colors.white : AppColors.textSecondary,
         ),
-        child: Text(label, style: const TextStyle(fontSize: 13)),
-      );
+      ),
+    );
+  }
+
+  Widget _buildTableRow({
+    required String name,
+    required String email,
+    required String phone,
+    required String age,
+    required String date,
+    required String status,
+  }) {
+    Color statusColor;
+    Color statusBg;
+    if (status == 'Pending') {
+      statusColor = AppColors.statusPending;
+      statusBg = AppColors.statusPendingBg;
+    } else if (status == 'Approved') {
+      statusColor = AppColors.statusActive;
+      statusBg = AppColors.statusActiveBg;
+    } else {
+      statusColor = AppColors.statusDeactivated;
+      statusBg = AppColors.statusDeactivatedBg;
     }
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 32,
-        height: 32,
-        decoration: BoxDecoration(
-          color: isActive ? AppColors.primary : Colors.transparent,
-          borderRadius: BorderRadius.circular(6),
-          border: isActive ? null : Border.all(color: AppColors.divider),
-        ),
-        child: Center(
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-              color: isActive ? Colors.white : AppColors.textSecondary,
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(
+        children: [
+          Expanded(flex: 2, child: Text(name, style: _rowTextStyle())),
+          Expanded(flex: 2, child: Text(email, style: _rowTextStyle())),
+          Expanded(flex: 2, child: Text(phone, style: _rowTextStyle())),
+          Expanded(flex: 1, child: Text(age, style: _rowTextStyle())),
+          Expanded(flex: 2, child: Text(date, style: _rowTextStyle())),
+          Expanded(
+            flex: 2,
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                decoration: BoxDecoration(
+                  color: statusBg,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  status,
+                  style: TextStyle(
+                    fontFamily: 'Poppins',
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: statusColor,
+                  ),
+                ),
+              ),
             ),
           ),
+          Expanded(
+            flex: 1,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: AppColors.primary,
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: const Text(
+                'View',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontFamily: 'Poppins',
+                  fontSize: 12,
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  TextStyle _rowTextStyle() {
+    return const TextStyle(
+      fontFamily: 'Poppins',
+      fontSize: 13,
+      color: AppColors.textPrimary,
+    );
+  }
+
+  Widget _buildPaginationBtn(String text, bool isSelected) {
+    return Container(
+      margin: const EdgeInsets.only(left: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: isSelected ? AppColors.primary : Colors.white,
+        border: Border.all(color: isSelected ? AppColors.primary : AppColors.divider),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontFamily: 'Poppins',
+          fontSize: 12,
+          color: isSelected ? Colors.white : AppColors.textSecondary,
         ),
       ),
     );
   }
 }
 
-// ── Table Header Cell ─────────────────────────────────────────────────────────
-class _TH extends StatelessWidget {
+class _TableHeaderText extends StatelessWidget {
   final String text;
-  const _TH(this.text);
+  const _TableHeaderText(this.text);
 
   @override
   Widget build(BuildContext context) {
     return Text(
       text,
       style: const TextStyle(
-        fontSize: 12,
+        fontFamily: 'Poppins',
+        fontSize: 13,
         fontWeight: FontWeight.w600,
         color: AppColors.tableHeaderText,
-      ),
-    );
-  }
-}
-
-// ── Empty State ───────────────────────────────────────────────────────────────
-class _EmptyState extends StatelessWidget {
-  final IconData icon;
-  final String message;
-  const _EmptyState({required this.icon, required this.message});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 36, color: AppColors.textHint),
-          const SizedBox(height: 10),
-          Text(
-            message,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontSize: 13,
-              color: AppColors.textHint,
-              height: 1.5,
-            ),
-          ),
-        ],
       ),
     );
   }

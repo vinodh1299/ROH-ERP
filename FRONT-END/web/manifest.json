@@ -1,11 +1,11 @@
 {
-    "name": "roh_erp",
-    "short_name": "roh_erp",
+    "name": "Ray of Hope Center for Autism ERP",
+    "short_name": "ROH ERP",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#7B2FBE",
+    "theme_color": "#7B2FBE",
+    "description": "Ray of Hope Center for Autism - Clinical ERP, VB-MAPP Assessment & Therapy Scheduling Platform",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

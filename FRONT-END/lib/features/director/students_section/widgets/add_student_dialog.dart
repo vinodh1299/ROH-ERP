@@ -9,7 +9,7 @@
 // header, tab bar, and Previous/Next/Submit footer logic.
 
 import 'package:flutter/material.dart';
-import '../../../../core/constants/app_colors.dart';
+import 'package:roh_erp/core/constants/app_colors.dart';
 import '../../../../core/services/db_queries.dart';
 import 'student_info_tab.dart';
 import 'medication_history_tab.dart';

@@ -1,86 +1,49 @@
 // lib/features/parent/graphs/graphs_page.dart
 import 'package:flutter/material.dart';
-import '../../../core/constants/app_colors.dart';
+import 'package:roh_erp/core/constants/app_colors.dart';
 
-class GraphsPage extends StatefulWidget {
+class GraphsPage extends StatelessWidget {
   const GraphsPage({super.key});
-
-  @override
-  State<GraphsPage> createState() => _GraphsPageState();
-}
-
-class _GraphsPageState extends State<GraphsPage> {
-  String _selectedMetric = 'Skill Acquisition Accuracy (%)';
-
-  final List<double> _monthlyData = [45, 52, 60, 68, 75, 83];
-  final List<String> _months = ['Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep'];
 
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(24.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Banner
+          // Header Banner
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFF2E7D32), Color(0xFF4CAF50)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
+              gradient: AppColors.welcomeGradient,
               borderRadius: BorderRadius.circular(16),
             ),
-            child: Row(
+            child: const Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(Icons.show_chart, color: Colors.white, size: 28),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: const [
-                      Text('Noah\'s Progress & Skill Acquisition Trends', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-                      SizedBox(height: 2),
-                      Text('Visual trends generated from daily trial data', style: TextStyle(color: Colors.white70, fontSize: 12)),
-                    ],
+                Text(
+                  'Clinical Performance & Skill Acquisition Graphs',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                    fontFamily: 'Poppins',
                   ),
                 ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
-                  child: const Text('6-Month Trend: +38%', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF2E7D32))),
+                SizedBox(height: 6),
+                Text(
+                  'Cumulative learning trends, prompt fading progression, and behavior deceleration curves',
+                  style: TextStyle(fontSize: 13, color: Colors.white70),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 24),
 
-          // Metric selector
+          // Monthly Target Acquisition Bar Chart Card
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10), border: Border.all(color: AppColors.divider)),
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<String>(
-                value: _selectedMetric,
-                isExpanded: true,
-                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
-                items: [
-                  'Skill Acquisition Accuracy (%)',
-                  'Daily Manding Request Frequency',
-                  'Behavior Disruption Reduction (Incidents/Wk)',
-                  'Prompt Level Independence Score',
-                ].map((m) => DropdownMenuItem(value: m, child: Text(m))).toList(),
-                onChanged: (v) => setState(() => _selectedMetric = v!),
-              ),
-            ),
-          ),
-          const SizedBox(height: 20),
-
-          // Visual Bar / Trend Graph Card
-          Container(
-            padding: const EdgeInsets.all(24),
+            padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(16),
@@ -89,43 +52,167 @@ class _GraphsPageState extends State<GraphsPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(_selectedMetric, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-                const SizedBox(height: 20),
-                SizedBox(
-                  height: 220,
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: List.generate(_monthlyData.length, (index) {
-                      final val = _monthlyData[index];
-                      return Expanded(
-                        child: Column(
+                Row(
+                  children: [
+                    const Icon(Icons.show_chart, color: AppColors.primary, size: 20),
+                    const SizedBox(width: 8),
+                    const Text(
+                      'Cumulative Targets Mastered (Last 6 Months)',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                    ),
+                    const Spacer(),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE8F5E9),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Text(
+                        '+24% Velocity',
+                        style: TextStyle(color: Color(0xFF2E7D32), fontSize: 11, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'Verified under BACB mastery criteria (80% accuracy over 3 consecutive sessions across 2 therapists)',
+                  style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                ),
+                const SizedBox(height: 24),
+
+                // Stylized Visual Bar Chart
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final months = [
+                      {'m': 'Apr', 'v': 14, 'pct': 0.35},
+                      {'m': 'May', 'v': 20, 'pct': 0.50},
+                      {'m': 'Jun', 'v': 26, 'pct': 0.65},
+                      {'m': 'Jul', 'v': 31, 'pct': 0.77},
+                      {'m': 'Aug', 'v': 38, 'pct': 0.90},
+                      {'m': 'Sep (Current)', 'v': 42, 'pct': 1.0},
+                    ];
+
+                    return Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: months.map((data) {
+                        final val = data['v'] as int;
+                        final pct = data['pct'] as double;
+                        final monthName = data['m'] as String;
+                        final isCurrent = monthName.contains('Sep');
+
+                        return Column(
                           mainAxisAlignment: MainAxisAlignment.end,
                           children: [
-                            Text('${val.toInt()}%', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF2E7D32))),
-                            const SizedBox(height: 6),
-                            FractionallySizedBox(
-                              heightFactor: val / 100,
-                              child: Container(
-                                margin: const EdgeInsets.symmetric(horizontal: 12),
-                                decoration: BoxDecoration(
-                                  gradient: const LinearGradient(colors: [Color(0xFF4CAF50), Color(0xFF81C784)], begin: Alignment.bottomCenter, end: Alignment.topCenter),
-                                  borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
-                                ),
+                            Text(
+                              '$val',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: isCurrent ? AppColors.primary : AppColors.textPrimary,
                               ),
                             ),
                             const SizedBox(height: 8),
-                            Text(_months[index], style: const TextStyle(fontSize: 12, color: AppColors.textSecondary, fontWeight: FontWeight.w600)),
+                            Container(
+                              width: constraints.maxWidth > 500 ? 44 : 28,
+                              height: 160 * pct,
+                              decoration: BoxDecoration(
+                                gradient: isCurrent
+                                    ? AppColors.welcomeGradient
+                                    : LinearGradient(
+                                        colors: [AppColors.primaryLight, AppColors.primary.withValues(alpha: 0.4)],
+                                        begin: Alignment.topCenter,
+                                        end: Alignment.bottomCenter,
+                                      ),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            Text(
+                              monthName,
+                              style: TextStyle(
+                                fontSize: constraints.maxWidth > 500 ? 12 : 10,
+                                color: isCurrent ? AppColors.primary : AppColors.textSecondary,
+                                fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
+                              ),
+                            ),
                           ],
-                        ),
-                      );
-                    }),
-                  ),
+                        );
+                      }).toList(),
+                    );
+                  },
                 ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // Prompt Level Breakdown Card
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppColors.divider),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Row(
+                  children: [
+                    Icon(Icons.auto_awesome_motion, color: AppColors.primary, size: 20),
+                    SizedBox(width: 8),
+                    Text(
+                      'Prompt Fading Hierarchy & Independence Level',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'Distribution of prompting needed across all daily trials during September sessions',
+                  style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                ),
+                const SizedBox(height: 20),
+
+                _buildPromptLevelRow('Independent (Unprompted)', 0.62, '62% of trials', Colors.green),
+                const SizedBox(height: 12),
+                _buildPromptLevelRow('Gestural / Point Prompt', 0.22, '22% of trials', Colors.blue),
+                const SizedBox(height: 12),
+                _buildPromptLevelRow('Verbal / Phonemic Prompt', 0.11, '11% of trials', Colors.orange),
+                const SizedBox(height: 12),
+                _buildPromptLevelRow('Physical Guidance Prompt', 0.05, '5% of trials', Colors.redAccent),
               ],
             ),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildPromptLevelRow(String label, double ratio, String percentageText, Color color) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+            Text(percentageText, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color)),
+          ],
+        ),
+        const SizedBox(height: 6),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(6),
+          child: LinearProgressIndicator(
+            value: ratio,
+            backgroundColor: const Color(0xFFEEEEEE),
+            valueColor: AlwaysStoppedAnimation<Color>(color),
+            minHeight: 10,
+          ),
+        ),
+      ],
     );
   }
 }

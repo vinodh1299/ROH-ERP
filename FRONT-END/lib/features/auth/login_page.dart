@@ -1,8 +1,8 @@
 // lib/features/auth/login_page.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../core/constants/app_colors.dart';
-import '../../core/constants/app_constants.dart';
+import 'package:roh_erp/core/constants/app_colors.dart';
+import 'package:roh_erp/core/constants/app_constants.dart';
 import 'auth_service.dart';
 
 class LoginPage extends StatefulWidget {
@@ -58,7 +58,6 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
-    final isLoading = context.watch<AuthService>().isLoading;
     final size = MediaQuery.of(context).size;
     final isWide = size.width > 800;
 
@@ -131,18 +130,18 @@ class _LoginPageState extends State<LoginPage> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // Title
-          Text(
+          const Text(
             'Welcome Back',
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 28,
               fontWeight: FontWeight.w700,
               color: AppColors.textPrimary,
             ),
           ),
           const SizedBox(height: 6),
-          Text(
+          const Text(
             'Sign in to continue to ${AppConstants.appShortName} ERP',
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 14,
               color: AppColors.textSecondary,
             ),
@@ -227,7 +226,13 @@ class _LoginPageState extends State<LoginPage> {
           const SizedBox(height: 32),
 
           // Demo credentials hint
-          const _DemoCredentials(),
+          _DemoCredentials(
+            onSelect: (email, pass) {
+              _emailCtrl.text = email;
+              _passCtrl.text = pass;
+              _handleLogin();
+            },
+          ),
         ],
       ),
     );
@@ -250,7 +255,7 @@ class _BrandingPanel extends StatelessWidget {
           width: compact ? 64 : 80,
           height: compact ? 64 : 80,
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.2),
+            color: Colors.white.withValues(alpha: 0.2),
             borderRadius: BorderRadius.circular(20),
           ),
           child: Center(
@@ -271,120 +276,104 @@ class _BrandingPanel extends StatelessWidget {
           textAlign: TextAlign.center,
           style: TextStyle(
             color: Colors.white,
-            fontSize: compact ? 18 : 24,
-            fontWeight: FontWeight.w700,
-            height: 1.3,
+            fontSize: compact ? 16 : 22,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0.5,
           ),
         ),
-        SizedBox(height: compact ? 8 : 16),
-        if (!compact) ...[
-          const SizedBox(height: 8),
-          Text(
-            'Comprehensive ERP for managing\ntherapists, students, and families.',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.8),
-              fontSize: 14,
-              height: 1.6,
-            ),
+        const SizedBox(height: 10),
+        Text(
+          'Clinical Care & Enterprise Resource Planning',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: Colors.white.withValues(alpha: 0.8),
+            fontSize: compact ? 12 : 14,
           ),
-          const SizedBox(height: 48),
-          // Feature pills
-          Wrap(
-            alignment: WrapAlignment.center,
-            spacing: 8,
-            runSpacing: 8,
-            children: const [
-              _FeaturePill(icon: Icons.people_outline, label: 'Students'),
-              _FeaturePill(icon: Icons.medical_services_outlined, label: 'Therapists'),
-              _FeaturePill(icon: Icons.family_restroom, label: 'Parents'),
-              _FeaturePill(icon: Icons.assessment_outlined, label: 'IEP Reports'),
-            ],
-          ),
-        ],
+        ),
       ],
     );
   }
 }
 
-class _FeaturePill extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  const _FeaturePill({required this.icon, required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.15),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withOpacity(0.3)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, color: Colors.white, size: 16),
-          const SizedBox(width: 6),
-          Text(label,
-              style: const TextStyle(color: Colors.white, fontSize: 13)),
-        ],
-      ),
-    );
-  }
-}
-
-// ── Demo credentials card ─────────────────────────────────────────────────────
+// ── Demo credentials hint ─────────────────────────────────────────────────────
 class _DemoCredentials extends StatelessWidget {
-  const _DemoCredentials();
+  final void Function(String email, String password)? onSelect;
+  const _DemoCredentials({this.onSelect});
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.primary.withOpacity(0.05),
+        color: AppColors.primary.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.primary.withOpacity(0.2)),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: const [
-              Icon(Icons.info_outline, size: 14, color: AppColors.primary),
+          const Row(
+            children: [
+              Icon(Icons.bolt, size: 16, color: AppColors.primary),
               SizedBox(width: 6),
-              Text('Demo Credentials (Testing Mode)',
+              Text('One-Click Demo Sign In (Quick Testing)',
                   style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
                       color: AppColors.primary)),
             ],
           ),
-          const SizedBox(height: 8),
-          const _CredRow('Admin', AppConstants.adminEmail, AppConstants.adminPassword),
-          const _CredRow('Director', AppConstants.directorEmail, AppConstants.directorPassword),
-          const _CredRow('Therapist', AppConstants.therapistEmail, AppConstants.therapistPassword),
-          const _CredRow('Parent', AppConstants.parentEmail, AppConstants.parentPassword),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _CredPill('Admin', AppConstants.adminEmail, AppConstants.adminPassword, onSelect),
+              _CredPill('Director', AppConstants.directorEmail, AppConstants.directorPassword, onSelect),
+              _CredPill('Therapist', AppConstants.therapistEmail, AppConstants.therapistPassword, onSelect),
+              _CredPill('Parent', AppConstants.parentEmail, AppConstants.parentPassword, onSelect),
+            ],
+          ),
         ],
       ),
     );
   }
 }
 
-class _CredRow extends StatelessWidget {
+class _CredPill extends StatelessWidget {
   final String role;
   final String email;
   final String pass;
-  const _CredRow(this.role, this.email, this.pass);
+  final void Function(String email, String password)? onSelect;
+  const _CredPill(this.role, this.email, this.pass, this.onSelect);
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 4),
-      child: Text(
-        '$role: $email / $pass',
-        style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+    return InkWell(
+      onTap: () => onSelect?.call(email, pass),
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 8,
+              height: 8,
+              decoration: const BoxDecoration(color: AppColors.primary, shape: BoxShape.circle),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              role,
+              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.primary),
+            ),
+          ],
+        ),
       ),
     );
   }

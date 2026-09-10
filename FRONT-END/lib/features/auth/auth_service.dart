@@ -1,7 +1,7 @@
 // lib/features/auth/auth_service.dart
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../../core/constants/app_constants.dart';
+import 'package:roh_erp/core/constants/app_constants.dart';
 import '../../core/models/user_model.dart';
 import '../../core/services/api_service.dart';
 

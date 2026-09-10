@@ -1,6 +1,6 @@
 // lib/features/director/students_section/widgets/medication_history_tab.dart
 import 'package:flutter/material.dart';
-import '../../../../core/constants/app_colors.dart';
+import 'package:roh_erp/core/constants/app_colors.dart';
 import '../../../../core/services/db_queries.dart';
 
 class MedicationHistoryTab extends StatefulWidget {
@@ -104,8 +104,8 @@ class MedicationHistoryTabState extends State<MedicationHistoryTab> {
                     color: Color(0xFFFAF5FF),
                     borderRadius: BorderRadius.vertical(top: Radius.circular(10)),
                   ),
-                  child: Row(
-                    children: const [
+                  child: const Row(
+                    children: [
                       Expanded(flex: 5, child: Text('Medication', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.primary))),
                       Expanded(flex: 5, child: Text('Used For', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.primary))),
                       SizedBox(width: 32),

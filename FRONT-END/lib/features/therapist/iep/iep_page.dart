@@ -1,265 +1,333 @@
-// lib/features/therapist/iep/iep_page.dart
 import 'package:flutter/material.dart';
-import '../../../core/constants/app_colors.dart';
+import 'package:roh_erp/core/constants/app_colors.dart';
+import 'package:roh_erp/core/constants/app_images.dart';
+import '../widgets/student_card_grid.dart';
 
-class TherapistIepPage extends StatefulWidget {
-  const TherapistIepPage({super.key});
+class IepPage extends StatefulWidget {
+  const IepPage({super.key});
 
   @override
-  State<TherapistIepPage> createState() => _TherapistIepPageState();
+  State<IepPage> createState() => _IepPageState();
 }
 
-class _TherapistIepPageState extends State<TherapistIepPage> {
-  String _selectedStudent = 'Aarav Patel (Age: 8)';
-  String _selectedDomain = 'All Domains';
+class _IepPageState extends State<IepPage> {
+  String? _selectedStudent = 'Alex Thomas Sam';
 
-  final List<Map<String, dynamic>> _goals = [
+  final List<Map<String, dynamic>> _mandingGoals = [
     {
-      'domain': 'Language & Communication',
-      'goal': 'Student will independently mand for 10 items/activities using 2-word phrases across 3 settings.',
-      'baseline': '20%',
-      'target': '85%',
-      'current': '72%',
-      'status': 'In Progress',
-      'dueDate': '2026-10-15',
+      'label': 'A',
+      'goal': 'Rithvik will mands for 20 different items missing without prompts (example: if child likes juice and drinks it with a straw, give him juice box without a straw and test if he mands for straw) as measured by 3 consecutive first trial probes within 6 months.',
+      'baseline': 'Rithvik will emit or request 11 different mands without any prompts and doesn\'t emit any mands for missing different items independently.',
     },
     {
-      'domain': 'Behavioral Reduction',
-      'goal': 'Decrease aggressive behavior during transitions to less than 2 incidents per week.',
-      'baseline': '8/week',
-      'target': '< 2/week',
-      'current': '3/week',
-      'status': 'In Progress',
-      'dueDate': '2026-11-01',
-    },
-    {
-      'domain': 'Social Interaction',
-      'goal': 'Initiate peer interaction during structured play sessions for 5 consecutive minutes.',
-      'baseline': '1 min',
-      'target': '5 mins',
-      'current': '4 mins',
-      'status': 'Near Mastered',
-      'dueDate': '2026-09-30',
-    },
-    {
-      'domain': 'Fine & Gross Motor',
-      'goal': 'Imitate 3-step gross motor action sequences upon first request.',
-      'baseline': '40%',
-      'target': '90%',
-      'current': '90%',
-      'status': 'Mastered',
-      'dueDate': '2026-08-20',
+      'label': 'B',
+      'goal': 'Rithvik will mands for 20 different items missing without prompts (example: if child likes juice and drinks it with a straw, give him juice box without a straw and test if he mands for straw) as measured by 3 consecutive first trial probes within 6 months.',
+      'baseline': 'Rithvik will emit or request 11 different mands without any prompts and doesn\'t emit any mands for missing different items independently.',
     },
   ];
 
+  final List<Map<String, dynamic>> _tactingGoals = [
+    {
+      'label': 'A',
+      'goal': 'Rithvik will mands for 20 different items missing without prompts (example: if child likes juice and drinks it with a straw, give him juice box without a straw and test if he mands for straw) as measured by 3 consecutive first trial probes within 6 months.',
+      'baseline': 'Rithvik will emit or request 11 different mands without any prompts and doesn\'t emit any mands for missing different items independently.',
+    },
+  ];
+
+  void _showAddItemDialog() {
+    final textController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: Container(
+          width: 440,
+          padding: const EdgeInsets.all(28),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFF8B25C6), Color(0xFFBA43DF)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.2),
+                blurRadius: 16,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Add Item',
+                style: TextStyle(
+                  fontFamily: 'Poppins',
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                  decoration: TextDecoration.underline,
+                  decorationColor: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 24),
+              const Text(
+                'Item Name',
+                style: TextStyle(color: Colors.white, fontSize: 13, fontFamily: 'Poppins'),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: TextField(
+                  controller: textController,
+                  decoration: const InputDecoration(
+                    hintText: 'enter item name',
+                    hintStyle: TextStyle(color: Color(0xFF9CA3AF), fontSize: 13),
+                    border: InputBorder.none,
+                    contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 28),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  OutlinedButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: Colors.white),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                    ),
+                    child: const Text('Cancel', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  ),
+                  const SizedBox(width: 12),
+                  ElevatedButton(
+                    onPressed: () {
+                      if (textController.text.trim().isNotEmpty) {
+                        setState(() {
+                          _mandingGoals.add({
+                            'label': String.fromCharCode(65 + _mandingGoals.length),
+                            'goal': textController.text.trim(),
+                            'baseline': 'Baseline assessment in progress.',
+                          });
+                        });
+                      }
+                      Navigator.pop(context);
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF6B21A8),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+                    ),
+                    child: const Text('Submit', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final filteredGoals = _selectedDomain == 'All Domains'
-        ? _goals
-        : _goals.where((g) => g['domain'] == _selectedDomain).toList();
+    if (_selectedStudent == null) {
+      return StudentCardGrid(
+        title: 'Students Individualized Education Plan (IEP)',
+        buttonLabel: 'Add',
+        onStudentAction: (student) {
+          setState(() {
+            _selectedStudent = student;
+          });
+        },
+      );
+    }
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header Banner
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFF3F51B5), Color(0xFF5C6BC0)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.assignment_turned_in_outlined, color: Colors.white, size: 28),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Individualized Education Program (IEP) & Reports',
-                        style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-                      ),
-                      const SizedBox(height: 2),
-                      Text('Student: $_selectedStudent', style: const TextStyle(color: Colors.white70, fontSize: 12)),
-                    ],
-                  ),
-                ),
-                ElevatedButton.icon(
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Generating IEP Summary PDF Report...')),
-                    );
-                  },
-                  icon: const Icon(Icons.picture_as_pdf, size: 16),
-                  label: const Text('Export IEP Report'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.white,
-                    foregroundColor: const Color(0xFF3F51B5),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 20),
-
-          // Filters Row
+          // Header Row
           Row(
             children: [
-              // Student selector
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: AppColors.divider),
-                  ),
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton<String>(
-                      value: _selectedStudent,
-                      isExpanded: true,
-                      style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w600),
-                      items: ['Aarav Patel (Age: 8)', 'Emma Watson (Age: 7)', 'Rahul Sharma (Age: 9)']
-                          .map((s) => DropdownMenuItem(value: s, child: Text(s)))
-                          .toList(),
-                      onChanged: (v) => setState(() => _selectedStudent = v!),
-                    ),
-                  ),
-                ),
+              IconButton(
+                icon: const Icon(Icons.arrow_back, color: AppColors.primary),
+                onPressed: () => setState(() => _selectedStudent = null),
+                tooltip: 'Back to students',
               ),
-              const SizedBox(width: 12),
-              // Domain filter
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: AppColors.divider),
-                  ),
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton<String>(
-                      value: _selectedDomain,
-                      isExpanded: true,
-                      style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w600),
-                      items: ['All Domains', 'Language & Communication', 'Behavioral Reduction', 'Social Interaction', 'Fine & Gross Motor']
-                          .map((d) => DropdownMenuItem(value: d, child: Text(d)))
-                          .toList(),
-                      onChanged: (v) => setState(() => _selectedDomain = v!),
-                    ),
-                  ),
+              const SizedBox(width: 8),
+              const Text(
+                'Students Individualized Education Plan (IEP)',
+                style: TextStyle(
+                  fontFamily: 'Poppins',
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary,
                 ),
               ),
             ],
           ),
           const SizedBox(height: 20),
 
-          // Goals Summary Cards
-          Row(
-            children: [
-              _buildMetricTile('Total Goals', '${_goals.length}', Colors.blue),
-              const SizedBox(width: 12),
-              _buildMetricTile('In Progress', '2', Colors.orange),
-              const SizedBox(width: 12),
-              _buildMetricTile('Mastered', '1', Colors.green),
-              const SizedBox(width: 12),
-              _buildMetricTile('Target Completion', '82%', Colors.purple),
-            ],
-          ),
-          const SizedBox(height: 20),
+          // Student IEP Header Banner
+          _buildIepHeaderBanner(),
+          const SizedBox(height: 16),
 
-          // Goal List Section
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.divider),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+          // '+ Add' Action Link
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              InkWell(
+                onTap: _showAddItemDialog,
+                child: const Row(
                   children: [
-                    const Text('IEP Active Target Goals', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-                    const Spacer(),
-                    OutlinedButton.icon(
-                      onPressed: () => _showAddGoalDialog(context),
-                      icon: const Icon(Icons.add, size: 16),
-                      label: const Text('Add IEP Goal'),
+                    Icon(Icons.add, size: 18, color: AppColors.primary),
+                    SizedBox(width: 4),
+                    Text(
+                      'Add',
+                      style: TextStyle(
+                        fontFamily: 'Poppins',
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.primary,
+                      ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 16),
-                ListView.separated(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: filteredGoals.length,
-                  separatorBuilder: (_, __) => const Divider(height: 24),
-                  itemBuilder: (ctx, index) {
-                    final goal = filteredGoals[index];
-                    Color statusColor = Colors.orange;
-                    if (goal['status'] == 'Mastered') statusColor = Colors.green;
-                    else if (goal['status'] == 'Near Mastered') statusColor = Colors.blue;
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
 
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: AppColors.primary.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Text(
-                                goal['domain'],
-                                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.primary),
-                              ),
-                            ),
-                            const Spacer(),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: statusColor.withOpacity(0.12),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Text(
-                                goal['status'],
-                                style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: statusColor),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Text(goal['goal'], style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
-                        const SizedBox(height: 12),
-                        Row(
-                          children: [
-                            Text('Baseline: ${goal['baseline']}', style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-                            const SizedBox(width: 20),
-                            Text('Current: ${goal['current']}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-                            const SizedBox(width: 20),
-                            Text('Target: ${goal['target']}', style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-                            const Spacer(),
-                            const Icon(Icons.calendar_today, size: 13, color: AppColors.textSecondary),
-                            const SizedBox(width: 4),
-                            Text('Due: ${goal['dueDate']}', style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-                          ],
-                        ),
-                      ],
-                    );
-                  },
+          // 1. MANDING Section
+          _buildGoalSection('1. MANDING', _mandingGoals),
+          const SizedBox(height: 24),
+
+          // 2. TACTING Section
+          _buildGoalSection('2. TACTING', _tactingGoals),
+          const SizedBox(height: 24),
+
+          // Save & Cancel Row
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              OutlinedButton(
+                onPressed: () => setState(() => _selectedStudent = null),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: AppColors.primary),
+                  padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 ),
+                child: const Text('Cancel', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold)),
+              ),
+              const SizedBox(width: 16),
+              ElevatedButton(
+                onPressed: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Student IEP Saved Successfully!')),
+                  );
+                  setState(() => _selectedStudent = null);
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+                child: const Text('Save', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 40),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildIepHeaderBanner() {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF8B25C6), Color(0xFFBA43DF)],
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+        ),
+        borderRadius: BorderRadius.circular(24),
+      ),
+      padding: const EdgeInsets.all(20),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          // Photo
+          AppImages.studentAvatar(
+            width: 80,
+            height: 80,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          const SizedBox(width: 20),
+
+          // Name and Info
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                _selectedStudent ?? 'Alex Thomas Sam',
+                style: const TextStyle(
+                  fontFamily: 'Poppins',
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Date of Birth : 16-02-2020',
+                style: TextStyle(fontSize: 12, color: Colors.white),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Age : 13',
+                style: TextStyle(fontSize: 12, color: Colors.white),
+              ),
+            ],
+          ),
+          const Spacer(),
+
+          // Assessment Dates Dark Box
+          Container(
+            width: 320,
+            decoration: BoxDecoration(
+              color: const Color(0xFF1E1035).withValues(alpha: 0.85),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            padding: const EdgeInsets.all(12),
+            child: const Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Text(
+                    'ASSESSMENT DATE',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ),
+                Divider(color: Colors.white24, height: 12),
+                _DateRow('1st Progress Report:', '23/8/2024'),
+                _DateRow('2nd Progress Report:', '4/10/2024'),
+                _DateRow('3rd Progress Report:', '15/11/2024'),
+                _DateRow('4th Progress Report:', '27/12/2024'),
               ],
             ),
           ),
@@ -268,59 +336,118 @@ class _TherapistIepPageState extends State<TherapistIepPage> {
     );
   }
 
-  Widget _buildMetricTile(String label, String value, Color color) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.divider),
-        ),
-        child: Column(
-          children: [
-            Text(value, style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: color)),
-            const SizedBox(height: 4),
-            Text(label, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary, fontWeight: FontWeight.w500)),
+  Widget _buildGoalSection(String title, List<Map<String, dynamic>> goals) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: const Color(0xFFE5E7EB).withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              fontFamily: 'Poppins',
+              color: AppColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 16),
+          for (final item in goals) ...[
+            _buildGoalCard(item['label'] as String, item['goal'] as String, item['baseline'] as String),
+            const SizedBox(height: 16),
           ],
-        ),
+        ],
       ),
     );
   }
 
-  void _showAddGoalDialog(BuildContext context) {
-    final goalCtrl = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Add New IEP Goal'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(controller: goalCtrl, decoration: const InputDecoration(labelText: 'Goal Description', hintText: 'Enter goal target...')),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-          ElevatedButton(
-            onPressed: () {
-              if (goalCtrl.text.isNotEmpty) {
-                setState(() {
-                  _goals.add({
-                    'domain': 'Language & Communication',
-                    'goal': goalCtrl.text,
-                    'baseline': '0%',
-                    'target': '80%',
-                    'current': '10%',
-                    'status': 'In Progress',
-                    'dueDate': '2026-12-31',
-                  });
-                });
-              }
-              Navigator.pop(ctx);
-            },
-            child: const Text('Add Goal'),
+  Widget _buildGoalCard(String label, String goal, String baseline) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Target Goal Box
+        Container(
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: AppColors.divider),
           ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: const BoxDecoration(
+                  color: Color(0xFFBA43DF),
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(8),
+                    bottomRight: Radius.circular(8),
+                  ),
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  label,
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                ),
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Text(
+                    goal,
+                    style: const TextStyle(fontSize: 12, color: AppColors.textPrimary, height: 1.4),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 6),
+        const Text(
+          'BASELINE',
+          style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.textSecondary),
+        ),
+        const SizedBox(height: 4),
+        // Baseline Box
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: AppColors.divider),
+          ),
+          child: Text(
+            baseline,
+            style: const TextStyle(fontSize: 12, color: AppColors.textPrimary),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _DateRow extends StatelessWidget {
+  final String title;
+  final String date;
+  const _DateRow(this.title, this.date);
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(title, style: const TextStyle(color: Colors.white70, fontSize: 11)),
+          Text(date, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600)),
         ],
       ),
     );

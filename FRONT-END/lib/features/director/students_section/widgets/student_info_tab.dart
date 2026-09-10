@@ -1,6 +1,6 @@
 // lib/features/director/students_section/widgets/student_info_tab.dart
 import 'package:flutter/material.dart';
-import '../../../../core/constants/app_colors.dart';
+import 'package:roh_erp/core/constants/app_colors.dart';
 
 class StudentInfoTab extends StatefulWidget {
   const StudentInfoTab({super.key});

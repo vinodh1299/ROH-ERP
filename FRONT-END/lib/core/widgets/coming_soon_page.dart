@@ -17,7 +17,7 @@ class ComingSoonPage extends StatelessWidget {
             width: 80,
             height: 80,
             decoration: BoxDecoration(
-              color: AppColors.primary.withOpacity(0.1),
+              color: AppColors.primary.withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
             child: Icon(icon, size: 40, color: AppColors.primary),
@@ -42,9 +42,9 @@ class ComingSoonPage extends StatelessWidget {
               color: AppColors.statusPendingBg,
               borderRadius: BorderRadius.circular(20),
             ),
-            child: Row(
+            child: const Row(
               mainAxisSize: MainAxisSize.min,
-              children: const [
+              children: [
                 Icon(Icons.construction_outlined,
                     size: 14, color: AppColors.statusPending),
                 SizedBox(width: 6),

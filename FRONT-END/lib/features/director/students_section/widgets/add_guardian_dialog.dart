@@ -1,6 +1,6 @@
 // lib/features/director/students_section/widgets/add_guardian_dialog.dart
 import 'package:flutter/material.dart';
-import '../../../../core/constants/app_colors.dart';
+import 'package:roh_erp/core/constants/app_colors.dart';
 
 class AddGuardianDialog extends StatefulWidget {
   final void Function(Map<String, String> data) onSubmit;
@@ -77,7 +77,7 @@ class _AddGuardianDialogState extends State<AddGuardianDialog> {
                 margin: const EdgeInsets.fromLTRB(10, 4, 10, 10),
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.95),
+                  color: Colors.white.withValues(alpha: 0.95),
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: Form(

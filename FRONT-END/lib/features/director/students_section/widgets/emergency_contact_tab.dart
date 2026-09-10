@@ -1,6 +1,6 @@
 // lib/features/director/students_section/widgets/emergency_contact_tab.dart
 import 'package:flutter/material.dart';
-import '../../../../core/constants/app_colors.dart';
+import 'package:roh_erp/core/constants/app_colors.dart';
 import '../../../../core/services/db_queries.dart';
 import 'add_guardian_dialog.dart';
 

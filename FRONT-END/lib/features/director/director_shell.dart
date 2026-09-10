@@ -7,10 +7,12 @@
 //
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../core/constants/app_colors.dart';
-import '../../core/constants/app_constants.dart';
+import 'package:roh_erp/core/constants/app_colors.dart';
+import 'package:roh_erp/core/constants/app_constants.dart';
+import '../../core/widgets/custom_mobile_bottom_bar.dart';
 import '../auth/auth_service.dart';
 import 'dashboard/director_dashboard_page.dart';
+import 'schedule_section/director_schedule_page.dart';
 import 'therapist_section/therapist_section_page.dart';
 import 'students_section/students_section_page.dart';
 import 'stud_progress_section/stud_progress_section_page.dart';
@@ -30,6 +32,7 @@ class _DirectorShellState extends State<DirectorShell> {
 
   static const List<_NavItem> _navItems = [
     _NavItem(icon: Icons.dashboard_outlined, activeIcon: Icons.dashboard, label: 'Dashboard'),
+    _NavItem(icon: Icons.calendar_today_outlined, activeIcon: Icons.calendar_today, label: 'Master Schedule'),
     _NavItem(icon: Icons.medical_services_outlined, activeIcon: Icons.medical_services, label: 'Therapist'),
     _NavItem(icon: Icons.people_outline, activeIcon: Icons.people, label: 'Students'),
     _NavItem(icon: Icons.trending_up_outlined, activeIcon: Icons.trending_up, label: 'Stud Progress'),
@@ -39,6 +42,7 @@ class _DirectorShellState extends State<DirectorShell> {
 
   final List<Widget> _pages = const [
     DirectorDashboardPage(),
+    DirectorSchedulePage(),
     TherapistSectionPage(),
     StudentsSectionPage(),
     StudProgressSectionPage(),
@@ -98,7 +102,12 @@ class _DirectorShellState extends State<DirectorShell> {
       backgroundColor: AppColors.scaffold,
       appBar: PreferredSize(
         preferredSize: const Size.fromHeight(64),
-        child: _TopBar(title: _navItems[_selectedIndex].label, onMenuTap: null),
+        child: Builder(
+          builder: (ctx) => _TopBar(
+            title: _navItems[_selectedIndex].label,
+            onMenuTap: () => Scaffold.of(ctx).openDrawer(),
+          ),
+        ),
       ),
       drawer: Drawer(
         child: _Sidebar(
@@ -112,16 +121,46 @@ class _DirectorShellState extends State<DirectorShell> {
         ),
       ),
       body: _pages[_selectedIndex],
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _selectedIndex > 5 ? 0 : _selectedIndex,
-        onDestinationSelected: (i) => setState(() => _selectedIndex = i),
-        backgroundColor: Colors.white,
-        indicatorColor: AppColors.primary.withOpacity(0.15),
-        destinations: _navItems.take(5).map((item) => NavigationDestination(
-          icon: Icon(item.icon, size: 22),
-          selectedIcon: Icon(item.activeIcon, color: AppColors.primary, size: 22),
-          label: item.label,
-        )).toList(),
+      bottomNavigationBar: CustomMobileBottomBar(
+        currentIndex: () {
+          if (_selectedIndex == 0) return 0; // Dashboard
+          if (_selectedIndex == 2) return 1; // Therapist
+          if (_selectedIndex == 3) return 2; // Students
+          if (_selectedIndex == 4) return 3; // Stud Progress
+          if (_selectedIndex == 5) return 4; // IEP Reports
+          return -1;
+        }(),
+        onTap: (index) {
+          const mapping = [0, 2, 3, 4, 5];
+          setState(() => _selectedIndex = mapping[index]);
+        },
+        items: const [
+          CustomMobileBottomBarItem(
+            icon: Icons.dashboard_outlined,
+            activeIcon: Icons.dashboard,
+            label: 'Dashboard',
+          ),
+          CustomMobileBottomBarItem(
+            icon: Icons.medical_services_outlined,
+            activeIcon: Icons.medical_services,
+            label: 'Therapist',
+          ),
+          CustomMobileBottomBarItem(
+            icon: Icons.people_outline,
+            activeIcon: Icons.people,
+            label: 'Students',
+          ),
+          CustomMobileBottomBarItem(
+            icon: Icons.trending_up_outlined,
+            activeIcon: Icons.trending_up,
+            label: 'Stud Progress',
+          ),
+          CustomMobileBottomBarItem(
+            icon: Icons.assignment_outlined,
+            activeIcon: Icons.assignment,
+            label: 'IEP Reports',
+          ),
+        ],
       ),
     );
   }
@@ -149,33 +188,38 @@ class _Sidebar extends StatelessWidget {
       color: Colors.white,
       child: Column(
         children: [
-          // ── Logo ────────────────────────────────────────────────────────
-          Container(
-            height: 64,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Row(
-              children: [
-                Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    gradient: AppColors.welcomeGradient,
-                    borderRadius: BorderRadius.circular(10),
+          InkWell(
+            onTap: () {
+              onItemSelected(0);
+            },
+            borderRadius: BorderRadius.circular(8),
+            child: Container(
+              height: 64,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
+                children: [
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      gradient: AppColors.welcomeGradient,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Center(
+                      child: Text('ROH', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w800)),
+                    ),
                   ),
-                  child: const Center(
-                    child: Text('ROH', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w800)),
-                  ),
-                ),
-                if (expanded) ...[
-                  const SizedBox(width: 10),
-                  const Expanded(
-                    child: Text('ROH', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
-                  ),
-                  if (onToggle != null)
+                  if (expanded) ...[
+                    const SizedBox(width: 10),
+                    const Expanded(
+                      child: Text('ROH', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
+                    ),
+                    if (onToggle != null)
+                      IconButton(icon: const Icon(Icons.menu, size: 20), onPressed: onToggle, color: AppColors.textSecondary),
+                  ] else if (onToggle != null)
                     IconButton(icon: const Icon(Icons.menu, size: 20), onPressed: onToggle, color: AppColors.textSecondary),
-                ] else if (onToggle != null)
-                  IconButton(icon: const Icon(Icons.menu, size: 20), onPressed: onToggle, color: AppColors.textSecondary),
-              ],
+                ],
+              ),
             ),
           ),
           const Divider(height: 1, color: AppColors.divider),
@@ -290,16 +334,19 @@ class _TopBar extends StatelessWidget {
         children: [
           if (onMenuTap != null)
             IconButton(icon: const Icon(Icons.menu), onPressed: onMenuTap),
-          Text(
-            AppConstants.centerName.toUpperCase(),
-            style: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-              color: AppColors.primary,
-              letterSpacing: 0.5,
+          Expanded(
+            child: Text(
+              AppConstants.centerName.toUpperCase(),
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: AppColors.primary,
+                letterSpacing: 0.5,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
-          const Spacer(),
           // Notification bell
           IconButton(
             icon: Stack(
@@ -323,7 +370,7 @@ class _TopBar extends StatelessWidget {
           // User avatar
           CircleAvatar(
             radius: 18,
-            backgroundColor: AppColors.primary.withOpacity(0.15),
+            backgroundColor: AppColors.primary.withValues(alpha: 0.15),
             child: Text(
               user?.name.isNotEmpty == true ? user!.name[0].toUpperCase() : 'A',
               style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.w700, fontSize: 14),

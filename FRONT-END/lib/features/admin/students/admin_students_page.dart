@@ -1,6 +1,8 @@
-// lib/features/admin/students/admin_students_page.dart
+import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
-import '../../../core/constants/app_colors.dart';
+import 'package:roh_erp/core/constants/app_colors.dart';
+import 'package:roh_erp/core/constants/app_images.dart';
+import 'admin_student_form_page.dart';
 
 class AdminStudentsPage extends StatefulWidget {
   const AdminStudentsPage({super.key});
@@ -9,55 +11,123 @@ class AdminStudentsPage extends StatefulWidget {
   State<AdminStudentsPage> createState() => _AdminStudentsPageState();
 }
 
-class _AdminStudentsPageState extends State<AdminStudentsPage> with SingleTickerProviderStateMixin {
-  late TabController _tabController;
-
-  @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(length: 4, vsync: this);
-  }
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
-  }
+class _AdminStudentsPageState extends State<AdminStudentsPage> {
+  bool _showForm = false;
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.scaffold,
-      body: Column(
+    if (_showForm) {
+      return AdminStudentFormPage(onBack: () => setState(() => _showForm = false));
+    }
+    return Padding(
+      padding: const EdgeInsets.all(24.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Sub-Tab Switcher Bar matching ADMIN STUDENTS *.png
-          Container(
-            color: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-            child: TabBar(
-              controller: _tabController,
-              indicatorColor: AppColors.primary,
-              indicatorWeight: 3,
-              labelColor: AppColors.primary,
-              unselectedLabelColor: AppColors.textSecondary,
-              labelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
-              tabs: const [
-                Tab(icon: Icon(Icons.info_outline), text: 'Student Info'),
-                Tab(icon: Icon(Icons.trending_up), text: 'Progress Overview'),
-                Tab(icon: Icon(Icons.medical_information_outlined), text: 'Medication History'),
-                Tab(icon: Icon(Icons.emergency_outlined), text: 'Emergency Contacts'),
-              ],
-            ),
+          Row(
+            children: [
+              const Text('Our Students', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 18)),
+              const Spacer(),
+              ElevatedButton(
+                onPressed: () => setState(() => _showForm = true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  minimumSize: const Size(100, 44),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                ),
+                child: const Text('Add', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              ),
+            ],
           ),
+          const SizedBox(height: 24),
           Expanded(
-            child: TabBarView(
-              controller: _tabController,
-              children: [
-                _buildInfoTab(context),
-                _buildProgressTab(context),
-                _buildMedicationTab(context),
-                _buildEmergencyTab(context),
-              ],
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                int crossAxisCount = 3;
+                if (constraints.maxWidth < 650) {
+                  crossAxisCount = 1;
+                } else if (constraints.maxWidth < 1100) {
+                  crossAxisCount = 2;
+                }
+                return GridView.builder(
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: crossAxisCount,
+                    crossAxisSpacing: 16,
+                    mainAxisSpacing: 16,
+                    childAspectRatio: crossAxisCount == 1 ? 2.5 : 1.9,
+                  ),
+                  itemCount: 9,
+                  itemBuilder: (context, index) {
+                    return Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFFF3E8FF), Color(0xFFFCE7F3)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.04),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        children: [
+                          AppImages.studentAvatar(
+                            width: 70,
+                            height: 70,
+                            borderRadius: BorderRadius.circular(35),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                _buildInfoRow('Name', 'Romeo Alex A'),
+                                const SizedBox(height: 4),
+                                _buildInfoRow('Age', '15'),
+                                const SizedBox(height: 4),
+                                _buildInfoRow('Phone', '+1 (555) 019-2834', isInteractive: true, isPhone: true),
+                                const SizedBox(height: 4),
+                                _buildInfoRow('Email', 'romeo.a@rohcenter.org', isInteractive: true, isPhone: false),
+                              ],
+                            ),
+                          ),
+                          Column(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  IconButton(
+                                    icon: const Icon(Icons.edit, color: AppColors.primary, size: 20),
+                                    constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+                                    tooltip: 'Edit Student',
+                                    onPressed: () {},
+                                  ),
+                                  const SizedBox(width: 4),
+                                  IconButton(
+                                    icon: const Icon(Icons.delete, color: Colors.red, size: 20),
+                                    constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+                                    tooltip: 'Delete Student',
+                                    onPressed: () {},
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                );
+              },
             ),
           ),
         ],
@@ -65,209 +135,60 @@ class _AdminStudentsPageState extends State<AdminStudentsPage> with SingleTicker
     );
   }
 
-  // ── Tab 1: Student Info (ADMIN STUDENTS INFO.png) ──────────────────────────
-  Widget _buildInfoTab(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.divider)),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const CircleAvatar(radius: 30, backgroundColor: Colors.purple, child: Text('A', style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold))),
-                const SizedBox(width: 16),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: const [
-                    Text('Aarav Patel', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                    SizedBox(height: 2),
-                    Text('DOB: 2018-04-12 | Age: 8 | Gender: Male | ID: STU-1002', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-                  ],
-                ),
-              ],
-            ),
-            const Divider(height: 32),
-            const Text('Guardian Details:', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            const Text('Parent Name: Rajesh Patel | Phone: +1 (555) 345-6789 | Email: rajesh.patel@gmail.com', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
-            const SizedBox(height: 16),
-            const Text('Therapy Enrollment:', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            const Text('Primary Therapist: Sarah Adams (BCBA) | Center Branch: Main Campus | Hours/Wk: 25 hrs', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ── Tab 2: Progress Overview (ADMIN STUDENTS PROGRESS.png) ────────────────
-  Widget _buildProgressTab(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.divider)),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Student Progress Summary & Domain Achievements', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 16),
-            _buildProgressBar('VB-MAPP Milestone Level 1', 1.0, Colors.green),
-            const SizedBox(height: 12),
-            _buildProgressBar('VB-MAPP Milestone Level 2', 0.85, Colors.orange),
-            const SizedBox(height: 12),
-            _buildProgressBar('VB-MAPP Milestone Level 3', 0.70, Colors.blue),
-            const SizedBox(height: 12),
-            _buildProgressBar('Behavior Reduction Target Baseline', 0.90, Colors.purple),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ── Tab 3: Medication History (ADMIN STUDENTS MEDICATION HISTORY.png) ────
-  Widget _buildMedicationTab(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.divider)),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Text('Medication & Medical Log', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                const Spacer(),
-                OutlinedButton.icon(onPressed: () {}, icon: const Icon(Icons.add, size: 16), label: const Text('Add Medication Entry')),
-              ],
-            ),
-            const SizedBox(height: 16),
-            DataTable(
-              columns: const [
-                DataColumn(label: Text('Medication')),
-                DataColumn(label: Text('Dosage')),
-                DataColumn(label: Text('Schedule')),
-                DataColumn(label: Text('Prescribing Doctor')),
-              ],
-              rows: const [
-                DataRow(cells: [
-                  DataCell(Text('Multivitamin Chewables', style: TextStyle(fontWeight: FontWeight.bold))),
-                  DataCell(Text('1 Tablet')),
-                  DataCell(Text('Daily 9:00 AM')),
-                  DataCell(Text('Dr. H. Vance')),
-                ]),
-                DataRow(cells: [
-                  DataCell(Text('Melatonin (Optional)', style: TextStyle(fontWeight: FontWeight.bold))),
-                  DataCell(Text('2.5 mg')),
-                  DataCell(Text('As Needed (Evening)')),
-                  DataCell(Text('Dr. H. Vance')),
-                ]),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ── Tab 4: Emergency Contacts (ADMIN STUDENTS EMERGENCY CONTACT.png & Add.png)
-  Widget _buildEmergencyTab(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.divider)),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Text('Emergency Contacts & Medical Alerts', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                const Spacer(),
-                ElevatedButton.icon(
-                  onPressed: () => _showAddEmergencyContactDialog(context),
-                  icon: const Icon(Icons.add, size: 16),
-                  label: const Text('Add Emergency Contact'),
-                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            DataTable(
-              columns: const [
-                DataColumn(label: Text('Contact Name')),
-                DataColumn(label: Text('Relationship')),
-                DataColumn(label: Text('Phone Number')),
-                DataColumn(label: Text('Priority')),
-              ],
-              rows: const [
-                DataRow(cells: [
-                  DataCell(Text('Rajesh Patel', style: TextStyle(fontWeight: FontWeight.bold))),
-                  DataCell(Text('Father')),
-                  DataCell(Text('+1 (555) 345-6789')),
-                  DataCell(Text('Primary Emergency')),
-                ]),
-                DataRow(cells: [
-                  DataCell(Text('Priya Patel', style: TextStyle(fontWeight: FontWeight.bold))),
-                  DataCell(Text('Mother')),
-                  DataCell(Text('+1 (555) 345-6790')),
-                  DataCell(Text('Secondary Emergency')),
-                ]),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildProgressBar(String title, double factor, Color color) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildInfoRow(String label, String value, {bool isInteractive = false, bool isPhone = false}) {
+    return Row(
       children: [
-        Row(
-          children: [
-            Text(title, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
-            const Spacer(),
-            Text('${(factor * 100).toInt()}%', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: color)),
-          ],
-        ),
-        const SizedBox(height: 6),
-        LinearProgressIndicator(value: factor, backgroundColor: Colors.grey.shade200, color: color, minHeight: 8),
-      ],
-    );
-  }
-
-  void _showAddEmergencyContactDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Add Emergency Contact'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: const [
-            TextField(decoration: InputDecoration(labelText: 'Full Name')),
-            SizedBox(height: 12),
-            TextField(decoration: InputDecoration(labelText: 'Relationship (e.g. Mother, Uncle)')),
-            SizedBox(height: 12),
-            TextField(decoration: InputDecoration(labelText: 'Phone Number')),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Emergency Contact Added!'), backgroundColor: Colors.green));
-            },
-            child: const Text('Add Contact'),
+        SizedBox(
+          width: 50,
+          child: Text(
+            '$label :',
+            style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 13),
           ),
-        ],
-      ),
+        ),
+        Expanded(
+          child: isInteractive
+              ? InkWell(
+                  onTap: () {
+                    Clipboard.setData(ClipboardData(text: value));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Copied $label to clipboard: $value'),
+                        duration: const Duration(seconds: 2),
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                  },
+                  borderRadius: BorderRadius.circular(4),
+                  child: Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          value,
+                          style: const TextStyle(
+                            color: AppColors.primary,
+                            fontSize: 13,
+                            decoration: TextDecoration.underline,
+                            decorationColor: AppColors.primary,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Icon(
+                        isPhone ? Icons.call : Icons.email_outlined,
+                        size: 13,
+                        color: AppColors.primary,
+                      ),
+                    ],
+                  ),
+                )
+              : Text(
+                  value,
+                  style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                  overflow: TextOverflow.ellipsis,
+                ),
+        ),
+      ],
     );
   }
 }

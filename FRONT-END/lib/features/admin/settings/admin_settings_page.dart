@@ -1,158 +1,173 @@
-// lib/features/admin/settings/admin_settings_page.dart
 import 'package:flutter/material.dart';
-import '../../../core/constants/app_colors.dart';
-import '../../../core/constants/app_constants.dart';
+import 'package:roh_erp/core/constants/app_colors.dart';
 
-class AdminSettingsPage extends StatefulWidget {
+import 'package:roh_erp/core/constants/app_images.dart';
+
+class AdminSettingsPage extends StatelessWidget {
   const AdminSettingsPage({super.key});
-
-  @override
-  State<AdminSettingsPage> createState() => _AdminSettingsPageState();
-}
-
-class _AdminSettingsPageState extends State<AdminSettingsPage> {
-  final _centerNameCtrl = TextEditingController(text: AppConstants.centerName);
-  final _emailDomainCtrl = TextEditingController(text: 'roh.org');
-  final _maxCapacityCtrl = TextEditingController(text: '150');
-
-  bool _enableAutoBackup = true;
-  bool _requireTwoFactor = true;
-  bool _allowParentSelfRegistration = false;
 
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(24.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header Banner
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFF37474F), Color(0xFF546E7A)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
+          const Text('Application Settings', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 18)),
+          const SizedBox(height: 24),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 960),
+            child: Container(
+              padding: const EdgeInsets.all(32),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFFF3E8FF), Color(0xFFFCE7F3)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(20),
               ),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.settings, color: Colors.white, size: 28),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: const [
-                      Text(
-                        'System Settings & Center Configuration',
-                        style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-                      ),
-                      SizedBox(height: 2),
-                      Text('Global ERP Administration & System Governance', style: TextStyle(color: Colors.white70, fontSize: 12)),
-                    ],
-                  ),
-                ),
-                ElevatedButton.icon(
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Admin settings saved successfully!'), backgroundColor: Colors.green),
-                    );
-                  },
-                  icon: const Icon(Icons.save, size: 16),
-                  label: const Text('Save Changes'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 20),
-
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Center Profile Settings
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: AppColors.divider),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Stack(
                     children: [
-                      const Text('Center Details', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 16),
-                      TextField(
-                        controller: _centerNameCtrl,
-                        decoration: const InputDecoration(labelText: 'Center Name', border: OutlineInputBorder()),
-                      ),
-                      const SizedBox(height: 14),
-                      TextField(
-                        controller: _emailDomainCtrl,
-                        decoration: const InputDecoration(labelText: 'Allowed Email Domain', border: OutlineInputBorder()),
-                      ),
-                      const SizedBox(height: 14),
-                      TextField(
-                        controller: _maxCapacityCtrl,
-                        decoration: const InputDecoration(labelText: 'Maximum Student Capacity', border: OutlineInputBorder()),
+                      AppImages.therapistAvatar(radius: 44),
+                      Positioned(
+                        bottom: 0,
+                        right: 0,
+                        child: Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: const BoxDecoration(
+                            color: AppColors.primary,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.edit, color: Colors.white, size: 16),
+                        ),
                       ),
                     ],
                   ),
-                ),
-              ),
-              const SizedBox(width: 20),
-
-              // Security & Data Policies
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: AppColors.divider),
+                  const SizedBox(height: 28),
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final isNarrow = constraints.maxWidth < 550;
+                      if (isNarrow) {
+                        return Column(
+                          children: [
+                            _buildTextField('Navigation Name', 'text here'),
+                            const SizedBox(height: 16),
+                            _buildTextField('Top Bar Name', 'text here'),
+                            const SizedBox(height: 24),
+                            Center(
+                              child: Container(
+                                width: double.infinity,
+                                decoration: BoxDecoration(
+                                  gradient: AppColors.welcomeGradient,
+                                  borderRadius: BorderRadius.circular(24),
+                                ),
+                                child: ElevatedButton(
+                                  onPressed: () {},
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.transparent,
+                                    shadowColor: Colors.transparent,
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                                    padding: const EdgeInsets.symmetric(vertical: 14),
+                                  ),
+                                  child: const Text('Change Password', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 14)),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 24),
+                            _buildTextField('Navigation Name', 'text here'),
+                            const SizedBox(height: 16),
+                            _buildTextField('Navigation Name', 'text here'),
+                          ],
+                        );
+                      }
+                      return Column(
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(child: _buildTextField('Navigation Name', 'text here')),
+                              const SizedBox(width: 24),
+                              Expanded(child: _buildTextField('Top Bar Name', 'text here')),
+                            ],
+                          ),
+                          const SizedBox(height: 24),
+                          Center(
+                            child: Container(
+                              width: 260,
+                              decoration: BoxDecoration(
+                                gradient: AppColors.welcomeGradient,
+                                borderRadius: BorderRadius.circular(24),
+                              ),
+                              child: ElevatedButton(
+                                onPressed: () {},
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.transparent,
+                                  shadowColor: Colors.transparent,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                                  padding: const EdgeInsets.symmetric(vertical: 14),
+                                ),
+                                child: const Text('Change Password', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 14)),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+                          Row(
+                            children: [
+                              Expanded(child: _buildTextField('Navigation Name', 'text here')),
+                              const SizedBox(width: 24),
+                              Expanded(child: _buildTextField('Navigation Name', 'text here')),
+                            ],
+                          ),
+                        ],
+                      );
+                    },
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('Security & Governance', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 12),
-                      SwitchListTile(
-                        title: const Text('Automated Daily Cloud Backup', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                        subtitle: const Text('Nightly backup of trial logs & IEP reports', style: TextStyle(fontSize: 11)),
-                        value: _enableAutoBackup,
-                        activeColor: AppColors.primary,
-                        onChanged: (v) => setState(() => _enableAutoBackup = v),
+                  const SizedBox(height: 32),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: ElevatedButton(
+                      onPressed: () {},
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                       ),
-                      SwitchListTile(
-                        title: const Text('Enforce 2FA for Staff', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                        subtitle: const Text('Require 2-factor authentication for BCBAs & Admin', style: TextStyle(fontSize: 11)),
-                        value: _requireTwoFactor,
-                        activeColor: AppColors.primary,
-                        onChanged: (v) => setState(() => _requireTwoFactor = v),
-                      ),
-                      SwitchListTile(
-                        title: const Text('Parent Self-Registration', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                        subtitle: const Text('Allow parents to create accounts online', style: TextStyle(fontSize: 11)),
-                        value: _allowParentSelfRegistration,
-                        activeColor: AppColors.primary,
-                        onChanged: (v) => setState(() => _allowParentSelfRegistration = v),
-                      ),
-                    ],
+                      child: const Text('Update', style: TextStyle(fontWeight: FontWeight.bold)),
+                    ),
                   ),
-                ),
+                ],
               ),
-            ],
+            ),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildTextField(String label, String hint) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: const TextStyle(color: AppColors.textPrimary, fontSize: 14)),
+        const SizedBox(height: 8),
+        TextField(
+          decoration: InputDecoration(
+            hintText: hint,
+            hintStyle: const TextStyle(color: AppColors.textHint, fontSize: 14),
+            filled: true,
+            fillColor: Colors.white,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide.none,
+            ),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          ),
+        ),
+      ],
     );
   }
 }

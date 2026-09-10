@@ -1,130 +1,200 @@
-// lib/features/admin/dashboard/admin_dashboard_page.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../../core/constants/app_colors.dart';
-import '../../auth/auth_service.dart';
+import 'package:roh_erp/core/constants/app_colors.dart';
+import 'package:roh_erp/core/constants/app_images.dart';
+import 'package:roh_erp/core/models/schedule_model.dart';
+import 'package:roh_erp/core/services/schedule_service.dart';
+import 'widgets/schedule_director_appointment_dialog.dart';
 
 class AdminDashboardPage extends StatelessWidget {
-  const AdminDashboardPage({super.key});
+  final VoidCallback? onNavigateCalendar;
+
+  const AdminDashboardPage({super.key, this.onNavigateCalendar});
 
   @override
   Widget build(BuildContext context) {
-    final user = context.watch<AuthService>().currentUser;
-    final now = DateTime.now();
-    const dayNames = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
-    final dateStr =
-        '${now.day.toString().padLeft(2,'0')}-${now.month.toString().padLeft(2,'0')}-${now.year} ${dayNames[now.weekday - 1]}';
-
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Welcome Banner
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              gradient: AppColors.welcomeGradient,
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          LayoutBuilder(builder: (context, constraints) {
+            final isWide = constraints.maxWidth >= 950;
+
+            final welcomeAndStats = Column(
               children: [
-                Text(
-                  'Hi, ${user?.name ?? 'System Admin'} !',
-                  style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(height: 6),
-                const Text(
-                  'System Administration & Account Management Console',
-                  style: TextStyle(color: Colors.white70, fontSize: 13),
-                ),
-                const SizedBox(height: 20),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                  decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), borderRadius: BorderRadius.circular(8)),
-                  child: Text(dateStr, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500)),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 20),
-
-          // High Level Accounts Stat Cards
-          Row(
-            children: const [
-              Expanded(
-                child: _AdminStatCard(
-                  label: 'Therapist Accounts',
-                  count: '6 Registered',
-                  icon: Icons.medical_services_outlined,
-                  iconBg: Color(0xFFF3E8FF),
-                  iconColor: AppColors.primary,
-                ),
-              ),
-              SizedBox(width: 16),
-              Expanded(
-                child: _AdminStatCard(
-                  label: 'Student Profiles',
-                  count: '6 Active',
-                  icon: Icons.school_outlined,
-                  iconBg: Color(0xFFE0F7FA),
-                  iconColor: AppColors.accentTeal,
-                ),
-              ),
-              SizedBox(width: 16),
-              Expanded(
-                child: _AdminStatCard(
-                  label: 'Parent Accounts',
-                  count: '5 Registered',
-                  icon: Icons.family_restroom_outlined,
-                  iconBg: Color(0xFFFFF3E0),
-                  iconColor: Color(0xFFFF9800),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 28),
-
-          // Section Overview Card
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.divider),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'System Administration Responsibilities',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
-                ),
-                const SizedBox(height: 12),
-                const Text(
-                  'Use the sidebar tabs to manage system accounts and profiles:',
-                  style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                  decoration: BoxDecoration(
+                    gradient: AppColors.welcomeGradient,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Padding(
+                        padding: EdgeInsets.all(24.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Hi, ROH Admin !',
+                              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 24),
+                            ),
+                            SizedBox(height: 8),
+                            Text(
+                              'Welcome back to the work station',
+                              style: TextStyle(color: Colors.white, fontSize: 14),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 24),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.1),
+                          borderRadius: const BorderRadius.only(
+                            bottomLeft: Radius.circular(16),
+                            bottomRight: Radius.circular(16),
+                          ),
+                        ),
+                        child: Builder(
+                          builder: (context) {
+                            final now = DateTime.now();
+                            const dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+                            final dateStr =
+                                '${now.day.toString().padLeft(2, '0')}-${now.month.toString().padLeft(2, '0')}-${now.year} ${dayNames[now.weekday - 1]}';
+                            return Text(
+                              dateStr,
+                              style: const TextStyle(color: Colors.white, fontSize: 13),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 16),
-                _AdminTaskBullet(
-                  icon: Icons.medical_services_outlined,
-                  title: 'Therapist Accounts Management',
-                  subtitle: 'Create therapist login credentials, configure access levels, and maintain active clinical staff records.',
+                LayoutBuilder(builder: (ctx, innerConstraints) {
+                  final stackStats = innerConstraints.maxWidth < 450;
+                  return stackStats
+                      ? Column(
+                          children: [
+                            _buildStatCard(Icons.group, Colors.pink.shade50, Colors.pink.shade300, 'Students', '250'),
+                            const SizedBox(height: 12),
+                            _buildStatCard(Icons.medical_services, Colors.teal.shade50, AppColors.accentTeal, 'Staffs', '5'),
+                          ],
+                        )
+                      : Row(
+                          children: [
+                            Expanded(
+                              child: _buildStatCard(Icons.group, Colors.pink.shade50, Colors.pink.shade300, 'Students', '250'),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: _buildStatCard(Icons.medical_services, Colors.teal.shade50, AppColors.accentTeal, 'Staffs', '5'),
+                            ),
+                          ],
+                        );
+                }),
+              ],
+            );
+
+            final pendingReports = Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Pending IEP Reports',
+                    style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 16),
+                  ),
+                  const SizedBox(height: 16),
+                  ...List.generate(4, (index) => Padding(
+                    padding: const EdgeInsets.only(bottom: 12.0),
+                    child: Row(
+                      children: [
+                        AppImages.therapistAvatar(radius: 20),
+                        const SizedBox(width: 12),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Jemi Wilson', style: TextStyle(color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w600)),
+                              Text('20-03-2023', style: TextStyle(color: AppColors.primary, fontSize: 12)),
+                            ],
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: AppColors.statusPendingBg,
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: const Text('Pending', style: TextStyle(color: AppColors.statusPending, fontSize: 12, fontWeight: FontWeight.w600)),
+                        ),
+                      ],
+                    ),
+                  )),
+                ],
+              ),
+            );
+
+            if (isWide) {
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(flex: 3, child: welcomeAndStats),
+                  const SizedBox(width: 20),
+                  Expanded(flex: 2, child: pendingReports),
+                ],
+              );
+            }
+
+            return Column(
+              children: [
+                welcomeAndStats,
+                const SizedBox(height: 20),
+                pendingReports,
+              ],
+            );
+          }),
+          const SizedBox(height: 20),
+
+          // ── Director's Calendar & Scheduling Dispatcher (Admin Portal) ───
+          _AdminDirectorSchedulingDashboardWidget(onNavigateCalendar: onNavigateCalendar),
+          const SizedBox(height: 24),
+
+          const Text('Recent Activities', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 18)),
+          const SizedBox(height: 16),
+          DefaultTabController(
+            length: 2,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const TabBar(
+                  isScrollable: true,
+                  labelColor: AppColors.primary,
+                  unselectedLabelColor: AppColors.textHint,
+                  indicatorColor: AppColors.primary,
+                  tabs: [
+                    Tab(text: 'Recent Students'),
+                    Tab(text: 'Recent IEP Requested'),
+                  ],
                 ),
-                const SizedBox(height: 12),
-                _AdminTaskBullet(
-                  icon: Icons.school_outlined,
-                  title: 'Student Profiles Creation & Intake',
-                  subtitle: 'Build comprehensive 3-tab student records (personal details, medical history, medications, emergency contacts).',
-                ),
-                const SizedBox(height: 12),
-                _AdminTaskBullet(
-                  icon: Icons.family_restroom_outlined,
-                  title: 'Parent Accounts Onboarding',
-                  subtitle: 'Create parent login credentials, link families to assigned students, and grant portal monitoring access.',
+                const SizedBox(height: 16),
+                SizedBox(
+                  height: 400,
+                  child: TabBarView(
+                    children: [
+                      _buildDataTable(),
+                      _buildDataTable(),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -133,50 +203,518 @@ class AdminDashboardPage extends StatelessWidget {
       ),
     );
   }
+
+  Widget _buildStatCard(IconData icon, Color bg, Color iconColor, String title, String count) {
+    return Container(
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
+      padding: const EdgeInsets.all(20),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: bg, shape: BoxShape.circle),
+            child: Icon(icon, color: iconColor),
+          ),
+          const SizedBox(width: 16),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: const TextStyle(color: AppColors.primary, fontSize: 14)),
+              Text(count, style: const TextStyle(color: AppColors.textPrimary, fontSize: 28, fontWeight: FontWeight.bold)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDataTable() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: SizedBox(
+          width: 750,
+          child: Column(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppColors.primaryLight.withValues(alpha: 0.3),
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                ),
+                child: const Row(
+                  children: [
+                    Expanded(flex: 2, child: Text('Name', style: TextStyle(color: AppColors.tableHeaderText, fontWeight: FontWeight.bold))),
+                    Expanded(flex: 2, child: Text('Email Id', style: TextStyle(color: AppColors.tableHeaderText, fontWeight: FontWeight.bold))),
+                    Expanded(flex: 2, child: Text('Phone', style: TextStyle(color: AppColors.tableHeaderText, fontWeight: FontWeight.bold))),
+                    Expanded(flex: 1, child: Text('Age', style: TextStyle(color: AppColors.tableHeaderText, fontWeight: FontWeight.bold))),
+                    Expanded(flex: 2, child: Text('Created Date', style: TextStyle(color: AppColors.tableHeaderText, fontWeight: FontWeight.bold))),
+                    Expanded(flex: 1, child: Text('Status', style: TextStyle(color: AppColors.tableHeaderText, fontWeight: FontWeight.bold))),
+                    Expanded(flex: 1, child: Text('', style: TextStyle(color: AppColors.tableHeaderText, fontWeight: FontWeight.bold))),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: ListView.separated(
+                  itemCount: 5,
+                  separatorBuilder: (context, index) => const Divider(height: 1, color: AppColors.divider),
+                  itemBuilder: (context, index) {
+                    final names = ['Spotify Subscription', 'Freepik Sales', 'Mobile Service', 'Wilson', 'Emilly'];
+                    final emails = ['spotify@email.com', 'freepik@email.com', 'mobile@email.com', 'wilson@email.com', 'emilly@email.com'];
+                    final phones = ['+1 234 567 890', '+1 987 654 321', '+1 555 123 456', '+1 444 789 012', '+1 333 456 789'];
+                    final ages = ['10', '12', '14', '11', '15'];
+                    final dates = ['10-01-2023', '15-01-2023', '20-01-2023', '25-01-2023', '28-01-2023'];
+                    final isActive = index != 1 && index != 3;
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      child: Row(
+                        children: [
+                          Expanded(flex: 2, child: Text(names[index], style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w500))),
+                          Expanded(flex: 2, child: Text(emails[index], style: const TextStyle(color: AppColors.textPrimary))),
+                          Expanded(flex: 2, child: Text(phones[index], style: const TextStyle(color: AppColors.textPrimary))),
+                          Expanded(flex: 1, child: Text(ages[index], style: const TextStyle(color: AppColors.textPrimary))),
+                          Expanded(flex: 2, child: Text(dates[index], style: const TextStyle(color: AppColors.textPrimary))),
+                          Expanded(
+                            flex: 1,
+                            child: Align(
+                              alignment: Alignment.centerLeft,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: isActive ? AppColors.statusActiveBg : AppColors.statusDeactivatedBg,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Text(
+                                  isActive ? 'Active' : 'De-Activated',
+                                  style: TextStyle(
+                                    color: isActive ? AppColors.statusActive : AppColors.statusDeactivated,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          Expanded(
+                            flex: 1,
+                            child: OutlinedButton(
+                              onPressed: () {},
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: AppColors.primary,
+                                side: const BorderSide(color: AppColors.primary),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                              ),
+                              child: const Text('View', style: TextStyle(fontSize: 12)),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+              const Divider(height: 1, color: AppColors.divider),
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(onPressed: () {}, child: const Text('Previous', style: TextStyle(color: AppColors.textHint))),
+                    const SizedBox(width: 8),
+                    _buildPageNum(1, true),
+                    _buildPageNum(2, false),
+                    _buildPageNum(3, false),
+                    _buildPageNum(4, false),
+                    const SizedBox(width: 8),
+                    TextButton(onPressed: () {}, child: const Text('Next', style: TextStyle(color: AppColors.primary))),
+                  ],
+                ),
+              )
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPageNum(int num, bool active) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 4),
+      width: 28,
+      height: 28,
+      decoration: BoxDecoration(
+        color: active ? AppColors.primary : Colors.transparent,
+        shape: BoxShape.circle,
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        num.toString(),
+        style: TextStyle(color: active ? Colors.white : AppColors.textPrimary),
+      ),
+    );
+  }
 }
 
-class _AdminStatCard extends StatelessWidget {
-  final String label;
-  final String count;
-  final IconData icon;
-  final Color iconBg;
-  final Color iconColor;
+// ── Director's Calendar & Scheduling Dispatcher (Admin Portal) ──────────────
+class _AdminDirectorSchedulingDashboardWidget extends StatelessWidget {
+  final VoidCallback? onNavigateCalendar;
 
-  const _AdminStatCard({
-    required this.label,
-    required this.count,
-    required this.icon,
-    required this.iconBg,
-    required this.iconColor,
-  });
+  const _AdminDirectorSchedulingDashboardWidget({this.onNavigateCalendar});
+
+  void _openBookingDialog(BuildContext context, [String? slot]) {
+    showDialog(
+      context: context,
+      builder: (ctx) => ScheduleDirectorAppointmentDialog(
+        initialDate: DateTime.now(),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    final scheduleService = context.watch<ScheduleService>();
+    final todayAppointments = scheduleService.getDirectorAppointments(date: DateTime.now());
+    final availableSlots = scheduleService.getAvailableDirectorSlots(DateTime.now());
+
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.divider),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(color: iconBg, borderRadius: BorderRadius.circular(12)),
-            child: Icon(icon, color: iconColor, size: 24),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
           ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(label, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-                const SizedBox(height: 4),
-                Text(count, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
-              ],
-            ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header Row
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final isNarrow = constraints.maxWidth < 650;
+              final headerInfo = Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppColors.primaryLight,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.event_available, color: AppColors.primary, size: 20),
+                  ),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          "Director's Calendar & Scheduling Dispatcher",
+                          style: TextStyle(
+                            fontFamily: 'Poppins',
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                        Text(
+                          'Admin Clinical Coordination • Check availability & book parent diagnostic intakes for Dr. Vincent Sterling',
+                          style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              );
+
+              final actionBtn = ElevatedButton.icon(
+                onPressed: () => _openBookingDialog(context),
+                icon: const Icon(Icons.add, size: 16, color: Colors.white),
+                label: const Text(
+                  '+ Schedule Appointment for Director',
+                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  elevation: 1,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+              );
+
+              if (isNarrow) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    headerInfo,
+                    const SizedBox(height: 12),
+                    actionBtn,
+                  ],
+                );
+              }
+
+              return Row(
+                children: [
+                  Expanded(child: headerInfo),
+                  const SizedBox(width: 12),
+                  actionBtn,
+                ],
+              );
+            },
+          ),
+          const SizedBox(height: 16),
+          const Divider(height: 1, color: AppColors.divider),
+          const SizedBox(height: 16),
+
+          // Two-Column Grid: Left: Available Slots, Right: Today's Booked Agenda (responsive)
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final isStacked = constraints.maxWidth < 850;
+
+              final slotsWidget = Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFAFAFA),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.divider),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.schedule, size: 16, color: Color(0xFF2E7D32)),
+                        const SizedBox(width: 6),
+                        const Text(
+                          "Today's Available Slots",
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                        ),
+                        const Spacer(),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFE8F5E9),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            '${availableSlots.length} Open',
+                            style: const TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF2E7D32),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    if (availableSlots.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 8),
+                        child: Text(
+                          'All standard slots are booked for today.',
+                          style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                        ),
+                      )
+                    else
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: availableSlots.map((slot) {
+                          return InkWell(
+                            onTap: () => _openBookingDialog(context, slot),
+                            borderRadius: BorderRadius.circular(8),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF1F8E9),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: const Color(0xFFA5D6A7)),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.add, size: 12, color: Color(0xFF2E7D32)),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    slot,
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                      color: Color(0xFF1B5E20),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    const SizedBox(height: 12),
+                    if (onNavigateCalendar != null)
+                      InkWell(
+                        onTap: onNavigateCalendar,
+                        child: const Row(
+                          children: [
+                            Text(
+                              'View Full Availability Calendar',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: AppColors.primary,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            SizedBox(width: 4),
+                            Icon(Icons.arrow_forward, size: 12, color: AppColors.primary),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+              );
+
+              final agendaWidget = Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFAFAFA),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.divider),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.assignment_outlined, size: 16, color: AppColors.primary),
+                        const SizedBox(width: 6),
+                        const Text(
+                          "Director's Booked Agenda (Today)",
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                        ),
+                        const Spacer(),
+                        Text(
+                          '${todayAppointments.length} Booked',
+                          style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    if (todayAppointments.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 8),
+                        child: Text(
+                          'No appointments booked for today yet.',
+                          style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                        ),
+                      )
+                    else
+                      ListView.separated(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount: todayAppointments.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 8),
+                        itemBuilder: (context, i) {
+                          final appt = todayAppointments[i];
+                          return Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: const Color(0xFFEEEEEE)),
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.primaryLight,
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Text(
+                                    appt.startTime,
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.primary,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        appt.title,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 12,
+                                          color: AppColors.textPrimary,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      Text(
+                                        '${appt.attendeeName} • ${appt.location}',
+                                        style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFE0F2FE),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Text(
+                                    appt.type.shortTag,
+                                    style: const TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                      color: Color(0xFF0369A1),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                  ],
+                ),
+              );
+
+              if (isStacked) {
+                return Column(
+                  children: [
+                    slotsWidget,
+                    const SizedBox(height: 16),
+                    agendaWidget,
+                  ],
+                );
+              }
+
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(flex: 4, child: slotsWidget),
+                  const SizedBox(width: 16),
+                  Expanded(flex: 6, child: agendaWidget),
+                ],
+              );
+            },
           ),
         ],
       ),
@@ -184,35 +722,3 @@ class _AdminStatCard extends StatelessWidget {
   }
 }
 
-class _AdminTaskBullet extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String subtitle;
-
-  const _AdminTaskBullet({required this.icon, required this.title, required this.subtitle});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(color: AppColors.primary.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
-          child: Icon(icon, size: 20, color: AppColors.primary),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
-              const SizedBox(height: 2),
-              Text(subtitle, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary, height: 1.4)),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
