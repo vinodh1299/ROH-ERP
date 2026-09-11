@@ -12,17 +12,34 @@ import 'features/director/director_shell.dart';
 import 'features/therapist/therapist_shell.dart';
 import 'features/parent/parent_shell.dart';
 
-void main() async {
+void main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
-  if (!kIsWeb) {
-    try {
-      await dotenv.load(fileName: ".env");
-    } catch (e) {
-      debugPrint('Dotenv load skipped: $e');
-    }
+  try {
+    await dotenv.load(fileName: ".env");
+  } catch (e) {
+    debugPrint('Dotenv load skipped: $e');
   }
   final authService = AuthService();
   await authService.loadSession();
+
+  int initialTab = 0;
+  for (final arg in args) {
+    if (arg.startsWith('--role=')) {
+      final role = arg.split('=')[1].trim().toLowerCase();
+      if (role == 'admin') {
+        await authService.login(AppConstants.adminEmail, AppConstants.adminPassword);
+      } else if (role == 'director') {
+        await authService.login(AppConstants.directorEmail, AppConstants.directorPassword);
+      } else if (role == 'therapist') {
+        await authService.login(AppConstants.therapistEmail, AppConstants.therapistPassword);
+      } else if (role == 'parent') {
+        await authService.login(AppConstants.parentEmail, AppConstants.parentPassword);
+      }
+    } else if (arg.startsWith('--tab=')) {
+      initialTab = int.tryParse(arg.split('=')[1].trim()) ?? 0;
+    }
+  }
+
   final scheduleService = ScheduleService();
   runApp(
     MultiProvider(
@@ -30,13 +47,14 @@ void main() async {
         ChangeNotifierProvider<AuthService>.value(value: authService),
         ChangeNotifierProvider<ScheduleService>.value(value: scheduleService),
       ],
-      child: const RohApp(),
+      child: RohApp(initialTab: initialTab),
     ),
   );
 }
 
 class RohApp extends StatelessWidget {
-  const RohApp({super.key});
+  final int initialTab;
+  const RohApp({super.key, this.initialTab = 0});
 
   @override
   Widget build(BuildContext context) {
@@ -50,7 +68,7 @@ class RohApp extends StatelessWidget {
         AppConstants.routeAdmin: (_) => const AdminShell(),
         AppConstants.routeDirector: (_) => const DirectorShell(),
         AppConstants.routeTherapist: (_) => const TherapistShell(),
-        AppConstants.routeParent: (_) => const ParentShell(),
+        AppConstants.routeParent: (_) => ParentShell(initialTab: initialTab),
       },
     );
   }

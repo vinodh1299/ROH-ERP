@@ -26,18 +26,45 @@ class ApiService {
   factory ApiService() => _instance;
   ApiService._internal();
 
-  // ── Base URL from .env (folder that contains api.php) ───────────────────
-  String get baseUrl => dotenv.env['API_BASE_URL'] ?? 'http://localhost:8000/';
+  String? _authToken;
 
-  String get _apiFile => '${baseUrl}api.php';
+  void setAuthToken(String? token) {
+    _authToken = token;
+  }
 
-  // ── GET request  →  api.php?action=xxx&key=value ────────────────────────
+  Map<String, String> get _headers {
+    final h = <String, String>{
+      'Content-Type': 'application/json',
+    };
+    if (_authToken != null && _authToken!.isNotEmpty) {
+      h['Authorization'] = 'Bearer $_authToken';
+    }
+    return h;
+  }
+
+  // ── Base URL from .env ──────────────────────────────────────────────────
+  String get baseUrl {
+    try {
+      if (dotenv.isInitialized) {
+        final url = dotenv.env['API_BASE_URL'];
+        if (url != null && url.trim().isNotEmpty) {
+          final trimmed = url.trim();
+          return trimmed.endsWith('/') ? trimmed : '$trimmed/';
+        }
+      }
+    } catch (_) {}
+    return 'http://127.0.0.1:8000/';
+  }
+
+  String get _apiFile => '${baseUrl}api';
+
+  // ── GET request  →  /api?action=xxx&key=value ───────────────────────────
   Future<dynamic> get(String action, {Map<String, String>? params}) async {
     try {
       final query = {'action': action, ...(params ?? {})};
       final uri = Uri.parse(_apiFile).replace(queryParameters: query);
       debugPrint('ApiService GET → $uri');
-      final response = await http.get(uri).timeout(const Duration(seconds: 15));
+      final response = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 15));
       return _decode(response);
     } catch (e) {
       debugPrint('ApiService.get error: $e');
@@ -51,7 +78,7 @@ class ApiService {
       final uri = Uri.parse(_apiFile).replace(queryParameters: {'action': action});
       debugPrint('ApiService POST → $uri');
       final response = await http
-          .post(uri, headers: {'Content-Type': 'application/json'}, body: jsonEncode(body))
+          .post(uri, headers: _headers, body: jsonEncode(body))
           .timeout(const Duration(seconds: 15));
       return _decode(response);
     } catch (e) {

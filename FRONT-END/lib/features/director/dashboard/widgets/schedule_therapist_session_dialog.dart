@@ -183,7 +183,7 @@ class _ScheduleTherapistSessionDialogState
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
               decoration: const BoxDecoration(
-                gradient: AppColors.welcomeGradient,
+                color: AppColors.primary,
                 borderRadius: BorderRadius.only(
                   topLeft: Radius.circular(16),
                   topRight: Radius.circular(16),

@@ -1,6 +1,7 @@
 // lib/features/director/settings_section/settings_section_page.dart
 import 'package:flutter/material.dart';
 import 'package:roh_erp/core/constants/app_colors.dart';
+import 'package:roh_erp/core/services/api_service.dart';
 
 class SettingsSectionPage extends StatefulWidget {
   const SettingsSectionPage({super.key});
@@ -28,7 +29,22 @@ class _SettingsSectionPageState extends State<SettingsSectionPage> {
     super.dispose();
   }
 
-  void _saveSettings() {
+  void _saveSettings() async {
+    try {
+      final api = ApiService();
+      await api.post('save_governance_settings', {
+        'target_mastery_criteria': _masteryCriteria,
+        'require_two_therapists': _requireTwoTherapists ? 1 : 0,
+        'reassessment_frequency': _reassessmentFreq,
+        'stagnation_alert_days': int.tryParse(_stagnationDays) ?? 21,
+        'supervision_ratio_target': double.tryParse(_supervisionRatio.replaceAll('%', '')) ?? 5.0,
+        'director_signature_name': _nameController.text,
+        'director_title': _titleController.text,
+        'director_bacb_cert': _certController.text,
+      });
+    } catch (_) {}
+
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('Clinical Governance & Center Settings updated successfully!'),

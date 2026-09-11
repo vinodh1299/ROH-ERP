@@ -10,7 +10,13 @@ import 'package:provider/provider.dart';
 import 'package:roh_erp/core/constants/app_colors.dart';
 import 'package:roh_erp/core/constants/app_constants.dart';
 import '../../core/widgets/custom_mobile_bottom_bar.dart';
+import '../../core/widgets/animated_top_bar_title.dart';
+import '../../core/widgets/two_step_logout_dialog.dart';
+import '../../core/widgets/notification_center_drawer.dart';
+import '../../core/services/notification_service.dart';
 import '../auth/auth_service.dart';
+import '../auth/widgets/forced_password_change_dialog.dart';
+import 'approvals/director_password_resets_view.dart';
 import 'dashboard/director_dashboard_page.dart';
 import 'schedule_section/director_schedule_page.dart';
 import 'therapist_section/therapist_section_page.dart';
@@ -29,6 +35,15 @@ class DirectorShell extends StatefulWidget {
 class _DirectorShellState extends State<DirectorShell> {
   int _selectedIndex = 0;
   bool _sidebarExpanded = true;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ForcedPasswordChangeDialog.showIfNeeded(context);
+      NotificationService().fetchNotifications();
+    });
+  }
 
   static const List<_NavItem> _navItems = [
     _NavItem(icon: Icons.dashboard_outlined, activeIcon: Icons.dashboard, label: 'Dashboard'),
@@ -100,27 +115,32 @@ class _DirectorShellState extends State<DirectorShell> {
   Widget _buildMobileScaffold() {
     return Scaffold(
       backgroundColor: AppColors.scaffold,
-      appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(64),
-        child: Builder(
-          builder: (ctx) => _TopBar(
-            title: _navItems[_selectedIndex].label,
-            onMenuTap: () => Scaffold.of(ctx).openDrawer(),
+      drawer: Drawer(
+        child: SafeArea(
+          child: _Sidebar(
+            items: _navItems,
+            selectedIndex: _selectedIndex,
+            expanded: true,
+            onItemSelected: (i) {
+              setState(() => _selectedIndex = i);
+              Navigator.of(context).pop();
+            },
           ),
         ),
       ),
-      drawer: Drawer(
-        child: _Sidebar(
-          items: _navItems,
-          selectedIndex: _selectedIndex,
-          expanded: true,
-          onItemSelected: (i) {
-            setState(() => _selectedIndex = i);
-            Navigator.of(context).pop();
-          },
+      body: SafeArea(
+        child: Column(
+          children: [
+            Builder(
+              builder: (ctx) => _TopBar(
+                title: _navItems[_selectedIndex].label,
+                onMenuTap: () => Scaffold.of(ctx).openDrawer(),
+              ),
+            ),
+            Expanded(child: _pages[_selectedIndex]),
+          ],
         ),
       ),
-      body: _pages[_selectedIndex],
       bottomNavigationBar: CustomMobileBottomBar(
         currentIndex: () {
           if (_selectedIndex == 0) return 0; // Dashboard
@@ -202,7 +222,7 @@ class _Sidebar extends StatelessWidget {
                     width: 36,
                     height: 36,
                     decoration: BoxDecoration(
-                      gradient: AppColors.welcomeGradient,
+                      color: AppColors.primary,
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: const Center(
@@ -287,9 +307,12 @@ class _Sidebar extends StatelessWidget {
             padding: const EdgeInsets.all(12),
             child: InkWell(
               onTap: () async {
-                await context.read<AuthService>().logout();
-                if (context.mounted) {
-                  Navigator.of(context).pushReplacementNamed(AppConstants.routeLogin);
+                final shouldLogout = await TwoStepLogoutDialog.show(context);
+                if (shouldLogout == true && context.mounted) {
+                  await context.read<AuthService>().logout();
+                  if (context.mounted) {
+                    Navigator.of(context).pushReplacementNamed(AppConstants.routeLogin);
+                  }
                 }
               },
               borderRadius: BorderRadius.circular(10),
@@ -324,49 +347,88 @@ class _TopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isMobile = screenWidth < 768;
     final user = context.watch<AuthService>().currentUser;
 
     return Container(
       height: 64,
-      padding: const EdgeInsets.symmetric(horizontal: 20),
+      padding: EdgeInsets.symmetric(horizontal: isMobile ? 8 : 20),
       color: Colors.white,
       child: Row(
         children: [
           if (onMenuTap != null)
-            IconButton(icon: const Icon(Icons.menu), onPressed: onMenuTap),
+            IconButton(
+              icon: const Icon(Icons.menu, color: AppColors.primary),
+              onPressed: onMenuTap,
+              padding: const EdgeInsets.all(8),
+              constraints: const BoxConstraints(),
+            ),
           Expanded(
-            child: Text(
-              AppConstants.centerName.toUpperCase(),
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                color: AppColors.primary,
-                letterSpacing: 0.5,
+            child: AnimatedTopBarTitle(isMobile: isMobile),
+          ),
+          if (!isMobile) ...[
+            TextButton.icon(
+              onPressed: () => DirectorPasswordResetsView.show(context),
+              icon: const Icon(Icons.verified_user_outlined, size: 16, color: AppColors.primary),
+              label: const Text('Reset Approvals', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.primary)),
+              style: TextButton.styleFrom(
+                backgroundColor: AppColors.primaryLight.withValues(alpha: 0.12),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
             ),
-          ),
+            const SizedBox(width: 8),
+          ] else ...[
+            IconButton(
+              tooltip: 'Reset Approvals',
+              icon: const Icon(Icons.verified_user_outlined, size: 20, color: AppColors.primary),
+              padding: const EdgeInsets.all(6),
+              constraints: const BoxConstraints(),
+              onPressed: () => DirectorPasswordResetsView.show(context),
+            ),
+            const SizedBox(width: 4),
+          ],
           // Notification bell
-          IconButton(
-            icon: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                const Icon(Icons.notifications_none_outlined, size: 22, color: AppColors.textSecondary),
-                Positioned(
-                  top: -2,
-                  right: -2,
-                  child: Container(
-                    width: 8,
-                    height: 8,
-                    decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
+          InkWell(
+            onTap: () => NotificationCenterDrawer.show(context),
+            borderRadius: BorderRadius.circular(20),
+            child: Container(
+              padding: const EdgeInsets.all(6),
+              decoration: const BoxDecoration(
+                color: AppColors.primaryLight,
+                shape: BoxShape.circle,
+              ),
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  const Icon(Icons.notifications_outlined, color: AppColors.primary, size: 20),
+                  ListenableBuilder(
+                    listenable: NotificationService(),
+                    builder: (context, _) {
+                      final count = NotificationService().unreadCount;
+                      if (count <= 0) return const SizedBox.shrink();
+                      return Positioned(
+                        top: -4,
+                        right: -4,
+                        child: Container(
+                          padding: const EdgeInsets.all(3),
+                          decoration: const BoxDecoration(color: Color(0xFFEF4444), shape: BoxShape.circle),
+                          constraints: const BoxConstraints(minWidth: 14, minHeight: 14),
+                          child: Text(
+                            '$count',
+                            style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      );
+                    },
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-            onPressed: () {},
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 12),
           // User avatar
           CircleAvatar(
             radius: 18,

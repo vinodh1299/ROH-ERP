@@ -43,7 +43,7 @@ class _AdminStudentFormPageState extends State<AdminStudentFormPage> with Single
               children: [
                 Container(
                   decoration: const BoxDecoration(
-                    gradient: AppColors.welcomeGradient,
+                    color: AppColors.primary,
                     borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
                   ),
                   child: TabBar(
@@ -327,7 +327,7 @@ class _AdminStudentFormPageState extends State<AdminStudentFormPage> with Single
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(gradient: AppColors.welcomeGradient, borderRadius: BorderRadius.circular(8)),
+                decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(8)),
                 child: const Text('Emergency Contact Information', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
               ),
               const SizedBox(height: 16),

@@ -75,9 +75,7 @@ class _LoginPageState extends State<LoginPage> {
         Expanded(
           flex: 5,
           child: Container(
-            decoration: const BoxDecoration(
-              gradient: AppColors.welcomeGradient,
-            ),
+            color: AppColors.primary,
             child: const _BrandingPanel(),
           ),
         ),
@@ -106,9 +104,7 @@ class _LoginPageState extends State<LoginPage> {
           Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 24),
-            decoration: const BoxDecoration(
-              gradient: AppColors.welcomeGradient,
-            ),
+            color: AppColors.primary,
             child: const _BrandingPanel(compact: true),
           ),
           Padding(

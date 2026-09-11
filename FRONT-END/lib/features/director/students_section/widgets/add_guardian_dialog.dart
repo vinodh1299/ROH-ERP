@@ -49,12 +49,16 @@ class _AddGuardianDialogState extends State<AddGuardianDialog> {
         constraints: const BoxConstraints(maxWidth: 420),
         child: Container(
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [Color(0xFF9C4FD6), Color(0xFFBB6FEE)],
-            ),
-            borderRadius: BorderRadius.circular(20),
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.border),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x0A000000),
+                blurRadius: 16,
+                offset: Offset(0, 4),
+              ),
+            ],
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -64,10 +68,10 @@ class _AddGuardianDialogState extends State<AddGuardianDialog> {
                 child: Row(
                   children: [
                     const Text('Add Guardian',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white)),
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
                     const Spacer(),
                     IconButton(
-                      icon: const Icon(Icons.close, color: Colors.white70, size: 20),
+                      icon: const Icon(Icons.close, color: AppColors.textSecondary, size: 20),
                       onPressed: () => Navigator.of(context).pop(),
                     ),
                   ],
@@ -77,7 +81,7 @@ class _AddGuardianDialogState extends State<AddGuardianDialog> {
                 margin: const EdgeInsets.fromLTRB(10, 4, 10, 10),
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.95),
+                  color: AppColors.background,
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: Form(

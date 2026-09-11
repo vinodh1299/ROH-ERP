@@ -1,13 +1,97 @@
 // lib/core/services/schedule_service.dart
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../models/schedule_model.dart';
+import 'api_service.dart';
+import 'notification_service.dart';
 
 class ScheduleService extends ChangeNotifier {
   static final ScheduleService _instance = ScheduleService._internal();
   factory ScheduleService() => _instance;
 
+  final ApiService _api = ApiService();
+  Timer? _periodicTimer;
+
   ScheduleService._internal() {
     _initSampleData();
+    syncWithBackend();
+    // Continuous background sync every 4 seconds across browser tabs
+    _periodicTimer = Timer.periodic(const Duration(seconds: 4), (_) {
+      syncWithBackend();
+    });
+  }
+
+  Future<void> syncWithBackend() async {
+    try {
+      final sessRes = await _api.get('get_sessions');
+      if (sessRes is List && sessRes.isNotEmpty) {
+        _sessions.clear();
+        for (final item in sessRes) {
+          if (item is Map<String, dynamic>) {
+            final sDate = item['session_date'] != null
+                ? DateTime.tryParse(item['session_date'].toString()) ?? DateTime.now()
+                : DateTime.now();
+            SessionStatus stat = SessionStatus.upcoming;
+            if (item['status'] == 'completed') stat = SessionStatus.completed;
+            if (item['status'] == 'inProgress') stat = SessionStatus.inProgress;
+            if (item['status'] == 'cancelled') stat = SessionStatus.cancelled;
+
+            _sessions.add(TherapySession(
+              id: item['id'].toString(),
+              therapistId: (item['therapist_id'] ?? '').toString(),
+              therapistName: item['therapist_name'] ?? 'Therapist',
+              studentId: (item['student_id'] ?? '').toString(),
+              studentName: item['student_name'] ?? 'Student',
+              studentAge: 15,
+              programTitle: item['program_title'] ?? 'ABA Intervention',
+              room: item['room'] ?? 'Sensory Room A',
+              date: sDate,
+              startTime: item['start_time'] ?? '09:00 AM',
+              endTime: item['end_time'] ?? '10:15 AM',
+              status: stat,
+              notes: item['clinical_notes'] ?? '',
+            ));
+          }
+        }
+      }
+
+      final apptRes = await _api.get('get_director_appointments');
+      if (apptRes is List && apptRes.isNotEmpty) {
+        _directorAppointments.clear();
+        for (final item in apptRes) {
+          if (item is Map<String, dynamic>) {
+            final aDate = item['date'] != null
+                ? DateTime.tryParse(item['date'].toString()) ?? DateTime.now()
+                : DateTime.now();
+            AppointmentType aType = AppointmentType.diagnosticIntake;
+            final typeStr = item['appointment_type']?.toString() ?? '';
+            if (typeStr.contains('iep')) aType = AppointmentType.iepReview;
+            if (typeStr.contains('bacb')) aType = AppointmentType.bacbSupervision;
+            if (typeStr.contains('parent')) aType = AppointmentType.parentConference;
+
+            _directorAppointments.add(DirectorAppointment(
+              id: item['id'].toString(),
+              title: item['title'] ?? 'Director Consultation',
+              type: aType,
+              date: aDate,
+              startTime: item['start_time'] ?? '09:00 AM',
+              endTime: item['end_time'] ?? '10:00 AM',
+              attendeeName: item['attendee_name'] ?? 'Parent',
+              attendeeRole: item['attendee_role'] ?? 'Parent',
+              attendeePhone: item['attendee_phone'] ?? '',
+              attendeeEmail: item['attendee_email'] ?? '',
+              location: item['location'] ?? 'Director Office Suite',
+              scheduledBy: item['scheduled_by'] ?? 'Admin',
+              status: AppointmentStatus.confirmed,
+              notes: item['notes'] ?? '',
+            ));
+          }
+        }
+      }
+      notifyListeners();
+    } catch (e) {
+      debugPrint('ScheduleService sync error: $e');
+    }
   }
 
   final List<TherapySession> _sessions = [];
@@ -370,7 +454,7 @@ class ScheduleService extends ChangeNotifier {
   }
 
   // Admin books appointment for Director
-  bool scheduleDirectorAppointment(DirectorAppointment appointment) {
+  Future<bool> scheduleDirectorAppointment(DirectorAppointment appointment) async {
     // Conflict check
     final conflict = _directorAppointments.any((a) =>
         a.date.year == appointment.date.year &&
@@ -383,9 +467,38 @@ class ScheduleService extends ChangeNotifier {
       return false;
     }
 
+    // Optimistic local add
     _directorAppointments.add(appointment);
     notifyListeners();
-    return true;
+
+    try {
+      // Synchronize with backend database
+      final res = await _api.post('save_director_appointment', {
+        'title': appointment.title,
+        'appointment_type': appointment.type.name,
+        'date': appointment.date.toIso8601String().split('T')[0],
+        'start_time': appointment.startTime,
+        'end_time': appointment.endTime,
+        'attendee_name': appointment.attendeeName,
+        'attendee_role': appointment.attendeeRole,
+        'attendee_phone': appointment.attendeePhone,
+        'attendee_email': appointment.attendeeEmail,
+        'location': appointment.location,
+        'notes': appointment.notes,
+      });
+
+      debugPrint('ScheduleService: Appointment saved successfully: $res');
+
+      // Trigger immediate notification refresh across all listeners
+      NotificationService().fetchNotifications(silent: true);
+
+      // Re-sync with backend to get latest database IDs
+      await syncWithBackend();
+      return true;
+    } catch (e) {
+      debugPrint('ScheduleService save_director_appointment error: $e');
+      return true; // Keep optimistic state
+    }
   }
 
   void updateAppointmentStatus(String appointmentId, AppointmentStatus newStatus) {

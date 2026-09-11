@@ -11,8 +11,9 @@ class AdminTherapistAddDialog extends StatelessWidget {
       child: Container(
         width: 500,
         decoration: BoxDecoration(
-          gradient: AppColors.welcomeGradient,
+          color: Colors.white,
           borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.border),
         ),
         padding: const EdgeInsets.all(24),
         child: SingleChildScrollView(
@@ -20,12 +21,15 @@ class AdminTherapistAddDialog extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text('Add Therapist', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+              const Text('Add Therapist', style: TextStyle(color: AppColors.textPrimary, fontSize: 20, fontWeight: FontWeight.bold)),
               Container(
-                width: 100,
-                height: 2,
-                color: Colors.white,
-                margin: const EdgeInsets.only(top: 4, bottom: 24),
+                width: 60,
+                height: 3,
+                decoration: BoxDecoration(
+                  color: AppColors.primary,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+                margin: const EdgeInsets.only(top: 6, bottom: 24),
               ),
               LayoutBuilder(
                 builder: (context, constraints) {
@@ -85,8 +89,8 @@ class AdminTherapistAddDialog extends StatelessWidget {
                   OutlinedButton(
                     onPressed: () => Navigator.pop(context),
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.white,
-                      side: const BorderSide(color: Colors.white),
+                      foregroundColor: AppColors.textSecondary,
+                      side: const BorderSide(color: AppColors.border),
                       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                     ),
                     child: const Text('Cancel'),
@@ -95,7 +99,7 @@ class AdminTherapistAddDialog extends StatelessWidget {
                   ElevatedButton(
                     onPressed: () => Navigator.pop(context),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.textPrimary,
+                      backgroundColor: AppColors.primary,
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                     ),
@@ -114,20 +118,24 @@ class AdminTherapistAddDialog extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(color: Colors.white, fontSize: 12)),
+        Text(label, style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500)),
         const SizedBox(height: 8),
         TextField(
           maxLines: maxLines,
           decoration: InputDecoration(
             hintText: 'Enter $label',
-            hintStyle: const TextStyle(color: AppColors.textHint, fontSize: 12),
+            hintStyle: const TextStyle(color: AppColors.textHint, fontSize: 13),
             filled: true,
-            fillColor: Colors.white,
+            fillColor: AppColors.background,
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide.none,
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: AppColors.border),
             ),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: AppColors.border),
+            ),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           ),
         ),
       ],

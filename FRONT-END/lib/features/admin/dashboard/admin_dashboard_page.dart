@@ -6,13 +6,75 @@ import 'package:roh_erp/core/models/schedule_model.dart';
 import 'package:roh_erp/core/services/schedule_service.dart';
 import 'widgets/schedule_director_appointment_dialog.dart';
 
-class AdminDashboardPage extends StatelessWidget {
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:roh_erp/core/constants/app_colors.dart';
+import 'package:roh_erp/core/constants/app_images.dart';
+import 'package:roh_erp/core/models/schedule_model.dart';
+import 'package:roh_erp/core/services/schedule_service.dart';
+import 'package:roh_erp/core/services/api_service.dart';
+import 'widgets/schedule_director_appointment_dialog.dart';
+
+class AdminDashboardPage extends StatefulWidget {
   final VoidCallback? onNavigateCalendar;
 
   const AdminDashboardPage({super.key, this.onNavigateCalendar});
 
   @override
+  State<AdminDashboardPage> createState() => _AdminDashboardPageState();
+}
+
+class _AdminDashboardPageState extends State<AdminDashboardPage> {
+  List<Map<String, dynamic>> _students = [];
+  List<Map<String, dynamic>> _therapists = [];
+  List<Map<String, dynamic>> _iepReports = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDashboardData();
+  }
+
+  Future<void> _loadDashboardData() async {
+    try {
+      final sRes = await ApiService().get('get_students');
+      final tRes = await ApiService().get('get_therapists');
+      final iRes = await ApiService().get('get_iep_reports');
+
+      if (mounted) {
+        setState(() {
+          if (sRes is List) _students = List<Map<String, dynamic>>.from(sRes);
+          if (tRes is List) _therapists = List<Map<String, dynamic>>.from(tRes);
+          if (iRes is List) _iepReports = List<Map<String, dynamic>>.from(iRes);
+          _isLoading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  int _calculateAge(dynamic dob) {
+    if (dob == null) return 10;
+    try {
+      final birthDate = DateTime.parse(dob.toString());
+      final now = DateTime.now();
+      int age = now.year - birthDate.year;
+      if (now.month < birthDate.month ||
+          (now.month == birthDate.month && now.day < birthDate.day)) {
+        age--;
+      }
+      return age > 0 ? age : 1;
+    } catch (_) {
+      return 10;
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final pendingIeps = _iepReports.where((r) => (r['status'] ?? '').toString().contains('Pending')).toList();
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Column(
@@ -25,8 +87,15 @@ class AdminDashboardPage extends StatelessWidget {
               children: [
                 Container(
                   decoration: BoxDecoration(
-                    gradient: AppColors.welcomeGradient,
+                    color: AppColors.primary,
                     borderRadius: BorderRadius.circular(16),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color(0x0A000000),
+                        blurRadius: 8,
+                        offset: Offset(0, 2),
+                      ),
+                    ],
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -77,22 +146,25 @@ class AdminDashboardPage extends StatelessWidget {
                 const SizedBox(height: 16),
                 LayoutBuilder(builder: (ctx, innerConstraints) {
                   final stackStats = innerConstraints.maxWidth < 450;
+                  final sCount = _isLoading ? '...' : '${_students.length}';
+                  final tCount = _isLoading ? '...' : '${_therapists.length}';
+
                   return stackStats
                       ? Column(
                           children: [
-                            _buildStatCard(Icons.group, Colors.pink.shade50, Colors.pink.shade300, 'Students', '250'),
+                            _buildStatCard(Icons.group, Colors.pink.shade50, Colors.pink.shade300, 'Students', sCount),
                             const SizedBox(height: 12),
-                            _buildStatCard(Icons.medical_services, Colors.teal.shade50, AppColors.accentTeal, 'Staffs', '5'),
+                            _buildStatCard(Icons.medical_services, Colors.teal.shade50, AppColors.accentTeal, 'Staffs', tCount),
                           ],
                         )
                       : Row(
                           children: [
                             Expanded(
-                              child: _buildStatCard(Icons.group, Colors.pink.shade50, Colors.pink.shade300, 'Students', '250'),
+                              child: _buildStatCard(Icons.group, Colors.pink.shade50, Colors.pink.shade300, 'Students', sCount),
                             ),
                             const SizedBox(width: 16),
                             Expanded(
-                              child: _buildStatCard(Icons.medical_services, Colors.teal.shade50, AppColors.accentTeal, 'Staffs', '5'),
+                              child: _buildStatCard(Icons.medical_services, Colors.teal.shade50, AppColors.accentTeal, 'Staffs', tCount),
                             ),
                           ],
                         );
@@ -114,32 +186,42 @@ class AdminDashboardPage extends StatelessWidget {
                     style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 16),
                   ),
                   const SizedBox(height: 16),
-                  ...List.generate(4, (index) => Padding(
-                    padding: const EdgeInsets.only(bottom: 12.0),
-                    child: Row(
-                      children: [
-                        AppImages.therapistAvatar(radius: 20),
-                        const SizedBox(width: 12),
-                        const Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('Jemi Wilson', style: TextStyle(color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w600)),
-                              Text('20-03-2023', style: TextStyle(color: AppColors.primary, fontSize: 12)),
-                            ],
-                          ),
+                  if (pendingIeps.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 24.0),
+                      child: Center(child: Text('No pending IEP sign-offs', style: TextStyle(color: AppColors.textSecondary))),
+                    )
+                  else
+                    ...pendingIeps.take(4).map((iep) {
+                      final sName = iep['student_name'] ?? 'Student';
+                      final createdDate = iep['created_at'] != null ? iep['created_at'].toString().split('T')[0] : '2026-09-11';
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 12.0),
+                        child: Row(
+                          children: [
+                            AppImages.therapistAvatar(radius: 20),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(sName, style: const TextStyle(color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w600)),
+                                  Text(createdDate, style: const TextStyle(color: AppColors.primary, fontSize: 12)),
+                                ],
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: AppColors.statusPendingBg,
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: const Text('Pending', style: TextStyle(color: AppColors.statusPending, fontSize: 12, fontWeight: FontWeight.w600)),
+                            ),
+                          ],
                         ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: AppColors.statusPendingBg,
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: const Text('Pending', style: TextStyle(color: AppColors.statusPending, fontSize: 12, fontWeight: FontWeight.w600)),
-                        ),
-                      ],
-                    ),
-                  )),
+                      );
+                    }),
                 ],
               ),
             );
@@ -166,7 +248,7 @@ class AdminDashboardPage extends StatelessWidget {
           const SizedBox(height: 20),
 
           // ── Director's Calendar & Scheduling Dispatcher (Admin Portal) ───
-          _AdminDirectorSchedulingDashboardWidget(onNavigateCalendar: onNavigateCalendar),
+          _AdminDirectorSchedulingDashboardWidget(onNavigateCalendar: widget.onNavigateCalendar),
           const SizedBox(height: 24),
 
           const Text('Recent Activities', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 18)),
@@ -191,8 +273,8 @@ class AdminDashboardPage extends StatelessWidget {
                   height: 400,
                   child: TabBarView(
                     children: [
-                      _buildDataTable(),
-                      _buildDataTable(),
+                      _buildStudentsTable(),
+                      _buildIepTable(),
                     ],
                   ),
                 ),
@@ -228,7 +310,7 @@ class AdminDashboardPage extends StatelessWidget {
     );
   }
 
-  Widget _buildDataTable() {
+  Widget _buildStudentsTable() {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -259,64 +341,68 @@ class AdminDashboardPage extends StatelessWidget {
                 ),
               ),
               Expanded(
-                child: ListView.separated(
-                  itemCount: 5,
-                  separatorBuilder: (context, index) => const Divider(height: 1, color: AppColors.divider),
-                  itemBuilder: (context, index) {
-                    final names = ['Spotify Subscription', 'Freepik Sales', 'Mobile Service', 'Wilson', 'Emilly'];
-                    final emails = ['spotify@email.com', 'freepik@email.com', 'mobile@email.com', 'wilson@email.com', 'emilly@email.com'];
-                    final phones = ['+1 234 567 890', '+1 987 654 321', '+1 555 123 456', '+1 444 789 012', '+1 333 456 789'];
-                    final ages = ['10', '12', '14', '11', '15'];
-                    final dates = ['10-01-2023', '15-01-2023', '20-01-2023', '25-01-2023', '28-01-2023'];
-                    final isActive = index != 1 && index != 3;
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                      child: Row(
-                        children: [
-                          Expanded(flex: 2, child: Text(names[index], style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w500))),
-                          Expanded(flex: 2, child: Text(emails[index], style: const TextStyle(color: AppColors.textPrimary))),
-                          Expanded(flex: 2, child: Text(phones[index], style: const TextStyle(color: AppColors.textPrimary))),
-                          Expanded(flex: 1, child: Text(ages[index], style: const TextStyle(color: AppColors.textPrimary))),
-                          Expanded(flex: 2, child: Text(dates[index], style: const TextStyle(color: AppColors.textPrimary))),
-                          Expanded(
-                            flex: 1,
-                            child: Align(
-                              alignment: Alignment.centerLeft,
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                decoration: BoxDecoration(
-                                  color: isActive ? AppColors.statusActiveBg : AppColors.statusDeactivatedBg,
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Text(
-                                  isActive ? 'Active' : 'De-Activated',
-                                  style: TextStyle(
-                                    color: isActive ? AppColors.statusActive : AppColors.statusDeactivated,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
+                child: _students.isEmpty
+                    ? const Center(child: Text('No student records found in database', style: TextStyle(color: AppColors.textSecondary)))
+                    : ListView.separated(
+                        itemCount: _students.length,
+                        separatorBuilder: (context, index) => const Divider(height: 1, color: AppColors.divider),
+                        itemBuilder: (context, index) {
+                          final s = _students[index];
+                          final name = s['name'] ?? '${s['first_name']} ${s['last_name']}';
+                          final email = '${(s['first_name'] ?? 'student').toString().toLowerCase()}@rohcenter.org';
+                          final phone = s['phone'] ?? '+1 (555) 019-2834';
+                          final age = _calculateAge(s['dob']);
+                          final createdDate = s['created_at'] != null ? s['created_at'].toString().split('T')[0] : '2026-09-11';
+                          final isActive = (s['status'] ?? 'Active') == 'Active';
+
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            child: Row(
+                              children: [
+                                Expanded(flex: 2, child: Text(name, style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w500))),
+                                Expanded(flex: 2, child: Text(email, style: const TextStyle(color: AppColors.textPrimary))),
+                                Expanded(flex: 2, child: Text(phone, style: const TextStyle(color: AppColors.textPrimary))),
+                                Expanded(flex: 1, child: Text('$age', style: const TextStyle(color: AppColors.textPrimary))),
+                                Expanded(flex: 2, child: Text(createdDate, style: const TextStyle(color: AppColors.textPrimary))),
+                                Expanded(
+                                  flex: 1,
+                                  child: Align(
+                                    alignment: Alignment.centerLeft,
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: isActive ? AppColors.statusActiveBg : AppColors.statusDeactivatedBg,
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Text(
+                                        isActive ? 'Active' : 'De-Activated',
+                                        style: TextStyle(
+                                          color: isActive ? AppColors.statusActive : AppColors.statusDeactivated,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
                                   ),
                                 ),
-                              ),
+                                Expanded(
+                                  flex: 1,
+                                  child: OutlinedButton(
+                                    onPressed: () {},
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: AppColors.primary,
+                                      side: const BorderSide(color: AppColors.primary),
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                    ),
+                                    child: const Text('View', style: TextStyle(fontSize: 12)),
+                                  ),
+                                ),
+                              ],
                             ),
-                          ),
-                          Expanded(
-                            flex: 1,
-                            child: OutlinedButton(
-                              onPressed: () {},
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: AppColors.primary,
-                                side: const BorderSide(color: AppColors.primary),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                              ),
-                              child: const Text('View', style: TextStyle(fontSize: 12)),
-                            ),
-                          ),
-                        ],
+                          );
+                        },
                       ),
-                    );
-                  },
-                ),
               ),
               const Divider(height: 1, color: AppColors.divider),
               Padding(
@@ -327,14 +413,96 @@ class AdminDashboardPage extends StatelessWidget {
                     TextButton(onPressed: () {}, child: const Text('Previous', style: TextStyle(color: AppColors.textHint))),
                     const SizedBox(width: 8),
                     _buildPageNum(1, true),
-                    _buildPageNum(2, false),
-                    _buildPageNum(3, false),
-                    _buildPageNum(4, false),
                     const SizedBox(width: 8),
                     TextButton(onPressed: () {}, child: const Text('Next', style: TextStyle(color: AppColors.primary))),
                   ],
                 ),
               )
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildIepTable() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: SizedBox(
+          width: 750,
+          child: Column(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppColors.primaryLight.withValues(alpha: 0.3),
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                ),
+                child: const Row(
+                  children: [
+                    Expanded(flex: 2, child: Text('Student', style: TextStyle(color: AppColors.tableHeaderText, fontWeight: FontWeight.bold))),
+                    Expanded(flex: 2, child: Text('Therapist', style: TextStyle(color: AppColors.tableHeaderText, fontWeight: FontWeight.bold))),
+                    Expanded(flex: 2, child: Text('Title', style: TextStyle(color: AppColors.tableHeaderText, fontWeight: FontWeight.bold))),
+                    Expanded(flex: 2, child: Text('Cycle', style: TextStyle(color: AppColors.tableHeaderText, fontWeight: FontWeight.bold))),
+                    Expanded(flex: 1, child: Text('Status', style: TextStyle(color: AppColors.tableHeaderText, fontWeight: FontWeight.bold))),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: _iepReports.isEmpty
+                    ? const Center(child: Text('No IEP records found in database', style: TextStyle(color: AppColors.textSecondary)))
+                    : ListView.separated(
+                        itemCount: _iepReports.length,
+                        separatorBuilder: (context, index) => const Divider(height: 1, color: AppColors.divider),
+                        itemBuilder: (context, index) {
+                          final iep = _iepReports[index];
+                          final sName = iep['student_name'] ?? 'Student';
+                          final tName = iep['therapist_name'] ?? 'Therapist';
+                          final title = iep['title'] ?? 'IEP Plan';
+                          final cycle = iep['cycle_term'] ?? 'Q3 2026';
+                          final status = iep['status'] ?? 'Active';
+                          final isActive = status == 'Active';
+
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            child: Row(
+                              children: [
+                                Expanded(flex: 2, child: Text(sName, style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w500))),
+                                Expanded(flex: 2, child: Text(tName, style: const TextStyle(color: AppColors.textPrimary))),
+                                Expanded(flex: 2, child: Text(title, style: const TextStyle(color: AppColors.textPrimary))),
+                                Expanded(flex: 2, child: Text(cycle, style: const TextStyle(color: AppColors.textPrimary))),
+                                Expanded(
+                                  flex: 1,
+                                  child: Align(
+                                    alignment: Alignment.centerLeft,
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: isActive ? AppColors.statusActiveBg : AppColors.statusPendingBg,
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Text(
+                                        status,
+                                        style: TextStyle(
+                                          color: isActive ? AppColors.statusActive : AppColors.statusPending,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+              ),
             ],
           ),
         ),

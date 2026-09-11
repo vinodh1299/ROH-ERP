@@ -11,7 +11,7 @@ class VbMappReportPage extends StatefulWidget {
 }
 
 class _VbMappReportPageState extends State<VbMappReportPage> {
-  String? _selectedStudent = 'Alex Thomas Sam';
+  String? _selectedStudent;
   bool _isBarrierMode = false;
   int _activeMilestoneLevel = 1; // 1, 2, or 3
 

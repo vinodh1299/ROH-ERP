@@ -77,7 +77,7 @@ class _ParentRequestAppointmentDialogState
     }
   }
 
-  void _submitRequest() {
+  Future<void> _submitRequest() async {
     if (!_formKey.currentState!.validate()) return;
     if (_selectedSlot == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -113,8 +113,9 @@ class _ParentRequestAppointmentDialogState
           : _notesController.text.trim(),
     );
 
-    final success = scheduleService.scheduleDirectorAppointment(newAppointment);
+    final success = await scheduleService.scheduleDirectorAppointment(newAppointment);
 
+    if (!mounted) return;
     if (success) {
       Navigator.of(context).pop(true);
       ScaffoldMessenger.of(context).showSnackBar(
@@ -193,7 +194,7 @@ class _ParentRequestAppointmentDialogState
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
               decoration: const BoxDecoration(
-                gradient: AppColors.welcomeGradient,
+                color: AppColors.primary,
                 borderRadius: BorderRadius.only(
                   topLeft: Radius.circular(16),
                   topRight: Radius.circular(16),

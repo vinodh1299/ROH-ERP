@@ -4,7 +4,12 @@ import 'package:roh_erp/core/constants/app_colors.dart';
 import 'package:roh_erp/core/constants/app_constants.dart';
 import 'package:roh_erp/core/constants/app_images.dart';
 import '../../core/widgets/custom_mobile_bottom_bar.dart';
+import '../../core/widgets/animated_top_bar_title.dart';
+import '../../core/widgets/two_step_logout_dialog.dart';
+import '../../core/widgets/notification_center_drawer.dart';
+import '../../core/services/notification_service.dart';
 import '../auth/auth_service.dart';
+import '../auth/widgets/forced_password_change_dialog.dart';
 import 'dashboard/therapist_dashboard_page.dart';
 import 'timetable/therapist_timetable_page.dart';
 import 'vb_assessment/milestone_assessment_page.dart';
@@ -27,6 +32,15 @@ class TherapistShell extends StatefulWidget {
 class _TherapistShellState extends State<TherapistShell> {
   int _selectedIndex = 0;
   bool _isVbAssessmentExpanded = true;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ForcedPasswordChangeDialog.showIfNeeded(context);
+      NotificationService().fetchNotifications();
+    });
+  }
 
   late final List<Widget> _pages = [
     TherapistDashboardPage(onNavigateTab: _onItemTapped),
@@ -145,9 +159,9 @@ class _TherapistShellState extends State<TherapistShell> {
     final topBarWidget = Container(
       height: 72,
       decoration: const BoxDecoration(
-        color: Colors.white,
-        border: Border(
-          bottom: BorderSide(color: Color(0xFFE6EFF5), width: 1),
+        color: AppColors.surface,
+        border: const Border(
+          bottom: BorderSide(color: AppColors.border, width: 1),
         ),
       ),
       padding: EdgeInsets.symmetric(horizontal: isMobile ? 12 : 28),
@@ -156,37 +170,56 @@ class _TherapistShellState extends State<TherapistShell> {
           if (isMobile)
             Builder(
               builder: (ctx) => IconButton(
-                icon: const Icon(Icons.menu, color: Color(0xFFAB47BC)),
+                icon: const Icon(Icons.menu, color: AppColors.primary),
                 onPressed: () => Scaffold.of(ctx).openDrawer(),
               ),
             ),
           Expanded(
-            child: Center(
-              child: Text(
-                'RAY OF HOPE CENTER FOR AUTISM',
-                style: TextStyle(
-                  fontFamily: 'Poppins',
-                  fontSize: isMobile ? 12 : 16,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 0.5,
-                  color: const Color(0xFFAB47BC),
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
+            child: AnimatedTopBarTitle(isMobile: isMobile),
           ),
-          Container(
-            width: isMobile ? 36 : 40,
-            height: isMobile ? 36 : 40,
-            decoration: const BoxDecoration(
-              color: Color(0xFFF5F6FA),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.notifications_none,
-              color: Color(0xFFAB47BC),
-              size: 20,
+          InkWell(
+            onTap: () => NotificationCenterDrawer.show(context),
+            borderRadius: BorderRadius.circular(20),
+            child: Container(
+              width: isMobile ? 36 : 40,
+              height: isMobile ? 36 : 40,
+              decoration: const BoxDecoration(
+                color: AppColors.primaryLight,
+                shape: BoxShape.circle,
+              ),
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  const Center(
+                    child: Icon(
+                      Icons.notifications_none,
+                      color: AppColors.primaryDark,
+                      size: 20,
+                    ),
+                  ),
+                  ListenableBuilder(
+                    listenable: NotificationService(),
+                    builder: (context, _) {
+                      final count = NotificationService().unreadCount;
+                      if (count <= 0) return const SizedBox.shrink();
+                      return Positioned(
+                        top: -2,
+                        right: -2,
+                        child: Container(
+                          padding: const EdgeInsets.all(3),
+                          decoration: const BoxDecoration(color: Color(0xFFEF4444), shape: BoxShape.circle),
+                          constraints: const BoxConstraints(minWidth: 14, minHeight: 14),
+                          child: Text(
+                            '$count',
+                            style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              ),
             ),
           ),
           SizedBox(width: isMobile ? 8 : 16),
@@ -195,9 +228,12 @@ class _TherapistShellState extends State<TherapistShell> {
             offset: const Offset(0, 48),
             onSelected: (value) async {
               if (value == 'logout') {
-                await context.read<AuthService>().logout();
-                if (context.mounted) {
-                  Navigator.of(context).pushReplacementNamed(AppConstants.routeLogin);
+                final shouldLogout = await TwoStepLogoutDialog.show(context);
+                if (shouldLogout == true && context.mounted) {
+                  await context.read<AuthService>().logout();
+                  if (context.mounted) {
+                    Navigator.of(context).pushReplacementNamed(AppConstants.routeLogin);
+                  }
                 }
               } else {
                 Navigator.of(context).pushReplacementNamed(value);
@@ -346,8 +382,8 @@ class _TherapistShellState extends State<TherapistShell> {
     bool isDrawer = false,
   }) {
     final bool isSelected = _selectedIndex == index;
-    const Color activeColor = Color(0xFFAB47BC);
-    const Color inactiveColor = Color(0xFFA0A5BA);
+    const Color activeColor = AppColors.primary;
+    const Color inactiveColor = AppColors.textSecondary;
 
     return InkWell(
       onTap: () {
@@ -407,8 +443,8 @@ class _TherapistShellState extends State<TherapistShell> {
 
   Widget _buildExpandableMenuItem({bool isDrawer = false}) {
     final bool isParentSelected = _isVbChildSelected();
-    const Color activeColor = Color(0xFFAB47BC);
-    const Color inactiveColor = Color(0xFFA0A5BA);
+    const Color activeColor = AppColors.primary;
+    const Color inactiveColor = AppColors.textSecondary;
 
     return Column(
       children: [
@@ -496,8 +532,8 @@ class _TherapistShellState extends State<TherapistShell> {
     bool isDrawer = false,
   }) {
     final bool isSelected = _selectedIndex == index;
-    const Color activeColor = Color(0xFFAB47BC);
-    const Color inactiveColor = Color(0xFFA0A5BA);
+    const Color activeColor = AppColors.primary;
+    const Color inactiveColor = AppColors.textSecondary;
 
     return InkWell(
       onTap: () {

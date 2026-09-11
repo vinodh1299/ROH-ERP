@@ -4,13 +4,15 @@ class UserModel {
   final int id;
   final String name;
   final String email;
-  final String role; // 'director' | 'therapist' | 'parent'
+  final String role; // 'director' | 'therapist' | 'parent' | 'admin'
+  final bool mustChangePassword;
 
   const UserModel({
     required this.id,
     required this.name,
     required this.email,
     required this.role,
+    this.mustChangePassword = false,
   });
 
   String get displayRole {
@@ -33,6 +35,7 @@ class UserModel {
         'name': name,
         'email': email,
         'role': role,
+        'must_change_password': mustChangePassword,
       };
 
   factory UserModel.fromMap(Map<String, dynamic> map) => UserModel(
@@ -40,5 +43,6 @@ class UserModel {
         name: map['name'] ?? '',
         email: map['email'] ?? '',
         role: map['role'] ?? '',
+        mustChangePassword: map['must_change_password'] == true || map['must_change_password'] == 1 || '${map['must_change_password']}' == '1',
       );
 }

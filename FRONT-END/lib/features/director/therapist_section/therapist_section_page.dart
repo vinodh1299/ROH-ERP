@@ -550,15 +550,8 @@ class _TherapistTile extends StatelessWidget {
               borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
               child: Container(
                 width: double.infinity,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      AppColors.primary.withValues(alpha: 0.15),
-                      AppColors.primary.withValues(alpha: 0.35),
-                    ],
-                  ),
+                decoration: const BoxDecoration(
+                  color: AppColors.primaryLight,
                 ),
                 child: Stack(
                   children: [
@@ -731,12 +724,16 @@ class _AddTherapistDialogState extends State<_AddTherapistDialog> {
         constraints: const BoxConstraints(maxWidth: 460),
         child: Container(
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [Color(0xFF9C4FD6), Color(0xFFBB6FEE)],
-            ),
-            borderRadius: BorderRadius.circular(20),
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.border),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x0A000000),
+                blurRadius: 16,
+                offset: Offset(0, 4),
+              ),
+            ],
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -747,11 +744,11 @@ class _AddTherapistDialogState extends State<_AddTherapistDialog> {
                   children: [
                     const Text(
                       'Add New Therapist',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Colors.white),
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
                     ),
                     const Spacer(),
                     IconButton(
-                      icon: const Icon(Icons.close, color: Colors.white70),
+                      icon: const Icon(Icons.close, color: AppColors.textSecondary),
                       onPressed: () => Navigator.of(context).pop(),
                     ),
                   ],
@@ -761,7 +758,7 @@ class _AddTherapistDialogState extends State<_AddTherapistDialog> {
                 margin: const EdgeInsets.fromLTRB(12, 4, 12, 12),
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.95),
+                  color: AppColors.background,
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: Form(

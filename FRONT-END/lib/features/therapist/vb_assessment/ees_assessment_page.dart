@@ -11,7 +11,7 @@ class EesAssessmentPage extends StatefulWidget {
 }
 
 class _EesAssessmentPageState extends State<EesAssessmentPage> {
-  String? _selectedStudent = 'Alex Thomas Sam';
+  String? _selectedStudent;
 
   // Track response state: 0 = None, 1 = No, 2 = Yes, 3 = Half
   final Map<String, int> _responses = {};

@@ -24,6 +24,11 @@ class _DirectorSchedulePageState extends State<DirectorSchedulePage>
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        context.read<ScheduleService>().syncWithBackend();
+      }
+    });
   }
 
   @override
@@ -57,8 +62,15 @@ class _DirectorSchedulePageState extends State<DirectorSchedulePage>
           Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              gradient: AppColors.welcomeGradient,
+              color: AppColors.primary,
               borderRadius: BorderRadius.circular(16),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x0A000000),
+                  blurRadius: 8,
+                  offset: Offset(0, 2),
+                ),
+              ],
             ),
             child: LayoutBuilder(
               builder: (context, constraints) {

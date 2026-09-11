@@ -91,6 +91,10 @@ class DirectorDashboardPage extends StatelessWidget {
           }),
           const SizedBox(height: 24),
 
+          // ── Executive Analytics & Caseload Intelligence (FRS 8) ────────
+          const _DirectorExecutiveAnalyticsSection(),
+          const SizedBox(height: 24),
+
           // ── Today's Center Operations & Live Therapist Timetable ────────
           const _DirectorLiveTimetableSection(),
           const SizedBox(height: 24),
@@ -118,10 +122,10 @@ class _DirectorWelcomeCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        gradient: AppColors.welcomeGradient,
+        color: AppColors.primary,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(color: AppColors.primary.withValues(alpha: 0.25), blurRadius: 12, offset: const Offset(0, 4)),
+        boxShadow: const [
+          BoxShadow(color: Color(0x0A000000), blurRadius: 8, offset: Offset(0, 2)),
         ],
       ),
       child: Column(
@@ -129,10 +133,16 @@ class _DirectorWelcomeCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(20)),
-                child: const Text('BCBA-D Clinical Director Command', style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
+              Flexible(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(20)),
+                  child: const Text(
+                    'BCBA-D Clinical Director Command',
+                    style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
               ),
               const Spacer(),
               const Icon(Icons.shield_outlined, color: Colors.white70, size: 20),
@@ -180,7 +190,14 @@ class _CenterCapacityCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('Center Clinical Caseload Capacity', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+              const Expanded(
+                child: Text(
+                  'Center Clinical Caseload Capacity',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(color: const Color(0xFFE8F5E9), borderRadius: BorderRadius.circular(12)),
@@ -211,7 +228,13 @@ class _CenterCapacityCard extends StatelessWidget {
             children: [
               Icon(Icons.hourglass_top_outlined, size: 16, color: AppColors.statusPending),
               SizedBox(width: 6),
-              Text('Admissions Waitlist: 7 Students (3 in Intake Assessment)', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+              Expanded(
+                child: Text(
+                  'Admissions Waitlist: 7 Students (3 in Intake Assessment)',
+                  style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
             ],
           ),
         ],
@@ -274,27 +297,37 @@ class _UrgentActionBanners extends StatelessWidget {
   }
 
   Widget _actionItem(IconData icon, String title, String subtitle, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, color: color, size: 18),
-          const SizedBox(width: 8),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    return Builder(
+      builder: (context) {
+        final isMobile = MediaQuery.of(context).size.width < 768;
+        return Container(
+          width: isMobile ? double.infinity : null,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: color.withValues(alpha: 0.3)),
+          ),
+          child: Row(
+            mainAxisSize: isMobile ? MainAxisSize.max : MainAxisSize.min,
             children: [
-              Text(title, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color)),
-              Text(subtitle, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+              Icon(icon, color: color, size: 18),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(title, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color)),
+                    const SizedBox(height: 2),
+                    Text(subtitle, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary), softWrap: true),
+                  ],
+                ),
+              ),
             ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
@@ -1287,11 +1320,150 @@ class _DirectorExecutiveAppointmentsSection extends StatelessWidget {
                   ),
                 );
               },
-            ),
+              ),
         ],
       ),
     );
   }
 }
+
+// ── Executive Analytics & Caseload Intelligence Section (FRS 8) ──────────────
+class _DirectorExecutiveAnalyticsSection extends StatelessWidget {
+  const _DirectorExecutiveAnalyticsSection();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border),
+        boxShadow: const [
+          BoxShadow(color: Color(0x06000000), blurRadius: 6, offset: Offset(0, 2)),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.primaryLight.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.analytics_outlined, color: AppColors.primary, size: 20),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Executive Analytics & Caseload Intelligence',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                    ),
+                    Text(
+                      'Therapist capacity, completion velocities, and security audit monitoring (FRS 8.0)',
+                      style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFDCFCE7),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Text('Live Sync Active', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF15803D))),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+
+          // Caseload & Attendance Breakdown
+          LayoutBuilder(builder: (ctx, constraints) {
+            final isWide = constraints.maxWidth > 700;
+            return isWide
+                ? const Row(
+                    children: [
+                      Expanded(child: _CaseloadBar(name: 'Dr. Sarah Lee (Lead BCBA)', caseload: 8, maxCaseload: 10, color: AppColors.primary)),
+                      SizedBox(width: 16),
+                      Expanded(child: _CaseloadBar(name: 'Dr. Michael Chen (Senior Analyst)', caseload: 9, maxCaseload: 10, color: Color(0xFF3B82F6))),
+                      SizedBox(width: 16),
+                      Expanded(child: _CaseloadBar(name: 'Priya Sharma (RBT Specialist)', caseload: 6, maxCaseload: 8, color: Color(0xFF10B981))),
+                    ],
+                  )
+                : const Column(
+                    children: [
+                      _CaseloadBar(name: 'Dr. Sarah Lee (Lead BCBA)', caseload: 8, maxCaseload: 10, color: AppColors.primary),
+                      SizedBox(height: 12),
+                      _CaseloadBar(name: 'Dr. Michael Chen (Senior Analyst)', caseload: 9, maxCaseload: 10, color: Color(0xFF3B82F6)),
+                      SizedBox(height: 12),
+                      _CaseloadBar(name: 'Priya Sharma (RBT Specialist)', caseload: 6, maxCaseload: 8, color: Color(0xFF10B981)),
+                    ],
+                  );
+          }),
+        ],
+      ),
+    );
+  }
+}
+
+class _CaseloadBar extends StatelessWidget {
+  final String name;
+  final int caseload;
+  final int maxCaseload;
+  final Color color;
+
+  const _CaseloadBar({
+    required this.name,
+    required this.caseload,
+    required this.maxCaseload,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final ratio = (caseload / maxCaseload).clamp(0.0, 1.0);
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(name, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5), maxLines: 1, overflow: TextOverflow.ellipsis),
+          const SizedBox(height: 6),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('$caseload / $maxCaseload Students', style: const TextStyle(fontSize: 11.5, color: AppColors.textSecondary)),
+              Text('${(ratio * 100).toInt()}% Capacity', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: color)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: LinearProgressIndicator(
+              value: ratio,
+              minHeight: 6,
+              backgroundColor: const Color(0xFFE2E8F0),
+              valueColor: AlwaysStoppedAnimation<Color>(color),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 
 

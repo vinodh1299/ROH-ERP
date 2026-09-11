@@ -1,0 +1,442 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Ray of Hope Center for Autism ERP — API Gateway",
+    "version": "2.5.0",
+    "description": "Interactive API documentation for ROH-ERP Node.js backend. Test endpoints, view schemas, and authenticate with JWT directly in the browser."
+  },
+  "servers": [
+    {
+      "url": "http://127.0.0.1:8000",
+      "description": "Localhost Node.js API"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Provide JWT token obtained from login (format: Bearer <token>)"
+      }
+    }
+  },
+  "paths": {
+    "/api.php?action=login": {
+      "post": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "User Login & JWT Generation",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "email",
+                  "password"
+                ],
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "example": "admin@roh.com"
+                  },
+                  "password": {
+                    "type": "string",
+                    "example": "admin123"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Authenticated successfully"
+          }
+        }
+      }
+    },
+    "/api.php?action=get_students": {
+      "get": {
+        "tags": [
+          "Students"
+        ],
+        "summary": "Get Enrolled Students",
+        "responses": {
+          "200": {
+            "description": "List of students"
+          }
+        }
+      }
+    },
+    "/api.php?action=add_student": {
+      "post": {
+        "tags": [
+          "Students"
+        ],
+        "summary": "Enroll Student (Admin/Director)",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "example": "Lucas Scott"
+                  },
+                  "dob": {
+                    "type": "string",
+                    "example": "2019-06-15"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Enrolled"
+          }
+        }
+      }
+    },
+    "/api.php?action=delete_student": {
+      "post": {
+        "tags": [
+          "Students"
+        ],
+        "summary": "Delete Student (Admin/Director)",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "id"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "integer",
+                    "example": 6
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Deleted"
+          }
+        }
+      }
+    },
+    "/api.php?action=get_therapists": {
+      "get": {
+        "tags": [
+          "Staff & Therapists"
+        ],
+        "summary": "Get Therapists List",
+        "responses": {
+          "200": {
+            "description": "List of therapists"
+          }
+        }
+      }
+    },
+    "/api.php?action=add_therapist": {
+      "post": {
+        "tags": [
+          "Staff & Therapists"
+        ],
+        "summary": "Add Therapist (Admin/Director)",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name",
+                  "email"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "example": "Dr. Rachel Green"
+                  },
+                  "email": {
+                    "type": "string",
+                    "example": "rachel.g@roh.com"
+                  },
+                  "password": {
+                    "type": "string",
+                    "example": "therapist123"
+                  },
+                  "designation": {
+                    "type": "string",
+                    "example": "Senior BCBA Specialist"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Therapist registered"
+          }
+        }
+      }
+    },
+    "/api.php?action=get_iep_reports": {
+      "get": {
+        "tags": [
+          "IEP & Clinical Governance"
+        ],
+        "summary": "Get IEP Treatment Plans",
+        "responses": {
+          "200": {
+            "description": "List of IEPs"
+          }
+        }
+      }
+    },
+    "/api.php?action=save_iep_report": {
+      "post": {
+        "tags": [
+          "IEP & Clinical Governance"
+        ],
+        "summary": "Create / Update IEP Report",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "student_id",
+                  "title"
+                ],
+                "properties": {
+                  "student_id": {
+                    "type": "integer",
+                    "example": 1
+                  },
+                  "title": {
+                    "type": "string",
+                    "example": "Q4 Treatment Plan"
+                  },
+                  "manding_score": {
+                    "type": "integer",
+                    "example": 85
+                  },
+                  "tacting_score": {
+                    "type": "integer",
+                    "example": 80
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Saved"
+          }
+        }
+      }
+    },
+    "/api.php?action=sign_off_iep": {
+      "post": {
+        "tags": [
+          "IEP & Clinical Governance"
+        ],
+        "summary": "Director Sign-off for IEP",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "iep_id"
+                ],
+                "properties": {
+                  "iep_id": {
+                    "type": "integer",
+                    "example": 1
+                  },
+                  "director_notes": {
+                    "type": "string",
+                    "example": "Authorized"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Signed off"
+          }
+        }
+      }
+    },
+    "/api.php?action=get_sessions": {
+      "get": {
+        "tags": [
+          "Therapy Schedules"
+        ],
+        "summary": "Get Today Therapy Sessions",
+        "responses": {
+          "200": {
+            "description": "Sessions array"
+          }
+        }
+      }
+    },
+    "/api.php?action=get_director_appointments": {
+      "get": {
+        "tags": [
+          "Therapy Schedules"
+        ],
+        "summary": "Get Director Appointments",
+        "responses": {
+          "200": {
+            "description": "Appointments array"
+          }
+        }
+      }
+    },
+    "/api.php?action=save_director_appointment": {
+      "post": {
+        "tags": [
+          "Therapy Schedules"
+        ],
+        "summary": "Book Appointment with Director",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "title",
+                  "date",
+                  "start_time"
+                ],
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "example": "Intake Evaluation"
+                  },
+                  "date": {
+                    "type": "string",
+                    "example": "2026-09-12"
+                  },
+                  "start_time": {
+                    "type": "string",
+                    "example": "09:00 AM"
+                  },
+                  "attendee_name": {
+                    "type": "string",
+                    "example": "Mr. John Wilson"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Booked"
+          }
+        }
+      }
+    },
+    "/api.php?action=get_daily_data": {
+      "get": {
+        "tags": [
+          "Daily Trials & Assessments"
+        ],
+        "summary": "Get Daily Data Sheets",
+        "responses": {
+          "200": {
+            "description": "Data sheets array"
+          }
+        }
+      }
+    },
+    "/api.php?action=get_vb_assessments": {
+      "get": {
+        "tags": [
+          "Daily Trials & Assessments"
+        ],
+        "summary": "Get VB-MAPP Assessments",
+        "responses": {
+          "200": {
+            "description": "Assessments array"
+          }
+        }
+      }
+    },
+    "/api.php?action=get_audit_logs": {
+      "get": {
+        "tags": [
+          "Audit Logs"
+        ],
+        "summary": "Get Immutable Audit Trail (Admin/Director)",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Audit logs"
+          }
+        }
+      }
+    }
+  }
+}

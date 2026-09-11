@@ -11,7 +11,7 @@ class BarriersAssessmentPage extends StatefulWidget {
 }
 
 class _BarriersAssessmentPageState extends State<BarriersAssessmentPage> {
-  String? _selectedStudent = 'Alex Thomas Sam';
+  String? _selectedStudent;
   int _activeTab = 0; // 0: Assessment, 1: Graph
 
   @override

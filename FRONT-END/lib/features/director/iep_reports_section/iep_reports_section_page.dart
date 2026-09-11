@@ -1,6 +1,7 @@
 // lib/features/director/iep_reports_section/iep_reports_section_page.dart
 import 'package:flutter/material.dart';
 import 'package:roh_erp/core/constants/app_colors.dart';
+import 'package:roh_erp/core/services/api_service.dart';
 
 enum IepStatus {
   pending('Pending Audit', AppColors.statusPending, AppColors.statusPendingBg),
@@ -49,94 +50,64 @@ class IepReportsSectionPage extends StatefulWidget {
 class _IepReportsSectionPageState extends State<IepReportsSectionPage> {
   int _selectedFilterIndex = 0; // 0: All, 1: Pending, 2: Approved, 3: Returned
   String _searchQuery = '';
+  List<IepReportItem> _reports = [];
+  bool _isLoading = true;
 
-  final List<IepReportItem> _reports = [
-    IepReportItem(
-      id: 'IEP-2026-001',
-      studentName: 'Alex Thomas Sam',
-      age: 15,
-      therapistName: 'Dr. Sarah Lee (BCBA)',
-      cycle: 'Annual 2026-2027',
-      targetDomains: 'Manding, Tacting, Echoic (12 Targets)',
-      submittedDate: '18-08-2026',
-      status: IepStatus.pending,
-    ),
-    IepReportItem(
-      id: 'IEP-2026-002',
-      studentName: 'Matt Dickerson',
-      age: 14,
-      therapistName: 'James Rodriguez (RBT)',
-      cycle: 'Q3 Behavioral Plan',
-      targetDomains: 'Listener Responding, BIP Protocol (8 Targets)',
-      submittedDate: '17-08-2026',
-      status: IepStatus.pending,
-    ),
-    IepReportItem(
-      id: 'IEP-2026-003',
-      studentName: 'Wade Warren',
-      age: 12,
-      therapistName: 'Dr. Sarah Lee (BCBA)',
-      cycle: 'Annual 2026-2027',
-      targetDomains: 'Motor Imitation, Social Play (10 Targets)',
-      submittedDate: '16-08-2026',
-      status: IepStatus.pending,
-    ),
-    IepReportItem(
-      id: 'IEP-2026-004',
-      studentName: 'Esther Howard',
-      age: 11,
-      therapistName: 'Emily Chen (BCBA)',
-      cycle: 'Semi-Annual 2026',
-      targetDomains: 'Manding, Independent Living (15 Targets)',
-      submittedDate: '10-08-2026',
-      status: IepStatus.approved,
-      signDate: '12-08-2026',
-    ),
-    IepReportItem(
-      id: 'IEP-2026-005',
-      studentName: 'Cameron Williamson',
-      age: 13,
-      therapistName: 'James Rodriguez (RBT)',
-      cycle: 'Annual 2026-2027',
-      targetDomains: 'Intraverbal, Tacting (14 Targets)',
-      submittedDate: '08-08-2026',
-      status: IepStatus.approved,
-      signDate: '09-08-2026',
-    ),
-    IepReportItem(
-      id: 'IEP-2026-006',
-      studentName: 'Brooklyn Simmons',
-      age: 16,
-      therapistName: 'Emily Chen (BCBA)',
-      cycle: 'Functional Communication Plan',
-      targetDomains: 'AAC Manding, Vocalization (6 Targets)',
-      submittedDate: '05-08-2026',
-      status: IepStatus.returned,
-      directorNotes: 'Baseline manding data insufficient. Please attach last 5 daily session probe logs.',
-    ),
-    IepReportItem(
-      id: 'IEP-2026-007',
-      studentName: 'Leslie Alexander',
-      age: 10,
-      therapistName: 'Dr. Sarah Lee (BCBA)',
-      cycle: 'Annual 2026-2027',
-      targetDomains: 'VB-MAPP Level 1 Complete (16 Targets)',
-      submittedDate: '02-08-2026',
-      status: IepStatus.approved,
-      signDate: '04-08-2026',
-    ),
-    IepReportItem(
-      id: 'IEP-2026-008',
-      studentName: 'Guy Hawkins',
-      age: 9,
-      therapistName: 'Michael Chang (Therapist)',
-      cycle: 'Sensory & Motor IEP',
-      targetDomains: 'Fine Motor, Self-Regulation (8 Targets)',
-      submittedDate: '01-08-2026',
-      status: IepStatus.returned,
-      directorNotes: 'Need occupational therapist co-signature before clinical director approval.',
-    ),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _loadIepReports();
+  }
+
+  Future<void> _loadIepReports() async {
+    try {
+      final res = await ApiService().get('get_iep_reports');
+      if (res is List) {
+        final items = res.map((r) {
+          final id = 'IEP-${r['id']}';
+          final sName = r['student_name'] ?? 'Student';
+          final tName = r['therapist_name'] ?? 'Dr. Sarah Lee';
+          final cycle = r['cycle_term'] ?? 'Q3 2026 Treatment Plan';
+          final goals = r['goals_summary'] ?? 'Clinical Protocol & Behavioral Milestones';
+          final subDate = r['created_at'] != null ? r['created_at'].toString().split('T')[0] : '2026-09-11';
+          final statusStr = (r['status'] ?? 'Pending Approval').toString().toLowerCase();
+
+          IepStatus status;
+          if (statusStr.contains('active') || statusStr.contains('approved')) {
+            status = IepStatus.approved;
+          } else if (statusStr.contains('return') || statusStr.contains('revision')) {
+            status = IepStatus.returned;
+          } else {
+            status = IepStatus.pending;
+          }
+
+          return IepReportItem(
+            id: id,
+            studentName: sName,
+            age: 14,
+            therapistName: tName,
+            cycle: cycle,
+            targetDomains: goals,
+            submittedDate: subDate,
+            status: status,
+            directorNotes: r['director_notes'],
+            signDate: r['director_signed_at'] != null ? r['director_signed_at'].toString().split('T')[0] : null,
+          );
+        }).toList();
+
+        if (mounted) {
+          setState(() {
+            _reports = items;
+            _isLoading = false;
+          });
+        }
+      } else {
+        if (mounted) setState(() => _isLoading = false);
+      }
+    } catch (_) {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
 
   List<IepReportItem> get _filteredReports {
     return _reports.where((item) {
@@ -353,11 +324,19 @@ class _IepReportsSectionPageState extends State<IepReportsSectionPage> {
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                           ),
                           onPressed: () {
+                            final notes = notesController.text.trim();
                             setState(() {
                               report.status = IepStatus.approved;
                               report.signDate = '10-09-2026';
-                              report.directorNotes = notesController.text.trim();
+                              report.directorNotes = notes;
                             });
+                            // Asynchronously sync digital sign-off with backend
+                            final iepNumericId = int.tryParse(report.id.replaceAll(RegExp(r'[^0-9]'), '')) ?? 1;
+                            ApiService().post('sign_off_iep', {
+                              'iep_id': iepNumericId,
+                              'director_notes': notes,
+                            }).catchError((_) => null);
+
                             Navigator.of(ctx).pop();
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(

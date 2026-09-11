@@ -20,12 +20,16 @@ class AdminSettingsPage extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.all(32),
               decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFFF3E8FF), Color(0xFFFCE7F3)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(20),
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.border),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x0A000000),
+                    blurRadius: 8,
+                    offset: Offset(0, 2),
+                  ),
+                ],
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -59,21 +63,17 @@ class AdminSettingsPage extends StatelessWidget {
                             _buildTextField('Top Bar Name', 'text here'),
                             const SizedBox(height: 24),
                             Center(
-                              child: Container(
+                              child: SizedBox(
                                 width: double.infinity,
-                                decoration: BoxDecoration(
-                                  gradient: AppColors.welcomeGradient,
-                                  borderRadius: BorderRadius.circular(24),
-                                ),
-                                child: ElevatedButton(
+                                child: OutlinedButton(
                                   onPressed: () {},
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.transparent,
-                                    shadowColor: Colors.transparent,
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: AppColors.primary,
+                                    side: const BorderSide(color: AppColors.primary),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                                     padding: const EdgeInsets.symmetric(vertical: 14),
                                   ),
-                                  child: const Text('Change Password', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 14)),
+                                  child: const Text('Change Password', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
                                 ),
                               ),
                             ),
@@ -95,21 +95,17 @@ class AdminSettingsPage extends StatelessWidget {
                           ),
                           const SizedBox(height: 24),
                           Center(
-                            child: Container(
+                            child: SizedBox(
                               width: 260,
-                              decoration: BoxDecoration(
-                                gradient: AppColors.welcomeGradient,
-                                borderRadius: BorderRadius.circular(24),
-                              ),
-                              child: ElevatedButton(
+                              child: OutlinedButton(
                                 onPressed: () {},
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.transparent,
-                                  shadowColor: Colors.transparent,
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: AppColors.primary,
+                                  side: const BorderSide(color: AppColors.primary),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                                   padding: const EdgeInsets.symmetric(vertical: 14),
                                 ),
-                                child: const Text('Change Password', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 14)),
+                                child: const Text('Change Password', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
                               ),
                             ),
                           ),

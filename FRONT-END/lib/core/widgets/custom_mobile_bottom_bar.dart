@@ -31,15 +31,15 @@ class CustomMobileBottomBar extends StatelessWidget {
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         border: const Border(
-          top: BorderSide(color: Color(0xFFEEEEEE), width: 1),
+          top: BorderSide(color: AppColors.border, width: 1),
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 10,
-            offset: const Offset(0, -3),
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, -2),
           ),
         ],
       ),
@@ -58,7 +58,7 @@ class CustomMobileBottomBar extends StatelessWidget {
                 child: InkWell(
                   onTap: () => onTap(index),
                   borderRadius: BorderRadius.circular(16),
-                  splashColor: AppColors.primary.withValues(alpha: 0.1),
+                  splashColor: AppColors.primaryLight,
                   highlightColor: Colors.transparent,
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -67,13 +67,13 @@ class CustomMobileBottomBar extends StatelessWidget {
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                         decoration: BoxDecoration(
                           color: isSelected
-                              ? AppColors.primary.withValues(alpha: 0.12)
+                              ? AppColors.primaryLight
                               : Colors.transparent,
                           borderRadius: BorderRadius.circular(16),
                         ),
                         child: Icon(
                           isSelected ? (item.activeIcon ?? item.icon) : item.icon,
-                          color: isSelected ? AppColors.primary : const Color(0xFF6B7280),
+                          color: isSelected ? AppColors.primaryDark : AppColors.textSecondary,
                           size: 22,
                         ),
                       ),
@@ -85,7 +85,7 @@ class CustomMobileBottomBar extends StatelessWidget {
                         style: TextStyle(
                           fontSize: 10.5,
                           fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                          color: isSelected ? AppColors.primary : const Color(0xFF6B7280),
+                          color: isSelected ? AppColors.primaryDark : AppColors.textSecondary,
                           letterSpacing: -0.2,
                         ),
                       ),

@@ -11,7 +11,7 @@ class TransitionAssessmentPage extends StatefulWidget {
 }
 
 class _TransitionAssessmentPageState extends State<TransitionAssessmentPage> {
-  String? _selectedStudent = 'Alex Thomas Sam';
+  String? _selectedStudent;
   int _activeTab = 0; // 0: Assessment, 1: Graph
 
   final List<Map<String, dynamic>> _transitionAreas = [

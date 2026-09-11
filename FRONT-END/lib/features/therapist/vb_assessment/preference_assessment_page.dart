@@ -11,7 +11,7 @@ class PreferenceAssessmentPage extends StatefulWidget {
 }
 
 class _PreferenceAssessmentPageState extends State<PreferenceAssessmentPage> {
-  String? _selectedStudent = 'Alex Thomas Sam';
+  String? _selectedStudent;
 
   final Map<String, List<String>> _reinforcers = {
     'EDIBLE REINFORCERS': [
@@ -63,17 +63,14 @@ class _PreferenceAssessmentPageState extends State<PreferenceAssessmentPage> {
           width: 440,
           padding: const EdgeInsets.all(28),
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFF8B25C6), Color(0xFFBA43DF)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
+            color: Colors.white,
             borderRadius: BorderRadius.circular(20),
-            boxShadow: [
+            border: Border.all(color: AppColors.border),
+            boxShadow: const [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.2),
-                blurRadius: 16,
-                offset: const Offset(0, 8),
+                color: Color(0x0A000000),
+                blurRadius: 12,
+                offset: Offset(0, 4),
               ),
             ],
           ),

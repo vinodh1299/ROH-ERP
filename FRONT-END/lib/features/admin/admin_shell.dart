@@ -4,7 +4,12 @@ import 'package:roh_erp/core/constants/app_colors.dart';
 import 'package:roh_erp/core/constants/app_constants.dart';
 import 'package:roh_erp/core/constants/app_images.dart';
 import '../../core/widgets/custom_mobile_bottom_bar.dart';
+import '../../core/widgets/animated_top_bar_title.dart';
+import '../../core/widgets/two_step_logout_dialog.dart';
+import '../../core/widgets/notification_center_drawer.dart';
+import '../../core/services/notification_service.dart';
 import '../auth/auth_service.dart';
+import '../auth/widgets/forced_password_change_dialog.dart';
 import 'dashboard/admin_dashboard_page.dart';
 import 'director_calendar/admin_director_calendar_page.dart';
 import 'therapists/admin_therapists_page.dart';
@@ -22,6 +27,15 @@ class AdminShell extends StatefulWidget {
 
 class _AdminShellState extends State<AdminShell> {
   int _selectedIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ForcedPasswordChangeDialog.showIfNeeded(context);
+      NotificationService().fetchNotifications();
+    });
+  }
 
   late final List<Widget> _pages = [
     AdminDashboardPage(
@@ -90,26 +104,45 @@ class _AdminShellState extends State<AdminShell> {
               ),
             ),
           Expanded(
-            child: Center(
-              child: Text(
-                'RAY OF HOPE CENTER FOR AUTISM',
-                style: TextStyle(
-                  color: AppColors.primary,
-                  fontWeight: FontWeight.bold,
-                  fontSize: isMobile ? 12 : 16,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+            child: AnimatedTopBarTitle(isMobile: isMobile),
+          ),
+          InkWell(
+            onTap: () => NotificationCenterDrawer.show(context),
+            borderRadius: BorderRadius.circular(20),
+            child: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: const BoxDecoration(
+                color: AppColors.primaryLight,
+                shape: BoxShape.circle,
+              ),
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  const Icon(Icons.notifications_outlined, color: AppColors.primary, size: 20),
+                  ListenableBuilder(
+                    listenable: NotificationService(),
+                    builder: (context, _) {
+                      final count = NotificationService().unreadCount;
+                      if (count <= 0) return const SizedBox.shrink();
+                      return Positioned(
+                        top: -4,
+                        right: -4,
+                        child: Container(
+                          padding: const EdgeInsets.all(3),
+                          decoration: const BoxDecoration(color: Color(0xFFEF4444), shape: BoxShape.circle),
+                          constraints: const BoxConstraints(minWidth: 14, minHeight: 14),
+                          child: Text(
+                            '$count',
+                            style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ],
               ),
             ),
-          ),
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: const BoxDecoration(
-              color: AppColors.primaryLight,
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(Icons.notifications_outlined, color: AppColors.primary, size: 20),
           ),
           SizedBox(width: isMobile ? 8 : 16),
           PopupMenuButton<String>(
@@ -117,9 +150,12 @@ class _AdminShellState extends State<AdminShell> {
             offset: const Offset(0, 48),
             onSelected: (value) async {
               if (value == 'logout') {
-                await context.read<AuthService>().logout();
-                if (context.mounted) {
-                  Navigator.of(context).pushReplacementNamed(AppConstants.routeLogin);
+                final shouldLogout = await TwoStepLogoutDialog.show(context);
+                if (shouldLogout == true && context.mounted) {
+                  await context.read<AuthService>().logout();
+                  if (context.mounted) {
+                    Navigator.of(context).pushReplacementNamed(AppConstants.routeLogin);
+                  }
                 }
               } else {
                 Navigator.of(context).pushReplacementNamed(value);

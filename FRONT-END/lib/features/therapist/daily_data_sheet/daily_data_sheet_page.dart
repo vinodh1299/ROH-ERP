@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:roh_erp/core/constants/app_colors.dart';
 import 'package:roh_erp/core/constants/app_images.dart';
+import '../../../core/services/offline_sync_service.dart';
 import '../widgets/student_card_grid.dart';
 
 class DailyDataSheetPage extends StatefulWidget {
@@ -12,7 +13,7 @@ class DailyDataSheetPage extends StatefulWidget {
 }
 
 class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
-  String? _selectedStudent = 'Alex Thomas Sam';
+  String? _selectedStudent;
   int _activeTab = 0;
   bool _isBarGraph = true;
   String _mandingFromDate = '08/17/2025';
@@ -96,11 +97,7 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
                 Container(
                   height: 48,
                   decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF9D38CD), Color(0xFFB54FDF)],
-                      begin: Alignment.centerLeft,
-                      end: Alignment.centerRight,
-                    ),
+                    color: AppColors.primary,
                     borderRadius: BorderRadius.circular(14),
                   ),
                   child: SingleChildScrollView(
@@ -128,12 +125,15 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF8B25C6), Color(0xFFBA43DF)],
-          begin: Alignment.centerLeft,
-          end: Alignment.centerRight,
-        ),
-        borderRadius: BorderRadius.circular(24),
+        color: AppColors.primary,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x0A000000),
+            blurRadius: 8,
+            offset: Offset(0, 2),
+          ),
+        ],
       ),
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
       child: Row(
@@ -297,7 +297,25 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
               ),
               const Spacer(),
               ElevatedButton.icon(
-                onPressed: () {},
+                onPressed: () async {
+                  await OfflineSyncService().queueTrialData({
+                    'student_name': _selectedStudent,
+                    'record_type': 'manding',
+                    'prompted': 1,
+                    'unprompted': 0,
+                    'domain': 'Manding',
+                    'timestamp': DateTime.now().toIso8601String(),
+                  });
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Trial record queued for $_selectedStudent (Offline-ready sync active)'),
+                        backgroundColor: AppColors.primary,
+                        duration: const Duration(seconds: 2),
+                      ),
+                    );
+                  }
+                },
                 icon: const Icon(Icons.add, size: 16),
                 label: const Text('Add Record'),
                 style: ElevatedButton.styleFrom(
@@ -422,12 +440,15 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF8B25C6), Color(0xFFBA43DF)],
-          begin: Alignment.centerLeft,
-          end: Alignment.centerRight,
-        ),
+        color: AppColors.primary,
         borderRadius: BorderRadius.circular(16),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x0A000000),
+            blurRadius: 8,
+            offset: Offset(0, 2),
+          ),
+        ],
       ),
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
       child: Wrap(
@@ -828,12 +849,15 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF8B25C6), Color(0xFFBA43DF)],
-          begin: Alignment.centerLeft,
-          end: Alignment.centerRight,
-        ),
+        color: AppColors.primary,
         borderRadius: BorderRadius.circular(16),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x0A000000),
+            blurRadius: 8,
+            offset: Offset(0, 2),
+          ),
+        ],
       ),
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
       child: Wrap(
@@ -1422,8 +1446,8 @@ class _AcquisitionLinePainter extends CustomPainter {
     final fillPaint = Paint()
       ..shader = LinearGradient(
         colors: [
-          const Color(0xFF8B25C6).withValues(alpha: 0.35),
-          const Color(0xFF8B25C6).withValues(alpha: 0.03),
+          AppColors.primary.withValues(alpha: 0.3),
+          AppColors.primary.withValues(alpha: 0.02),
         ],
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
@@ -1432,7 +1456,7 @@ class _AcquisitionLinePainter extends CustomPainter {
     canvas.drawPath(fillPath, fillPaint);
 
     final linePaint = Paint()
-      ..color = const Color(0xFF8B25C6)
+      ..color = AppColors.primary
       ..strokeWidth = 2.8
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;
@@ -1440,7 +1464,7 @@ class _AcquisitionLinePainter extends CustomPainter {
     canvas.drawPath(linePath, linePaint);
 
     final dotPaint = Paint()
-      ..color = const Color(0xFF8B25C6)
+      ..color = AppColors.primary
       ..style = PaintingStyle.fill;
     final dotWhitePaint = Paint()
       ..color = Colors.white

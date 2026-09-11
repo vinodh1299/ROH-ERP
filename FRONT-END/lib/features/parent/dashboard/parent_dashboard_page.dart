@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:roh_erp/core/constants/app_colors.dart';
 import 'package:roh_erp/core/models/schedule_model.dart';
 import 'package:roh_erp/core/services/schedule_service.dart';
+import 'package:roh_erp/features/auth/auth_service.dart';
 import 'widgets/parent_request_appointment_dialog.dart';
 
 class ParentDashboardPage extends StatefulWidget {
@@ -19,20 +20,23 @@ class ParentDashboardPage extends StatefulWidget {
 class _ParentDashboardPageState extends State<ParentDashboardPage> {
   DateTime _selectedDate = DateTime.now();
   final String _childName = 'Alex Thomas Sam';
-  final String _parentName = 'Mr. John Wilson';
 
-  void _openAppointmentDialog() {
+  void _openAppointmentDialog(String parentName) {
     showDialog(
       context: context,
       builder: (_) => ParentRequestAppointmentDialog(
         childName: _childName,
-        parentName: _parentName,
+        parentName: parentName,
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final auth = context.watch<AuthService>();
+    final parentName = auth.currentUser?.name.isNotEmpty == true
+        ? auth.currentUser!.name
+        : 'Mr. John Wilson';
     final scheduleService = context.watch<ScheduleService>();
     final childSessions = scheduleService.getSessionsForStudent(_childName, date: _selectedDate);
     final allStudentSessions = scheduleService.getSessionsForStudent(_childName);
@@ -47,7 +51,7 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // ── 1. Top Welcome & Child Info Banner (Responsive) ───
-          _buildChildHeaderBanner(),
+          _buildChildHeaderBanner(parentName),
           const SizedBox(height: 24),
 
           // ── 2. Two-Column Layout: Left = Child's Day Timetable & Carryover, Right = Director Appointments & KPIs ───
@@ -71,7 +75,7 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   // Director Appointments & Booking Card
-                  _buildDirectorAppointmentsCard(parentAppointments),
+                  _buildDirectorAppointmentsCard(parentAppointments, parentName),
                   const SizedBox(height: 24),
 
                   // Child's Clinical KPI Summary
@@ -105,7 +109,7 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
   }
 
   // ── 1. Child Info & Greeting Banner ───
-  Widget _buildChildHeaderBanner() {
+  Widget _buildChildHeaderBanner(String parentName) {
     final now = DateTime.now();
     const dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
     final dateStr =
@@ -113,13 +117,13 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
 
     return Container(
       decoration: BoxDecoration(
-        gradient: AppColors.welcomeGradient,
+        color: AppColors.primary,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [
+        boxShadow: const [
           BoxShadow(
-            color: AppColors.primary.withValues(alpha: 0.25),
-            blurRadius: 14,
-            offset: const Offset(0, 4),
+            color: Color(0x0A000000),
+            blurRadius: 8,
+            offset: Offset(0, 2),
           ),
         ],
       ),
@@ -138,7 +142,7 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.2),
+                        color: Colors.white.withValues(alpha: 0.18),
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: const Text(
@@ -147,9 +151,9 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
                       ),
                     ),
                     const SizedBox(height: 12),
-                    const Text(
-                      'Hi, Mr. John Wilson !',
-                      style: TextStyle(
+                    Text(
+                      'Hi, $parentName !',
+                      style: const TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.bold,
                         fontSize: 24,
@@ -168,23 +172,51 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
                   ],
                 );
 
-                final actionBtn = ElevatedButton.icon(
-                  onPressed: _openAppointmentDialog,
-                  icon: const Icon(Icons.calendar_month, color: AppColors.primary, size: 18),
-                  label: const Text(
-                    '+ Request Meeting with Director',
-                    style: TextStyle(
-                      color: AppColors.primary,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 13,
+                final actionBtn = Wrap(
+                  spacing: 12,
+                  runSpacing: 10,
+                  children: [
+                    ElevatedButton.icon(
+                      onPressed: () => _openAppointmentDialog(parentName),
+                      icon: const Icon(Icons.event_available, color: AppColors.primary, size: 18),
+                      label: const Text(
+                        '+ Request Meeting with Director',
+                        style: TextStyle(
+                          color: AppColors.primaryDark,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
                     ),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.white,
-                    elevation: 2,
-                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        if (widget.onNavigateTab != null) {
+                          widget.onNavigateTab!(3);
+                        }
+                      },
+                      icon: const Icon(Icons.show_chart, color: Colors.white, size: 18),
+                      label: const Text(
+                        'View Real-Time Graphs',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primaryDark,
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                    ),
+                  ],
                 );
 
                 if (isNarrow) {
@@ -209,30 +241,38 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
             ),
           ),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
             decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.15),
+              color: Colors.black.withValues(alpha: 0.12),
               borderRadius: const BorderRadius.only(
                 bottomLeft: Radius.circular(16),
                 bottomRight: Radius.circular(16),
               ),
             ),
-            child: Row(
+            child: Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 8,
+              runSpacing: 6,
               children: [
-                const Icon(Icons.event, color: Colors.white70, size: 16),
-                const SizedBox(width: 8),
-                Text(
-                  dateStr,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 13,
-                    fontFamily: 'Poppins',
-                  ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.event, color: Colors.white70, size: 16),
+                    const SizedBox(width: 8),
+                    Text(
+                      dateStr,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontFamily: 'Poppins',
+                      ),
+                    ),
+                  ],
                 ),
-                const Spacer(),
                 const Text(
                   'Center Status: Open & Active',
-                  style: TextStyle(color: Color(0xFFC8E6C9), fontSize: 12, fontWeight: FontWeight.bold),
+                  style: TextStyle(color: Color(0xFFE8F5E9), fontSize: 12, fontWeight: FontWeight.bold),
                 ),
               ],
             ),
@@ -631,7 +671,7 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
   }
 
   // ── 4. Director Consultations & Booking Card ───
-  Widget _buildDirectorAppointmentsCard(List<DirectorAppointment> appointments) {
+  Widget _buildDirectorAppointmentsCard(List<DirectorAppointment> appointments, String parentName) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -674,7 +714,7 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
                 ),
               ),
               OutlinedButton.icon(
-                onPressed: _openAppointmentDialog,
+                onPressed: () => _openAppointmentDialog(parentName),
                 icon: const Icon(Icons.add, size: 14, color: AppColors.primary),
                 label: const Text('Book', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                 style: OutlinedButton.styleFrom(

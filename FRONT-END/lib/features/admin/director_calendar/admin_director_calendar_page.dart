@@ -42,8 +42,15 @@ class _AdminDirectorCalendarPageState extends State<AdminDirectorCalendarPage> {
           Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              gradient: AppColors.welcomeGradient,
+              color: AppColors.primary,
               borderRadius: BorderRadius.circular(16),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x0A000000),
+                  blurRadius: 8,
+                  offset: Offset(0, 2),
+                ),
+              ],
             ),
             child: LayoutBuilder(
               builder: (context, bannerConstraints) {

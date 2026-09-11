@@ -11,7 +11,7 @@ class MilestoneAssessmentPage extends StatefulWidget {
 }
 
 class _MilestoneAssessmentPageState extends State<MilestoneAssessmentPage> {
-  String? _selectedStudent = 'Alex Thomas Sam';
+  String? _selectedStudent;
   int _activeTab = 0; // 0: Assessment, 1: Graph
   String _selectedAssessment = 'Assessment 1';
   int _selectedLevel = 1;
@@ -245,13 +245,13 @@ class _MilestoneAssessmentPageState extends State<MilestoneAssessmentPage> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                 decoration: BoxDecoration(
-                  gradient: AppColors.welcomeGradient,
+                  color: AppColors.primary,
                   borderRadius: BorderRadius.circular(20),
-                  boxShadow: [
+                  boxShadow: const [
                     BoxShadow(
-                      color: AppColors.primary.withValues(alpha: 0.25),
+                      color: Color(0x0A000000),
                       blurRadius: 8,
-                      offset: const Offset(0, 4),
+                      offset: Offset(0, 2),
                     ),
                   ],
                 ),

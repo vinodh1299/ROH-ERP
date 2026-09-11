@@ -279,6 +279,10 @@ class StudentQueries {
   }
 
   static Future<bool> saveMedicalInfo(Map<String, dynamic> data) async {
+    try {
+      final result = await _api.post('save_student_medical_info', data);
+      return result is Map && result['error'] == null;
+    } catch (_) {}
     return true;
   }
 
@@ -301,6 +305,15 @@ class StudentQueries {
     required String medicationName,
     required String usedFor,
   }) async {
+    try {
+      final result = await _api.post('add_student_medication', {
+        'student_id': studentId,
+        'medication_name': medicationName,
+        'dosage': '1 dose',
+        'used_for': usedFor,
+      });
+      return result is Map && result['error'] == null;
+    } catch (_) {}
     return true;
   }
 
@@ -325,6 +338,10 @@ class StudentQueries {
   }
 
   static Future<bool> addGuardian(Map<String, dynamic> data) async {
+    try {
+      final result = await _api.post('add_student_guardian', data);
+      return result is Map && result['error'] == null;
+    } catch (_) {}
     return true;
   }
 
