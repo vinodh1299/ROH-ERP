@@ -172,7 +172,7 @@ class _TransitionAssessmentPageState extends State<TransitionAssessmentPage> {
           if (_activeTab == 0) ...[
             // Student Assessment Banner
             StudentAssessmentBanner(
-              studentName: _selectedStudent ?? 'Alex Thomas Sam',
+              studentName: _selectedStudent ?? 'Student',
             ),
             const SizedBox(height: 20),
 
@@ -257,7 +257,7 @@ class _TransitionAssessmentPageState extends State<TransitionAssessmentPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         StudentAssessmentBanner(
-          studentName: _selectedStudent ?? 'Alex Thomas Sam',
+          studentName: _selectedStudent ?? 'Student',
         ),
         const SizedBox(height: 24),
         Container(

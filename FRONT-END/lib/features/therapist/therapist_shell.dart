@@ -37,6 +37,14 @@ class _TherapistShellState extends State<TherapistShell> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      final auth = Provider.of<AuthService>(context, listen: false);
+      if (!auth.isLoggedIn || auth.currentUser?.role != 'therapist') {
+        Navigator.of(context).pushNamedAndRemoveUntil(
+          AppConstants.routeLogin,
+          (route) => false,
+        );
+        return;
+      }
       ForcedPasswordChangeDialog.showIfNeeded(context);
       NotificationService().fetchNotifications();
     });

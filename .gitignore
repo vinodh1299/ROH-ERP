@@ -33,3 +33,4 @@ yarn-error.log*
 
 # Test output
 test-results/
+*.log

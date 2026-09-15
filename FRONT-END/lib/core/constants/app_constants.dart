@@ -23,13 +23,13 @@ class AppConstants {
   // Therapist
   static const String therapistEmail = 'therapist@roh.com';
   static const String therapistPassword = 'therapist123';
-  static const String therapistName = 'Dr. Sarah Lee';
+  static const String therapistName = 'Therapist User';
   static const String therapistRole = 'therapist';
 
   // Parent
   static const String parentEmail = 'parent@roh.com';
   static const String parentPassword = 'parent123';
-  static const String parentName = 'Mr. John Wilson';
+  static const String parentName = 'Parent User';
   static const String parentRole = 'parent';
 
   // ── Shared Prefs Keys ──

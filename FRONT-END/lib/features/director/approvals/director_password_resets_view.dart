@@ -45,23 +45,8 @@ class _DirectorPasswordResetsViewState extends State<DirectorPasswordResetsView>
       }
     } catch (_) {}
 
-    // Mock fallback
     setState(() {
-      _requests = [
-        {
-          'id': 1,
-          'user_id': 3,
-          'user_name': 'Dr. Sarah Lee',
-          'user_email': 'therapist@roh.com',
-          'user_role': 'therapist',
-          'admin_name': 'System Admin',
-          'decision': 'Pending',
-          'request_timestamp': '2026-09-11 08:30:00',
-          'expires_at': '2026-09-13 08:30:00',
-          'requester_ip': '127.0.0.1',
-          'rejection_reason': 'Therapist locked out of cabin device',
-        },
-      ];
+      _requests = [];
       _isLoading = false;
     });
   }

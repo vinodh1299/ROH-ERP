@@ -131,7 +131,7 @@ class _BarriersAssessmentPageState extends State<BarriersAssessmentPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        StudentAssessmentBanner(studentName: _selectedStudent ?? 'Alex Thomas Sam'),
+        StudentAssessmentBanner(studentName: _selectedStudent ?? 'Student'),
         const SizedBox(height: 20),
         _buildBarriersList(),
       ],
@@ -352,7 +352,7 @@ class _BarriersAssessmentPageState extends State<BarriersAssessmentPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        StudentAssessmentBanner(studentName: _selectedStudent ?? 'Alex Thomas Sam'),
+        StudentAssessmentBanner(studentName: _selectedStudent ?? 'Student'),
         const SizedBox(height: 24),
         LayoutBuilder(
           builder: (context, constraints) {

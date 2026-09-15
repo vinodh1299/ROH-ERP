@@ -26,8 +26,8 @@ class _ScheduleTherapistSessionDialogState
   final _formKey = GlobalKey<FormState>();
 
   late DateTime _selectedDate;
-  late String _selectedTherapistId;
-  late String _selectedStudentId;
+  String? _selectedTherapistId;
+  String? _selectedStudentId;
   late String _selectedRoom;
   late String _selectedSlot;
 
@@ -39,18 +39,31 @@ class _ScheduleTherapistSessionDialogState
     super.initState();
     _selectedDate = widget.initialDate ?? DateTime.now();
 
-    // Default therapist
-    _selectedTherapistId = widget.preselectedTherapistId ??
-        ScheduleService.centerTherapists.first['id']!;
+    // Safe therapist selection
+    final therapists = ScheduleService.centerTherapists;
+    if (therapists.isNotEmpty) {
+      if (widget.preselectedTherapistId != null &&
+          therapists.any((t) => t['id'] == widget.preselectedTherapistId)) {
+        _selectedTherapistId = widget.preselectedTherapistId;
+      } else {
+        _selectedTherapistId = therapists.first['id'];
+      }
+    }
 
-    // Default student
-    _selectedStudentId = ScheduleService.centerStudents.first['id'] as String;
-    _programController.text =
-        ScheduleService.centerStudents.first['programs'] as String;
+    // Safe student selection
+    final students = ScheduleService.centerStudents;
+    if (students.isNotEmpty) {
+      _selectedStudentId = students.first['id'] as String;
+      _programController.text = (students.first['programs'] as String?) ?? '';
+    }
 
     // Default room & slot
-    _selectedRoom = ScheduleService.centerRooms.first;
-    _selectedSlot = ScheduleService.standardTherapySlots.first;
+    _selectedRoom = ScheduleService.centerRooms.isNotEmpty
+        ? ScheduleService.centerRooms.first
+        : 'Room 101';
+    _selectedSlot = ScheduleService.standardTherapySlots.isNotEmpty
+        ? ScheduleService.standardTherapySlots.first
+        : '09:00 AM - 10:00 AM';
   }
 
   @override
@@ -64,11 +77,14 @@ class _ScheduleTherapistSessionDialogState
     if (studentId == null) return;
     setState(() {
       _selectedStudentId = studentId;
-      final student = ScheduleService.centerStudents.firstWhere(
+      final students = ScheduleService.centerStudents;
+      final student = students.firstWhere(
         (s) => s['id'] == studentId,
-        orElse: () => ScheduleService.centerStudents.first,
+        orElse: () => students.isNotEmpty
+            ? students.first
+            : {'id': '', 'name': '', 'programs': '', 'age': 0},
       );
-      _programController.text = student['programs'] as String;
+      _programController.text = (student['programs'] as String?) ?? '';
     });
   }
 
@@ -97,29 +113,40 @@ class _ScheduleTherapistSessionDialogState
 
   void _saveSession() {
     if (!_formKey.currentState!.validate()) return;
+    if (_selectedTherapistId == null || _selectedStudentId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please select both a clinician and a student.'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      return;
+    }
 
     final parts = _selectedSlot.split(' - ');
     final startTime = parts[0].trim();
-    final endTime = parts[1].trim();
+    final endTime = parts.length > 1 ? parts[1].trim() : '';
 
-    final therapist = ScheduleService.centerTherapists.firstWhere(
+    final therapists = ScheduleService.centerTherapists;
+    final therapist = therapists.firstWhere(
       (t) => t['id'] == _selectedTherapistId,
-      orElse: () => ScheduleService.centerTherapists.first,
+      orElse: () => {'id': _selectedTherapistId!, 'name': 'Therapist'},
     );
 
-    final student = ScheduleService.centerStudents.firstWhere(
+    final students = ScheduleService.centerStudents;
+    final student = students.firstWhere(
       (s) => s['id'] == _selectedStudentId,
-      orElse: () => ScheduleService.centerStudents.first,
+      orElse: () => {'id': _selectedStudentId!, 'name': 'Student', 'age': 0},
     );
 
     final scheduleService = context.read<ScheduleService>();
     final newSession = TherapySession(
       id: 'TS-${DateTime.now().millisecondsSinceEpoch % 100000}',
-      therapistId: _selectedTherapistId,
-      therapistName: therapist['name']!,
-      studentId: _selectedStudentId,
-      studentName: student['name'] as String,
-      studentAge: student['age'] as int,
+      therapistId: _selectedTherapistId!,
+      therapistName: therapist['name'] ?? 'Clinician',
+      studentId: _selectedStudentId!,
+      studentName: (student['name'] as String?) ?? 'Student',
+      studentAge: (student['age'] as int?) ?? 0,
       programTitle: _programController.text.trim(),
       room: _selectedRoom,
       date: DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day),
@@ -242,6 +269,34 @@ class _ScheduleTherapistSessionDialogState
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // Empty Warning Banner if center has no staff or students
+                      if (ScheduleService.centerTherapists.isEmpty || ScheduleService.centerStudents.isEmpty)
+                        Container(
+                          margin: const EdgeInsets.only(bottom: 16),
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.amber.shade50,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.amber.shade300),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.info_outline, color: Colors.amber.shade800, size: 20),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  ScheduleService.centerTherapists.isEmpty && ScheduleService.centerStudents.isEmpty
+                                      ? 'No therapists or students registered yet. Add staff and students before scheduling sessions.'
+                                      : ScheduleService.centerTherapists.isEmpty
+                                          ? 'No therapists registered yet. Add clinicians before scheduling sessions.'
+                                          : 'No students enrolled yet. Add students before scheduling sessions.',
+                                  style: TextStyle(fontSize: 12, color: Colors.amber.shade900),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
                       // Clinician & Student (Responsive Layout)
                       LayoutBuilder(
                         builder: (context, constraints) {
@@ -261,12 +316,13 @@ class _ScheduleTherapistSessionDialogState
                               const SizedBox(height: 6),
                               DropdownButtonFormField<String>(
                                 value: _selectedTherapistId,
+                                hint: const Text('Select Therapist', style: TextStyle(fontSize: 13)),
                                 decoration: _inputDecoration(prefixIcon: Icons.badge_outlined),
                                 items: ScheduleService.centerTherapists.map((t) {
                                   return DropdownMenuItem(
                                     value: t['id'],
                                     child: Text(
-                                      t['name']!,
+                                      t['name'] ?? '',
                                       style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
                                       overflow: TextOverflow.ellipsis,
                                     ),
@@ -293,6 +349,7 @@ class _ScheduleTherapistSessionDialogState
                               const SizedBox(height: 6),
                               DropdownButtonFormField<String>(
                                 value: _selectedStudentId,
+                                hint: const Text('Select Student', style: TextStyle(fontSize: 13)),
                                 decoration: _inputDecoration(prefixIcon: Icons.child_care),
                                 items: ScheduleService.centerStudents.map((s) {
                                   return DropdownMenuItem(
@@ -517,8 +574,11 @@ class _ScheduleTherapistSessionDialogState
                     child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
                   );
 
+                  final canSchedule = ScheduleService.centerTherapists.isNotEmpty &&
+                      ScheduleService.centerStudents.isNotEmpty;
+
                   final submitBtn = ElevatedButton.icon(
-                    onPressed: _saveSession,
+                    onPressed: canSchedule ? _saveSession : null,
                     icon: const Icon(Icons.check, size: 18, color: Colors.white),
                     label: const Text(
                       'Assign & Schedule Session',
@@ -529,6 +589,7 @@ class _ScheduleTherapistSessionDialogState
                     ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primary,
+                      disabledBackgroundColor: AppColors.primary.withOpacity(0.4),
                       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                       elevation: 0,

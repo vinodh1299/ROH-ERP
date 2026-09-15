@@ -78,7 +78,7 @@ class _EesAssessmentPageState extends State<EesAssessmentPage> {
 
           // Student Assessment Banner
           StudentAssessmentBanner(
-            studentName: _selectedStudent ?? 'Alex Thomas Sam',
+            studentName: _selectedStudent ?? 'Student',
           ),
           const SizedBox(height: 20),
 

@@ -177,7 +177,7 @@ class _PreferenceAssessmentPageState extends State<PreferenceAssessmentPage> {
               ),
               const SizedBox(width: 8),
               Text(
-                '${_selectedStudent ?? "Alex Thomas Sam"} VB MAPP Preference Assessment',
+                '${_selectedStudent ?? "Student"} VB MAPP Preference Assessment',
                 style: const TextStyle(
                   fontFamily: 'Poppins',
                   fontSize: 18,
@@ -191,7 +191,7 @@ class _PreferenceAssessmentPageState extends State<PreferenceAssessmentPage> {
 
           // Student Assessment Banner
           StudentAssessmentBanner(
-            studentName: _selectedStudent ?? 'Alex Thomas Sam',
+            studentName: _selectedStudent ?? 'Student',
           ),
           const SizedBox(height: 20),
 

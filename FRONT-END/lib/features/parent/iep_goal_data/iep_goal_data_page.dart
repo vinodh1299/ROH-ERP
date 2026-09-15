@@ -1,12 +1,17 @@
 // lib/features/parent/iep_goal_data/iep_goal_data_page.dart
 import 'package:flutter/material.dart';
 import 'package:roh_erp/core/constants/app_colors.dart';
+import 'package:roh_erp/core/services/schedule_service.dart';
 
 class IepGoalDataPage extends StatelessWidget {
   const IepGoalDataPage({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final students = ScheduleService.centerStudents;
+    final hasStudents = students.isNotEmpty;
+    final studentName = hasStudents ? students.first['name'] as String : 'No Student Enrolled';
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24.0),
       child: Column(
@@ -26,10 +31,10 @@ class IepGoalDataPage extends StatelessWidget {
                 ),
               ],
             ),
-            child: const Column(
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                const Text(
                   'IEP Goal Mastery & VB-MAPP Tracking',
                   style: TextStyle(
                     fontSize: 20,
@@ -38,39 +43,69 @@ class IepGoalDataPage extends StatelessWidget {
                     fontFamily: 'Poppins',
                   ),
                 ),
-                SizedBox(height: 6),
+                const SizedBox(height: 6),
                 Text(
-                  'Student: Alex Thomas Sam • Comprehensive Individualized Education Plan Status',
-                  style: TextStyle(fontSize: 13, color: Colors.white70),
+                  hasStudents
+                      ? 'Student: $studentName • Individualized Education Plan Status'
+                      : 'No enrolled student linked to this parent account',
+                  style: const TextStyle(fontSize: 13, color: Colors.white70),
                 ),
               ],
             ),
           ),
           const SizedBox(height: 24),
 
-          // Overview KPI Cards
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final isNarrow = constraints.maxWidth < 600;
-              final crossAxisCount = isNarrow ? 2 : 4;
-
-              return GridView.count(
-                crossAxisCount: crossAxisCount,
-                crossAxisSpacing: 14,
-                mainAxisSpacing: 14,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                childAspectRatio: isNarrow ? 1.4 : 1.8,
+          if (!hasStudents)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(48),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.divider),
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  _buildStatCard('Active IEP Goals', '8', 'Active Programs', AppColors.primary),
-                  _buildStatCard('Targets Mastered', '42', '+4 this month', Colors.green),
-                  _buildStatCard('In Maintenance', '15', 'Generalizing', Colors.blue),
-                  _buildStatCard('Next Audit Due', '18 Oct', '6-Month Review', Colors.orange),
+                  Icon(Icons.assignment_outlined, size: 64, color: Colors.grey.shade400),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'No Active IEP Goals Found',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Once a clinical assessment and IEP plan are completed by your assigned BCBA and Director, active milestones, acquisition targets, and mastery tracking will appear here.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                  ),
                 ],
-              );
-            },
-          ),
-          const SizedBox(height: 24),
+              ),
+            )
+          else ...[
+            // Overview KPI Cards
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final isNarrow = constraints.maxWidth < 600;
+                final crossAxisCount = isNarrow ? 2 : 4;
+
+                return GridView.count(
+                  crossAxisCount: crossAxisCount,
+                  crossAxisSpacing: 14,
+                  mainAxisSpacing: 14,
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  childAspectRatio: isNarrow ? 1.4 : 1.8,
+                  children: [
+                    _buildStatCard('Active IEP Goals', '0', 'Active Programs', AppColors.primary),
+                    _buildStatCard('Targets Mastered', '0', 'Total Mastered', Colors.green),
+                    _buildStatCard('In Maintenance', '0', 'Generalizing', Colors.blue),
+                    _buildStatCard('Next Audit Due', 'Pending', 'Initial Plan', Colors.orange),
+                  ],
+                );
+              },
+            ),
+            const SizedBox(height: 24),
 
           // Clinical Domain Goal Breakdown Cards
           const Text(
@@ -138,9 +173,10 @@ class IepGoalDataPage extends StatelessWidget {
             ],
           ),
         ],
-      ),
-    );
-  }
+      ],
+    ),
+  );
+}
 
   Widget _buildStatCard(String label, String value, String subtext, Color color) {
     return Container(

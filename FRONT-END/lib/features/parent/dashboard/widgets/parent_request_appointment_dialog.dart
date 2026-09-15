@@ -12,8 +12,8 @@ class ParentRequestAppointmentDialog extends StatefulWidget {
 
   const ParentRequestAppointmentDialog({
     super.key,
-    this.childName = 'Alex Thomas Sam',
-    this.parentName = 'Mr. John Wilson',
+    this.childName = 'Student',
+    this.parentName = 'Parent',
   });
 
   @override

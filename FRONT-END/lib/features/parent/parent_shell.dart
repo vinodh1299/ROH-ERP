@@ -33,6 +33,14 @@ class _ParentShellState extends State<ParentShell> {
     super.initState();
     _selectedIndex = widget.initialTab;
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      final auth = Provider.of<AuthService>(context, listen: false);
+      if (!auth.isLoggedIn || auth.currentUser?.role != 'parent') {
+        Navigator.of(context).pushNamedAndRemoveUntil(
+          AppConstants.routeLogin,
+          (route) => false,
+        );
+        return;
+      }
       ForcedPasswordChangeDialog.showIfNeeded(context);
       NotificationService().fetchNotifications();
       DpdpConsentDialog.showIfNeeded(context);

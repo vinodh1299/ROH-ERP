@@ -13,7 +13,6 @@ class ScheduleService extends ChangeNotifier {
   Timer? _periodicTimer;
 
   ScheduleService._internal() {
-    _initSampleData();
     syncWithBackend();
     // Continuous background sync every 4 seconds across browser tabs
     _periodicTimer = Timer.periodic(const Duration(seconds: 4), (_) {
@@ -24,7 +23,7 @@ class ScheduleService extends ChangeNotifier {
   Future<void> syncWithBackend() async {
     try {
       final sessRes = await _api.get('get_sessions');
-      if (sessRes is List && sessRes.isNotEmpty) {
+      if (sessRes is List) {
         _sessions.clear();
         for (final item in sessRes) {
           if (item is Map<String, dynamic>) {
@@ -56,7 +55,7 @@ class ScheduleService extends ChangeNotifier {
       }
 
       final apptRes = await _api.get('get_director_appointments');
-      if (apptRes is List && apptRes.isNotEmpty) {
+      if (apptRes is List) {
         _directorAppointments.clear();
         for (final item in apptRes) {
           if (item is Map<String, dynamic>) {
@@ -88,6 +87,36 @@ class ScheduleService extends ChangeNotifier {
           }
         }
       }
+
+      final thRes = await _api.get('get_therapists');
+      if (thRes is List) {
+        _therapistsList.clear();
+        for (final t in thRes) {
+          if (t is Map<String, dynamic>) {
+            _therapistsList.add({
+              'id': t['id']?.toString() ?? '',
+              'name': t['name']?.toString() ?? 'Therapist',
+              'designation': t['designation']?.toString() ?? 'Behavior Therapist',
+            });
+          }
+        }
+      }
+
+      final stRes = await _api.get('get_students');
+      if (stRes is List) {
+        _studentsList.clear();
+        for (final s in stRes) {
+          if (s is Map<String, dynamic>) {
+            _studentsList.add({
+              'id': s['id']?.toString() ?? '',
+              'name': (s['name'] ?? '${s['first_name'] ?? ''} ${s['last_name'] ?? ''}').toString().trim(),
+              'age': s['age'] ?? 10,
+              'programs': (s['program'] ?? s['primary_diagnosis'] ?? 'ABA Intervention').toString(),
+            });
+          }
+        }
+      }
+
       notifyListeners();
     } catch (e) {
       debugPrint('ScheduleService sync error: $e');
@@ -96,6 +125,8 @@ class ScheduleService extends ChangeNotifier {
 
   final List<TherapySession> _sessions = [];
   final List<DirectorAppointment> _directorAppointments = [];
+  static final List<Map<String, String>> _therapistsList = [];
+  static final List<Map<String, dynamic>> _studentsList = [];
 
   List<TherapySession> get allSessions => List.unmodifiable(_sessions);
   List<DirectorAppointment> get allDirectorAppointments => List.unmodifiable(_directorAppointments);
@@ -129,242 +160,9 @@ class ScheduleService extends ChangeNotifier {
     'Gross Motor Activity Hall',
   ];
 
-  static const List<Map<String, String>> centerTherapists = [
-    {'id': 'T1', 'name': 'Dr. Sarah Lee', 'designation': 'Senior BCBA / Lead Therapist'},
-    {'id': 'T2', 'name': 'Michael Chang', 'designation': 'Assistant Behavior Analyst (BCaBA)'},
-    {'id': 'T3', 'name': 'Emily Chen', 'designation': 'Speech & Language Pathologist'},
-    {'id': 'T4', 'name': 'David Kim', 'designation': 'RBT Senior Clinician'},
-    {'id': 'T5', 'name': 'Jessica Taylor', 'designation': 'Occupational Therapist'},
-    {'id': 'T6', 'name': 'Amanda Martinez', 'designation': 'Behavior Technician'},
-  ];
-
-  static const List<Map<String, dynamic>> centerStudents = [
-    {'id': 'S1', 'name': 'Alex Thomas Sam', 'age': 15, 'programs': 'VB-MAPP Manding & Echoic Probes'},
-    {'id': 'S2', 'name': 'Jemi Wilson', 'age': 15, 'programs': 'Tact Acquisition & Listener Responding'},
-    {'id': 'S3', 'name': 'Cameron Williamson', 'age': 12, 'programs': 'Visual Performance & Motor Imitation'},
-    {'id': 'S4', 'name': 'Matt Dickerson', 'age': 14, 'programs': 'Social Interaction & Intraverbals'},
-    {'id': 'S5', 'name': 'Romeo Alex A', 'age': 15, 'programs': 'Behavior Intervention Plan (BIP)'},
-    {'id': 'S6', 'name': 'Sophia Martinez', 'age': 9, 'programs': 'Early Echoic Skill Assessment (EESA)'},
-  ];
-
-  void _initSampleData() {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-
-    // Initial Director Appointments (Admin scheduled & Director scheduled)
-    _directorAppointments.addAll([
-      DirectorAppointment(
-        id: 'DA-101',
-        title: 'Parent Diagnostic Intake & Clinical Assessment',
-        type: AppointmentType.diagnosticIntake,
-        date: today,
-        startTime: '09:00 AM',
-        endTime: '10:00 AM',
-        attendeeName: 'Mr. John Wilson',
-        attendeeRole: 'Parent of Jemi Wilson',
-        attendeePhone: '+1 (555) 234-8901',
-        attendeeEmail: 'john.wilson@email.com',
-        location: 'Director Suite 201',
-        scheduledBy: 'Admin',
-        status: AppointmentStatus.confirmed,
-        notes: 'Initial evaluation for VB-MAPP milestone placement and sensory profile review.',
-      ),
-      DirectorAppointment(
-        id: 'DA-102',
-        title: 'IEP Semi-Annual Sign-Off & Audit',
-        type: AppointmentType.iepReview,
-        date: today,
-        startTime: '11:30 AM',
-        endTime: '12:30 PM',
-        attendeeName: 'Dr. Sarah Lee',
-        attendeeRole: 'Lead BCBA Clinician',
-        attendeePhone: '+1 (555) 789-1122',
-        attendeeEmail: 'sarah.lee@roh.org',
-        location: 'Conference Room B',
-        scheduledBy: 'Admin',
-        status: AppointmentStatus.confirmed,
-        notes: 'Review student Alex Thomas Sam progress report and sign digital authorization stamp.',
-      ),
-      DirectorAppointment(
-        id: 'DA-103',
-        title: 'BACB 5% Monthly Supervision Review',
-        type: AppointmentType.bacbSupervision,
-        date: today,
-        startTime: '02:45 PM',
-        endTime: '03:45 PM',
-        attendeeName: 'Michael Chang',
-        attendeeRole: 'BCaBA Trainee',
-        attendeePhone: '+1 (555) 432-8877',
-        attendeeEmail: 'm.chang@roh.org',
-        location: 'Director Suite 201',
-        scheduledBy: 'Director',
-        status: AppointmentStatus.confirmed,
-        notes: 'Review discrete trial training fidelity and data sheet documentation.',
-      ),
-      DirectorAppointment(
-        id: 'DA-104',
-        title: 'Parent Progress & Transition Conference',
-        type: AppointmentType.parentConference,
-        date: today.add(const Duration(days: 1)),
-        startTime: '10:15 AM',
-        endTime: '11:15 AM',
-        attendeeName: 'Mrs. Linda Williamson',
-        attendeeRole: 'Parent of Cameron Williamson',
-        attendeePhone: '+1 (555) 678-3344',
-        attendeeEmail: 'linda.w@email.com',
-        location: 'Director Suite 201',
-        scheduledBy: 'Admin',
-        status: AppointmentStatus.confirmed,
-        notes: 'Discuss transition to inclusive classroom setting.',
-      ),
-    ]);
-
-    // Initial Therapist Sessions (Scheduled by Director)
-    _sessions.addAll([
-      // Dr. Sarah Lee sessions (Lead therapist logged in on therapist portal)
-      TherapySession(
-        id: 'TS-201',
-        therapistId: 'T1',
-        therapistName: 'Dr. Sarah Lee',
-        studentId: 'S1',
-        studentName: 'Alex Thomas Sam',
-        studentAge: 15,
-        programTitle: 'VB-MAPP Milestone Level 2: Manding & Echoic Probes',
-        room: 'Sensory Room A',
-        date: today,
-        startTime: '09:00 AM',
-        endTime: '10:15 AM',
-        status: SessionStatus.inProgress,
-        notes: 'Target 10 unprompted mands for preferred tactile items; record rate and prompt delay.',
-      ),
-      TherapySession(
-        id: 'TS-202',
-        therapistId: 'T1',
-        therapistName: 'Dr. Sarah Lee',
-        studentId: 'S2',
-        studentName: 'Jemi Wilson',
-        studentAge: 15,
-        programTitle: 'Tact Acquisition & Listener Responding by Feature',
-        room: 'ABA Table 2 (DTT)',
-        date: today,
-        startTime: '10:30 AM',
-        endTime: '11:45 AM',
-        status: SessionStatus.upcoming,
-        notes: 'LRFFC Level 3: Select animal by characteristic feature from array of 6.',
-      ),
-      TherapySession(
-        id: 'TS-203',
-        therapistId: 'T1',
-        therapistName: 'Dr. Sarah Lee',
-        studentId: 'S3',
-        studentName: 'Cameron Williamson',
-        studentAge: 12,
-        programTitle: 'Visual Performance & Block Pattern Matching',
-        room: 'Natural Environment Station 3',
-        date: today,
-        startTime: '01:00 PM',
-        endTime: '02:15 PM',
-        status: SessionStatus.upcoming,
-        notes: 'VP-MTS Level 2 Task 9: Replicate 3D block design within 30s.',
-      ),
-      TherapySession(
-        id: 'TS-204',
-        therapistId: 'T1',
-        therapistName: 'Dr. Sarah Lee',
-        studentId: 'S4',
-        studentName: 'Matt Dickerson',
-        studentAge: 14,
-        programTitle: 'Social Play & Turn Taking Protocol',
-        room: 'Gross Motor Activity Hall',
-        date: today,
-        startTime: '04:00 PM',
-        endTime: '05:15 PM',
-        status: SessionStatus.upcoming,
-        notes: 'Peer interaction probe during board game activity.',
-      ),
-
-      // Michael Chang sessions
-      TherapySession(
-        id: 'TS-205',
-        therapistId: 'T2',
-        therapistName: 'Michael Chang',
-        studentId: 'S5',
-        studentName: 'Romeo Alex A',
-        studentAge: 15,
-        programTitle: 'Differential Reinforcement & Task Completion',
-        room: 'ABA Table 1 (DTT)',
-        date: today,
-        startTime: '09:00 AM',
-        endTime: '10:15 AM',
-        status: SessionStatus.inProgress,
-        notes: 'DRA on token economy schedule: FR3 token delivery.',
-      ),
-      TherapySession(
-        id: 'TS-206',
-        therapistId: 'T2',
-        therapistName: 'Michael Chang',
-        studentId: 'S1',
-        studentName: 'Alex Thomas Sam',
-        studentAge: 15,
-        programTitle: 'Intraverbal Fill-ins & Functional Questions',
-        room: 'Speech & Language Cabin 1',
-        date: today,
-        startTime: '01:00 PM',
-        endTime: '02:15 PM',
-        status: SessionStatus.upcoming,
-        notes: 'Intraverbal Level 3: Answers "What do you do when you are thirsty?".',
-      ),
-
-      // Emily Chen sessions (Speech)
-      TherapySession(
-        id: 'TS-207',
-        therapistId: 'T3',
-        therapistName: 'Emily Chen',
-        studentId: 'S6',
-        studentName: 'Sophia Martinez',
-        studentAge: 9,
-        programTitle: 'Early Echoic Skills & Vocal Articulation',
-        room: 'Speech & Language Cabin 2',
-        date: today,
-        startTime: '09:00 AM',
-        endTime: '10:15 AM',
-        status: SessionStatus.inProgress,
-        notes: 'Subtest 1 simple syllables /ba/, /ma/, /da/.',
-      ),
-      TherapySession(
-        id: 'TS-208',
-        therapistId: 'T3',
-        therapistName: 'Emily Chen',
-        studentId: 'S2',
-        studentName: 'Jemi Wilson',
-        studentAge: 15,
-        programTitle: 'Oral Motor Function & Vocal Echoics',
-        room: 'Speech & Language Cabin 2',
-        date: today,
-        startTime: '10:30 AM',
-        endTime: '11:45 AM',
-        status: SessionStatus.upcoming,
-        notes: 'Vocal volume regulation in structured communication settings.',
-      ),
-
-      // David Kim sessions
-      TherapySession(
-        id: 'TS-209',
-        therapistId: 'T4',
-        therapistName: 'David Kim',
-        studentId: 'S3',
-        studentName: 'Cameron Williamson',
-        studentAge: 12,
-        programTitle: 'Fine Motor Imitation & Writing Grasp',
-        room: 'Natural Environment Station 3',
-        date: today,
-        startTime: '09:00 AM',
-        endTime: '10:15 AM',
-        status: SessionStatus.completed,
-        notes: 'Tripod grasp intervention on 10 pre-writing strokes.',
-      ),
-    ]);
-  }
+  // Dynamic lists populated from live database
+  static List<Map<String, String>> get centerTherapists => List.unmodifiable(_therapistsList);
+  static List<Map<String, dynamic>> get centerStudents => List.unmodifiable(_studentsList);
 
   // ──────────────────────────────────────────────────────────────────────────
   // THERAPIST SCHEDULE METHODS

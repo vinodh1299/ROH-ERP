@@ -60,7 +60,7 @@ class _StudentCardGridState extends State<StudentCardGrid> {
 
     try {
       final res = await ApiService().get('get_students');
-      if (res is List && res.isNotEmpty) {
+      if (res is List) {
         setState(() {
           _students = List<Map<String, dynamic>>.from(res);
           _isLoading = false;
@@ -73,28 +73,19 @@ class _StudentCardGridState extends State<StudentCardGrid> {
 
     try {
       final fallback = await StudentQueries.fetchAll();
-      if (fallback.isNotEmpty) {
-        setState(() {
-          _students = fallback;
-          _isLoading = false;
-        });
-        return;
-      }
+      setState(() {
+        _students = fallback;
+        _isLoading = false;
+      });
+      return;
     } catch (e) {
       debugPrint('StudentQueries.fetchAll fallback error: $e');
     }
 
-    if (MockData.students.isNotEmpty) {
-      setState(() {
-        _students = List<Map<String, dynamic>>.from(MockData.students);
-        _isLoading = false;
-      });
-    } else {
-      setState(() {
-        _error = 'Unable to load students. Please check your network connection.';
-        _isLoading = false;
-      });
-    }
+    setState(() {
+      _students = [];
+      _isLoading = false;
+    });
   }
 
   int _calculateAge(dynamic dob) {

@@ -297,6 +297,34 @@ class _DirectorSchedulePageState extends State<DirectorSchedulePage>
 
   // ── Tab 1: All Therapists Master Timetable ─────────────────────────────────
   Widget _buildAllTherapistsTab(List<TherapySession> allSessions, ScheduleService service) {
+    if (ScheduleService.centerTherapists.isEmpty) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(40),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.divider),
+        ),
+        child: Column(
+          children: [
+            Icon(Icons.people_outline, size: 48, color: Colors.grey.shade400),
+            const SizedBox(height: 16),
+            const Text(
+              'No Clinicians Registered',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Register clinicians in the Therapist Section to assign sessions and view rosters.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+            ),
+          ],
+        ),
+      );
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

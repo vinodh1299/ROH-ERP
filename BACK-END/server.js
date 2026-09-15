@@ -401,6 +401,43 @@ app.all(['/api.php', '/api', '/api/api.php', '/api/v1'], async (req, res) => {
         return res.json({ success: true, id: newId });
       }
 
+      case 'get_parents': {
+        const [rows] = await pool.query(
+          `SELECT u.id, u.name, u.email, u.status, u.phone, pp.secondary_phone, pp.street_address,
+                  (SELECT CONCAT(s.first_name, ' ', s.last_name) FROM students s WHERE s.parent_user_id = u.id LIMIT 1) AS child_name
+           FROM users u 
+           LEFT JOIN parent_profiles pp ON u.id = pp.user_id 
+           WHERE u.role = 'parent' ORDER BY u.id DESC`
+        );
+        return res.json(rows);
+      }
+
+      case 'add_parent': {
+        const auth = await verifyAuth(req);
+        if (!auth || !['admin', 'director'].includes(auth.role)) return res.status(403).json({ error: 'Forbidden' });
+
+        const name = (input.name || '').trim();
+        const email = (input.email || '').trim().toLowerCase();
+        const password = input.password || 'parent123';
+
+        if (!name || !email) return res.status(400).json({ error: 'Valid name and email are required' });
+
+        const hash = await bcrypt.hash(password, 10);
+        const [resUser] = await pool.query(
+          'INSERT INTO users (name, email, password, role, status, phone) VALUES (?, ?, ?, "parent", "Active", ?)',
+          [name, email, hash, input.phone || null]
+        );
+        const newId = resUser.insertId;
+
+        await pool.query(
+          'INSERT INTO parent_profiles (user_id, secondary_phone) VALUES (?, ?)',
+          [newId, input.phone || null]
+        );
+
+        await auditLog(auth.sub, auth.role, 'ADD_PARENT', 'users', newId, ip, ua, `Added parent: ${name}`);
+        return res.json({ success: true, id: newId });
+      }
+
       // ──────────────────────────────────────────────────────────────────────
       // 3. STUDENTS & CLINICAL ADMISSIONS
       // ──────────────────────────────────────────────────────────────────────

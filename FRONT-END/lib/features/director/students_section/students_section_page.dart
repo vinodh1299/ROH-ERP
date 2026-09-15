@@ -84,86 +84,8 @@ class _StudentsSectionPageState extends State<StudentsSectionPage> {
 
   int _selectedView = 0; // 0: Enrolled Students, 1: Admissions & Waitlist Pipeline
 
-  // Sample Admissions pipeline data
-  final List<Map<String, dynamic>> _pipeline = [
-    {
-      'id': 'ADM-101',
-      'name': 'Liam Davis',
-      'age': '5',
-      'parent': 'Sarah Davis',
-      'phone': '+1 (555) 342-9182',
-      'hours': '25 hrs/wk (Full-time)',
-      'stage': 'Inquiry',
-      'concerns': 'Non-verbal, sensory sensitivities, limited eye contact',
-      'date': '02-09-2026',
-    },
-    {
-      'id': 'ADM-102',
-      'name': 'Maya Lin',
-      'age': '4',
-      'parent': 'David Lin',
-      'phone': '+1 (555) 781-4320',
-      'hours': '15 hrs/wk (Part-time)',
-      'stage': 'Inquiry',
-      'concerns': 'Speech delay, aggressive tantrums on task transition',
-      'date': '04-09-2026',
-    },
-    {
-      'id': 'ADM-103',
-      'name': 'Noah Robinson',
-      'age': '6',
-      'parent': 'Chloe Robinson',
-      'phone': '+1 (555) 902-1845',
-      'hours': '20 hrs/wk',
-      'stage': 'Inquiry',
-      'concerns': 'Echolalia, difficulty with peers and social play',
-      'date': '06-09-2026',
-    },
-    {
-      'id': 'ADM-104',
-      'name': 'Oliver Scott',
-      'age': '7',
-      'parent': 'Mark Scott',
-      'phone': '+1 (555) 234-8761',
-      'hours': '30 hrs/wk (Intensive)',
-      'stage': 'Clinical Intake',
-      'concerns': 'VB-MAPP Milestone assessment scheduled with Dr. Sarah Lee',
-      'date': '28-08-2026',
-    },
-    {
-      'id': 'ADM-105',
-      'name': 'Zara Khan',
-      'age': '4',
-      'parent': 'Fatima Khan',
-      'phone': '+1 (555) 459-0123',
-      'hours': '20 hrs/wk',
-      'stage': 'Clinical Intake',
-      'concerns': 'FBA intake completed. Medical authorization confirmed.',
-      'date': '25-08-2026',
-    },
-    {
-      'id': 'ADM-106',
-      'name': 'Henry Miller',
-      'age': '8',
-      'parent': 'Laura Miller',
-      'phone': '+1 (555) 890-4521',
-      'hours': '25 hrs/wk',
-      'stage': 'Therapist Matching',
-      'concerns': 'Targeting pairing with RBT James Rodriguez (Afternoon slot)',
-      'date': '20-08-2026',
-    },
-    {
-      'id': 'ADM-107',
-      'name': 'Sophia Patel',
-      'age': '5',
-      'parent': 'Anil Patel',
-      'phone': '+1 (555) 678-3210',
-      'hours': '15 hrs/wk',
-      'stage': 'Therapist Matching',
-      'concerns': 'Assigned to Senior Therapist Michael Chang. Starts Oct 1.',
-      'date': '18-08-2026',
-    },
-  ];
+  // Admissions pipeline data
+  final List<Map<String, dynamic>> _pipeline = [];
 
   void _advancePipelineStage(Map<String, dynamic> item) {
     setState(() {
@@ -251,7 +173,7 @@ class _StudentsSectionPageState extends State<StudentsSectionPage> {
             scrollDirection: Axis.horizontal,
             child: Row(
               children: [
-                _buildViewTab(0, 'Active Enrolled Students (${_students.isNotEmpty ? _students.length : 24})', Icons.school_outlined),
+                _buildViewTab(0, 'Active Enrolled Students (${_students.length})', Icons.school_outlined),
                 const SizedBox(width: 10),
                 _buildViewTab(1, 'Admissions & Waitlist Pipeline (${_pipeline.length})', Icons.filter_alt_outlined),
               ],

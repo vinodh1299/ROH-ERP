@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:roh_erp/core/constants/app_colors.dart';
 import 'package:roh_erp/core/constants/app_images.dart';
+import 'package:roh_erp/features/auth/auth_service.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -10,19 +12,33 @@ class ProfilePage extends StatefulWidget {
 }
 
 class _ProfilePageState extends State<ProfilePage> {
-  final TextEditingController _nameController = TextEditingController(text: 'Dr. Sarah Lee');
-  final TextEditingController _designationController = TextEditingController(text: 'Senior ABA Therapist & BCBA');
-  final TextEditingController _emailController = TextEditingController(text: 'sarah.lee@rayofhope.center');
-  final TextEditingController _phoneController = TextEditingController(text: '+1 (555) 342-8920');
-  final TextEditingController _empIdController = TextEditingController(text: 'ROH-TH-0042');
-  final TextEditingController _specializationController = TextEditingController(text: 'VB-MAPP, Early Intervention, PECS');
-  final TextEditingController _experienceController = TextEditingController(text: '8+ Years Clinical Practice');
-  final TextEditingController _aboutController = TextEditingController(
-    text: 'Board Certified Behavior Analyst (BCBA) specializing in verbal behavior assessment, functional communication training, and individualized curriculum design for children on the autism spectrum.',
-  );
+  final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _designationController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _phoneController = TextEditingController();
+  final TextEditingController _empIdController = TextEditingController();
+  final TextEditingController _specializationController = TextEditingController();
+  final TextEditingController _experienceController = TextEditingController();
+  final TextEditingController _aboutController = TextEditingController();
 
   bool _emailNotifications = true;
   bool _sessionAlerts = true;
+
+  @override
+  void initState() {
+    super.initState();
+    final user = context.read<AuthService>().currentUser;
+    if (user != null) {
+      _nameController.text = user.name;
+      _emailController.text = user.email;
+      _designationController.text = 'Behavioral Clinician';
+      _empIdController.text = 'ROH-USR-${user.id}';
+      _phoneController.text = '';
+      _specializationController.text = 'Clinical ABA';
+      _experienceController.text = '';
+      _aboutController.text = '';
+    }
+  }
 
   @override
   void dispose() {
@@ -122,9 +138,11 @@ class _ProfilePageState extends State<ProfilePage> {
                     children: [
                       Row(
                         children: [
-                          const Text(
-                            'Dr. Sarah Lee, BCBA',
-                            style: TextStyle(
+                          Text(
+                            context.watch<AuthService>().currentUser?.name.isNotEmpty == true
+                                ? context.watch<AuthService>().currentUser!.name
+                                : 'Clinical Staff',
+                            style: const TextStyle(
                               fontFamily: 'Poppins',
                               fontSize: 22,
                               fontWeight: FontWeight.bold,

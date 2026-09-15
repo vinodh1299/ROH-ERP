@@ -54,7 +54,7 @@ class _StudProgressSectionPageState extends State<StudProgressSectionPage> {
           for (int i = 0; i < res.length && i < 4; i++) {
             final st = res[i];
             final name = st['name'] ?? '${st['first_name'] ?? ''} ${st['last_name'] ?? ''}'.trim();
-            final thName = st['therapist_name'] ?? 'Dr. Sarah Lee (Lead BCBA)';
+            final thName = st['therapist_name'] ?? 'Assigned Clinician';
             final domains = ['Echoic (Vocal)', 'Tacting (Labeling)', 'Manding (Requests)', 'Listener Responding'];
             final targets = [
               'Target 8M: Repeats 3-syllable phrases with distinct consonant sounds.',
@@ -64,7 +64,7 @@ class _StudProgressSectionPageState extends State<StudProgressSectionPage> {
             ];
             _alerts.add(StagnationAlert(
               id: 'STAG-0${i + 1}',
-              studentName: name.isNotEmpty ? name : 'Alex Thomas Sam',
+              studentName: name.isNotEmpty ? name : 'Student ${i + 1}',
               domain: domains[i % domains.length],
               targetDescription: targets[i % targets.length],
               therapistName: thName,

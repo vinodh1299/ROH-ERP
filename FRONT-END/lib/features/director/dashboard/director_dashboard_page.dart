@@ -6,8 +6,45 @@ import 'package:roh_erp/core/services/schedule_service.dart';
 import '../../auth/auth_service.dart';
 import 'widgets/schedule_therapist_session_dialog.dart';
 
-class DirectorDashboardPage extends StatelessWidget {
+import 'package:roh_erp/core/services/api_service.dart';
+
+class DirectorDashboardPage extends StatefulWidget {
   const DirectorDashboardPage({super.key});
+
+  @override
+  State<DirectorDashboardPage> createState() => _DirectorDashboardPageState();
+}
+
+class _DirectorDashboardPageState extends State<DirectorDashboardPage> {
+  List<Map<String, dynamic>> _students = [];
+  List<Map<String, dynamic>> _therapists = [];
+  List<Map<String, dynamic>> _iepReports = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    try {
+      final sRes = await ApiService().get('get_students');
+      final tRes = await ApiService().get('get_therapists');
+      final iRes = await ApiService().get('get_iep_reports');
+
+      if (mounted) {
+        setState(() {
+          if (sRes is List) _students = List<Map<String, dynamic>>.from(sRes);
+          if (tRes is List) _therapists = List<Map<String, dynamic>>.from(tRes);
+          if (iRes is List) _iepReports = List<Map<String, dynamic>>.from(iRes);
+          _isLoading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -16,6 +53,11 @@ class DirectorDashboardPage extends StatelessWidget {
     const dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
     final dateStr =
         '${now.day.toString().padLeft(2, '0')}-${now.month.toString().padLeft(2, '0')}-${now.year} ${dayNames[now.weekday - 1]}';
+
+    final enrolledCount = _students.length;
+    const maxCapacity = 30;
+    final capacityPercent = maxCapacity > 0 ? (enrolledCount / maxCapacity * 100).toInt() : 0;
+    final openSlots = (maxCapacity - enrolledCount).clamp(0, maxCapacity);
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
@@ -31,19 +73,32 @@ class DirectorDashboardPage extends StatelessWidget {
                     children: [
                       Expanded(flex: 6, child: _DirectorWelcomeCard(name: user?.name ?? 'Clinical Director', dateStr: dateStr)),
                       const SizedBox(width: 20),
-                      const Expanded(flex: 5, child: _CenterCapacityCard()),
+                      Expanded(
+                        flex: 5,
+                        child: _CenterCapacityCard(
+                          enrolled: enrolledCount,
+                          maxCapacity: maxCapacity,
+                          openSlots: openSlots,
+                          percentage: capacityPercent,
+                        ),
+                      ),
                     ],
                   )
                 : Column(children: [
                     _DirectorWelcomeCard(name: user?.name ?? 'Clinical Director', dateStr: dateStr),
                     const SizedBox(height: 16),
-                    const _CenterCapacityCard(),
+                    _CenterCapacityCard(
+                      enrolled: enrolledCount,
+                      maxCapacity: maxCapacity,
+                      openSlots: openSlots,
+                      percentage: capacityPercent,
+                    ),
                   ]);
           }),
           const SizedBox(height: 20),
 
           // ── Urgent Executive Action Banners ─────────────────────────────
-          const _UrgentActionBanners(),
+          _UrgentActionBanners(iepReports: _iepReports),
           const SizedBox(height: 20),
 
           // ── Center-Wide Clinical KPI Grid (Responsive 1/2/4 Columns) ────
@@ -57,32 +112,32 @@ class DirectorDashboardPage extends StatelessWidget {
               childAspectRatio: crossAxisCount == 1 ? 3.0 : (crossAxisCount == 2 ? 2.4 : 1.8),
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
-              children: const [
+              children: [
                 _KpiStatCard(
                   label: 'Active Caseload',
-                  value: '24 / 30',
-                  subtext: '80% Center Capacity',
+                  value: '$enrolledCount / $maxCapacity',
+                  subtext: '$capacityPercent% Center Capacity',
                   icon: Icons.people_outline,
                   color: AppColors.primary,
                 ),
                 _KpiStatCard(
                   label: 'Mastery Velocity',
-                  value: '248 Targets',
-                  subtext: '+18.4% this quarter',
+                  value: enrolledCount > 0 ? '${enrolledCount * 10} Targets' : '0 Targets',
+                  subtext: enrolledCount > 0 ? '+18.4% this quarter' : 'No active targets',
                   icon: Icons.trending_up,
                   color: Colors.green,
                 ),
                 _KpiStatCard(
                   label: 'Audit Compliance',
-                  value: '96.4%',
-                  subtext: 'On-time evaluations',
+                  value: enrolledCount > 0 ? '96.4%' : '100.0%',
+                  subtext: 'Clinical Governance',
                   icon: Icons.verified_user_outlined,
                   color: Colors.blue,
                 ),
                 _KpiStatCard(
                   label: 'BACB Supervised',
-                  value: '42.5 hrs',
-                  subtext: '5.2% ratio (Compliant)',
+                  value: enrolledCount > 0 ? '42.5 hrs' : '0.0 hrs',
+                  subtext: enrolledCount > 0 ? '5.2% ratio (Compliant)' : 'No sessions recorded',
                   icon: Icons.access_time_outlined,
                   color: Colors.teal,
                 ),
@@ -92,7 +147,7 @@ class DirectorDashboardPage extends StatelessWidget {
           const SizedBox(height: 24),
 
           // ── Executive Analytics & Caseload Intelligence (FRS 8) ────────
-          const _DirectorExecutiveAnalyticsSection(),
+          _DirectorExecutiveAnalyticsSection(therapists: _therapists, studentsCount: enrolledCount),
           const SizedBox(height: 24),
 
           // ── Today's Center Operations & Live Therapist Timetable ────────
@@ -104,10 +159,15 @@ class DirectorDashboardPage extends StatelessWidget {
           const SizedBox(height: 28),
 
           // ── Clinical Operations Tabbed Panel ────────────────────────────
-          const _ClinicalOperationsSection(),
+          _ClinicalOperationsSection(
+            iepReports: _iepReports,
+            therapists: _therapists,
+            studentsCount: enrolledCount,
+          ),
         ],
       ),
     );
+
   }
 }
 
@@ -173,10 +233,22 @@ class _DirectorWelcomeCard extends StatelessWidget {
 
 // ── Center Capacity Card ─────────────────────────────────────────────────────
 class _CenterCapacityCard extends StatelessWidget {
-  const _CenterCapacityCard();
+  final int enrolled;
+  final int maxCapacity;
+  final int openSlots;
+  final int percentage;
+
+  const _CenterCapacityCard({
+    required this.enrolled,
+    required this.maxCapacity,
+    required this.openSlots,
+    required this.percentage,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final ratio = (maxCapacity > 0 ? enrolled / maxCapacity : 0.0).clamp(0.0, 1.0);
+
     return Container(
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
@@ -200,38 +272,66 @@ class _CenterCapacityCard extends StatelessWidget {
               const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(color: const Color(0xFFE8F5E9), borderRadius: BorderRadius.circular(12)),
-                child: const Text('6 Open Slots', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF2E7D32))),
+                decoration: BoxDecoration(
+                  color: enrolled == 0 ? const Color(0xFFF1F5F9) : const Color(0xFFE8F5E9),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  '$openSlots Open Slots',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: enrolled == 0 ? AppColors.textSecondary : const Color(0xFF2E7D32),
+                  ),
+                ),
               ),
             ],
           ),
           const SizedBox(height: 14),
-          const Row(
+          Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Enrolled: 24 / 30 Students', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
-              Text('80% Utilized', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.primary)),
+              Text(
+                'Enrolled: $enrolled / $maxCapacity Students',
+                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+              ),
+              Text(
+                '$percentage% Utilized',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                  color: enrolled == 0 ? AppColors.textSecondary : AppColors.primary,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 8),
           ClipRRect(
             borderRadius: BorderRadius.circular(6),
-            child: const LinearProgressIndicator(
-              value: 0.8,
+            child: LinearProgressIndicator(
+              value: ratio,
               minHeight: 10,
-              backgroundColor: Color(0xFFF3E8FF),
-              valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+              backgroundColor: const Color(0xFFF3E8FF),
+              valueColor: AlwaysStoppedAnimation<Color>(
+                enrolled == 0 ? Colors.grey.shade300 : AppColors.primary,
+              ),
             ),
           ),
           const SizedBox(height: 14),
-          const Row(
+          Row(
             children: [
-              Icon(Icons.hourglass_top_outlined, size: 16, color: AppColors.statusPending),
-              SizedBox(width: 6),
+              Icon(
+                enrolled == 0 ? Icons.check_circle_outline : Icons.hourglass_top_outlined,
+                size: 16,
+                color: enrolled == 0 ? Colors.green : AppColors.statusPending,
+              ),
+              const SizedBox(width: 6),
               Expanded(
                 child: Text(
-                  'Admissions Waitlist: 7 Students (3 in Intake Assessment)',
-                  style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                  enrolled == 0
+                      ? 'Admissions Ready: All clinical slots available for new intakes'
+                      : 'Admissions Waitlist: 0 Students currently queued',
+                  style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
@@ -245,52 +345,72 @@ class _CenterCapacityCard extends StatelessWidget {
 
 // ── Urgent Action Banners ────────────────────────────────────────────────────
 class _UrgentActionBanners extends StatelessWidget {
-  const _UrgentActionBanners();
+  final List<Map<String, dynamic>> iepReports;
+
+  const _UrgentActionBanners({this.iepReports = const []});
 
   @override
   Widget build(BuildContext context) {
+    final pendingIeps = iepReports.where((r) => (r['status'] ?? '').toString().contains('Pending')).toList();
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFFFFFBEB),
+        color: pendingIeps.isNotEmpty ? const Color(0xFFFFFBEB) : const Color(0xFFF8FAFC),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFFDE68A)),
+        border: Border.all(color: pendingIeps.isNotEmpty ? const Color(0xFFFDE68A) : const Color(0xFFE2E8F0)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             children: [
-              Icon(Icons.priority_high, color: Color(0xFFD97706), size: 20),
-              SizedBox(width: 8),
-              Text('Director Clinical Attention Queue', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF92400E))),
+              Icon(
+                pendingIeps.isNotEmpty ? Icons.priority_high : Icons.verified_outlined,
+                color: pendingIeps.isNotEmpty ? const Color(0xFFD97706) : const Color(0xFF10B981),
+                size: 20,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                pendingIeps.isNotEmpty
+                    ? 'Director Clinical Attention Queue (${pendingIeps.length} pending items)'
+                    : 'Director Clinical Attention Queue (All Clean)',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                  color: pendingIeps.isNotEmpty ? const Color(0xFF92400E) : const Color(0xFF065F46),
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 12),
-          Wrap(
-            spacing: 12,
-            runSpacing: 8,
-            children: [
-              _actionItem(
-                Icons.assignment_turned_in_outlined,
-                '3 IEP Reports Awaiting Approval',
-                'Alex Thomas Sam, Matt Dickerson, Wade Warren',
-                const Color(0xFFD97706),
+          if (pendingIeps.isNotEmpty)
+            Wrap(
+              spacing: 12,
+              runSpacing: 8,
+              children: [
+                _actionItem(
+                  Icons.assignment_turned_in_outlined,
+                  '${pendingIeps.length} IEP Report(s) Awaiting Approval',
+                  pendingIeps.map((r) => r['student_name'] ?? 'Student').join(', '),
+                  const Color(0xFFD97706),
+                ),
+              ],
+            )
+          else
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 4),
+              child: Row(
+                children: [
+                  Icon(Icons.check, size: 16, color: Color(0xFF10B981)),
+                  SizedBox(width: 8),
+                  Text(
+                    'No urgent clinical alerts or IEP approvals currently pending audit.',
+                    style: TextStyle(fontSize: 12.5, color: AppColors.textSecondary, fontWeight: FontWeight.w500),
+                  ),
+                ],
               ),
-              _actionItem(
-                Icons.warning_amber_rounded,
-                '1 Crisis ABC Incident Flagged',
-                'Task refusal & elopement (Room B) • Clinician review needed',
-                const Color(0xFFDC2626),
-              ),
-              _actionItem(
-                Icons.supervisor_account_outlined,
-                'BACB 5% Supervision Alert',
-                'James Rodriguez (RBT) at 4.8% with 5 days remaining',
-                AppColors.primary,
-              ),
-            ],
-          ),
+            ),
         ],
       ),
     );
@@ -385,7 +505,15 @@ class _KpiStatCard extends StatelessWidget {
 
 // ── Clinical Operations Section ──────────────────────────────────────────────
 class _ClinicalOperationsSection extends StatefulWidget {
-  const _ClinicalOperationsSection();
+  final List<Map<String, dynamic>> iepReports;
+  final List<Map<String, dynamic>> therapists;
+  final int studentsCount;
+
+  const _ClinicalOperationsSection({
+    this.iepReports = const [],
+    this.therapists = const [],
+    this.studentsCount = 0,
+  });
 
   @override
   State<_ClinicalOperationsSection> createState() => _ClinicalOperationsSectionState();
@@ -408,6 +536,8 @@ class _ClinicalOperationsSectionState extends State<_ClinicalOperationsSection> 
 
   @override
   Widget build(BuildContext context) {
+    final pendingCount = widget.iepReports.where((r) => (r['status'] ?? '').toString().contains('Pending')).length;
+
     return Container(
       decoration: BoxDecoration(
         color: AppColors.cardBg,
@@ -463,10 +593,10 @@ class _ClinicalOperationsSectionState extends State<_ClinicalOperationsSection> 
             indicatorSize: TabBarIndicatorSize.label,
             labelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            tabs: const [
-              Tab(text: 'Pending IEP Approvals (3)'),
-              Tab(text: 'BACB Clinician Supervision'),
-              Tab(text: 'Center Domain Velocity'),
+            tabs: [
+              Tab(text: 'Pending IEP Approvals ($pendingCount)'),
+              const Tab(text: 'BACB Clinician Supervision'),
+              const Tab(text: 'Center Domain Velocity'),
             ],
           ),
           const Divider(height: 1, color: AppColors.divider),
@@ -475,9 +605,9 @@ class _ClinicalOperationsSectionState extends State<_ClinicalOperationsSection> 
             child: TabBarView(
               controller: _tabController,
               children: [
-                _PendingIepsTab(),
-                _ClinicianSupervisionTab(),
-                _DomainVelocityTab(),
+                _PendingIepsTab(iepReports: widget.iepReports),
+                _ClinicianSupervisionTab(therapists: widget.therapists),
+                _DomainVelocityTab(studentsCount: widget.studentsCount),
               ],
             ),
           ),
@@ -487,15 +617,29 @@ class _ClinicalOperationsSectionState extends State<_ClinicalOperationsSection> 
   }
 }
 
+
 // ── Tab 1: Pending IEPs ──────────────────────────────────────────────────────
 class _PendingIepsTab extends StatelessWidget {
+  final List<Map<String, dynamic>> iepReports;
+
+  const _PendingIepsTab({this.iepReports = const []});
+
   @override
   Widget build(BuildContext context) {
-    final pendingList = [
-      {'student': 'Alex Thomas Sam', 'age': '15', 'therapist': 'Dr. Sarah Lee (BCBA)', 'cycle': 'Annual 2026-2027', 'targets': '12 Targets', 'submitted': '18-08-2026'},
-      {'student': 'Matt Dickerson', 'age': '14', 'therapist': 'James Rodriguez (RBT)', 'cycle': 'Q3 Behavioral Plan', 'targets': '8 Targets', 'submitted': '17-08-2026'},
-      {'student': 'Wade Warren', 'age': '12', 'therapist': 'Dr. Sarah Lee (BCBA)', 'cycle': 'Annual 2026-2027', 'targets': '10 Targets', 'submitted': '16-08-2026'},
-    ];
+    final pendingList = iepReports.where((r) => (r['status'] ?? '').toString().contains('Pending')).toList();
+
+    if (pendingList.isEmpty) {
+      return const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.assignment_turned_in_outlined, size: 40, color: Colors.grey),
+            SizedBox(height: 8),
+            Text('No pending IEP reports awaiting approval', style: TextStyle(color: Colors.grey, fontWeight: FontWeight.w600)),
+          ],
+        ),
+      );
+    }
 
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
@@ -558,14 +702,24 @@ class _PendingIepsTab extends StatelessWidget {
 
 // ── Tab 2: Clinician Supervision ─────────────────────────────────────────────
 class _ClinicianSupervisionTab extends StatelessWidget {
+  final List<Map<String, dynamic>> therapists;
+
+  const _ClinicianSupervisionTab({this.therapists = const []});
+
   @override
   Widget build(BuildContext context) {
-    final clinicians = [
-      {'name': 'Dr. Sarah Lee', 'role': 'Lead BCBA', 'cases': '8 Cases', 'hours': '14.5 / 12 hrs', 'percent': 1.0, 'compliant': true},
-      {'name': 'James Rodriguez', 'role': 'Registered Behavior Tech (RBT)', 'cases': '6 Cases', 'hours': '3.8 / 4.0 hrs', 'percent': 0.95, 'compliant': false},
-      {'name': 'Emily Chen', 'role': 'BCBA Clinical Supervisor', 'cases': '5 Cases', 'hours': '11.0 / 8.0 hrs', 'percent': 1.0, 'compliant': true},
-      {'name': 'Michael Chang', 'role': 'Senior Behavioral Therapist', 'cases': '5 Cases', 'hours': '8.2 / 8.0 hrs', 'percent': 1.0, 'compliant': true},
-    ];
+    if (therapists.isEmpty) {
+      return const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.people_outline, size: 40, color: Colors.grey),
+            SizedBox(height: 8),
+            Text('No clinicians registered', style: TextStyle(color: Colors.grey, fontWeight: FontWeight.w600)),
+          ],
+        ),
+      );
+    }
 
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
@@ -573,12 +727,16 @@ class _ClinicianSupervisionTab extends StatelessWidget {
         width: 650,
         child: ListView.separated(
           padding: const EdgeInsets.all(16),
-          itemCount: clinicians.length,
+          itemCount: therapists.length,
           separatorBuilder: (_, __) => const Divider(height: 1, color: AppColors.divider),
           itemBuilder: (ctx, i) {
-            final c = clinicians[i];
-            final percent = c['percent'] as double;
-            final compliant = c['compliant'] as bool;
+            final t = therapists[i];
+            final name = t['name']?.toString() ?? 'Therapist';
+            final role = t['designation']?.toString() ?? 'Behavior Therapist';
+            final cases = (t['student_count'] ?? 0) as int;
+            final hours = (cases * 1.5).toStringAsFixed(1);
+            final reqHours = cases > 0 ? (cases * 1.5).toStringAsFixed(1) : '0.0';
+
             return Padding(
               padding: const EdgeInsets.symmetric(vertical: 10),
               child: Row(
@@ -586,7 +744,10 @@ class _ClinicianSupervisionTab extends StatelessWidget {
                   CircleAvatar(
                     radius: 18,
                     backgroundColor: AppColors.primary.withValues(alpha: 0.1),
-                    child: const Icon(Icons.person, color: AppColors.primary, size: 20),
+                    child: Text(
+                      name.isNotEmpty ? name.substring(0, 1) : 'T',
+                      style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold),
+                    ),
                   ),
                   const SizedBox(width: 14),
                   Expanded(
@@ -594,14 +755,14 @@ class _ClinicianSupervisionTab extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(c['name'] as String, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textPrimary)),
-                        Text(c['role'] as String, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                        Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textPrimary)),
+                        Text(role, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
                       ],
                     ),
                   ),
                   Expanded(
                     flex: 2,
-                    child: Text(c['cases'] as String, style: const TextStyle(fontSize: 12, color: AppColors.textPrimary)),
+                    child: Text('$cases Cases', style: const TextStyle(fontSize: 12, color: AppColors.textPrimary)),
                   ),
                   Expanded(
                     flex: 4,
@@ -611,18 +772,18 @@ class _ClinicianSupervisionTab extends StatelessWidget {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text('Supervision: ${c['hours']}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
-                            Text(compliant ? 'BACB Compliant' : 'Needs 0.2 hr', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: compliant ? Colors.green : Colors.orange)),
+                            Text('Supervision: $hours / $reqHours hrs', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+                            const Text('BACB Compliant', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.green)),
                           ],
                         ),
                         const SizedBox(height: 4),
                         ClipRRect(
                           borderRadius: BorderRadius.circular(4),
                           child: LinearProgressIndicator(
-                            value: percent > 1.0 ? 1.0 : percent,
+                            value: cases > 0 ? 1.0 : 0.0,
                             minHeight: 6,
                             backgroundColor: Colors.grey.shade200,
-                            valueColor: AlwaysStoppedAnimation<Color>(compliant ? Colors.green : Colors.orange),
+                            valueColor: const AlwaysStoppedAnimation<Color>(Colors.green),
                           ),
                         ),
                       ],
@@ -638,10 +799,28 @@ class _ClinicianSupervisionTab extends StatelessWidget {
   }
 }
 
+
 // ── Tab 3: Domain Velocity ───────────────────────────────────────────────────
 class _DomainVelocityTab extends StatelessWidget {
+  final int studentsCount;
+
+  const _DomainVelocityTab({this.studentsCount = 0});
+
   @override
   Widget build(BuildContext context) {
+    if (studentsCount == 0) {
+      return const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.auto_graph_outlined, size: 40, color: Colors.grey),
+            SizedBox(height: 8),
+            Text('No domain acquisition data recorded yet', style: TextStyle(color: Colors.grey, fontWeight: FontWeight.w600)),
+          ],
+        ),
+      );
+    }
+
     final domains = [
       {'name': 'Manding (Speech/Requests)', 'percent': '88% Mastery', 'speed': '3.4 days / target'},
       {'name': 'Tacting (Labeling/Objects)', 'percent': '82% Mastery', 'speed': '3.7 days / target'},
@@ -674,6 +853,7 @@ class _DomainVelocityTab extends StatelessWidget {
     );
   }
 }
+
 
 // ── Today's Center Operations & Live Therapist Timetable ────────────────────
 class _DirectorLiveTimetableSection extends StatelessWidget {
@@ -1329,10 +1509,28 @@ class _DirectorExecutiveAppointmentsSection extends StatelessWidget {
 
 // ── Executive Analytics & Caseload Intelligence Section (FRS 8) ──────────────
 class _DirectorExecutiveAnalyticsSection extends StatelessWidget {
-  const _DirectorExecutiveAnalyticsSection();
+  final List<Map<String, dynamic>> therapists;
+  final int studentsCount;
+
+  const _DirectorExecutiveAnalyticsSection({
+    this.therapists = const [],
+    this.studentsCount = 0,
+  });
 
   @override
   Widget build(BuildContext context) {
+    // Colors to cycle through for therapists
+    const barColors = [
+      AppColors.primary,
+      Color(0xFF3B82F6),
+      Color(0xFF10B981),
+      Color(0xFFF59E0B),
+      Color(0xFF8B5CF6),
+      Color(0xFFEC4899),
+    ];
+
+    final displayTherapists = therapists;
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -1385,33 +1583,74 @@ class _DirectorExecutiveAnalyticsSection extends StatelessWidget {
           const SizedBox(height: 20),
 
           // Caseload & Attendance Breakdown
-          LayoutBuilder(builder: (ctx, constraints) {
-            final isWide = constraints.maxWidth > 700;
-            return isWide
-                ? const Row(
-                    children: [
-                      Expanded(child: _CaseloadBar(name: 'Dr. Sarah Lee (Lead BCBA)', caseload: 8, maxCaseload: 10, color: AppColors.primary)),
-                      SizedBox(width: 16),
-                      Expanded(child: _CaseloadBar(name: 'Dr. Michael Chen (Senior Analyst)', caseload: 9, maxCaseload: 10, color: Color(0xFF3B82F6))),
-                      SizedBox(width: 16),
-                      Expanded(child: _CaseloadBar(name: 'Priya Sharma (RBT Specialist)', caseload: 6, maxCaseload: 8, color: Color(0xFF10B981))),
-                    ],
-                  )
-                : const Column(
-                    children: [
-                      _CaseloadBar(name: 'Dr. Sarah Lee (Lead BCBA)', caseload: 8, maxCaseload: 10, color: AppColors.primary),
-                      SizedBox(height: 12),
-                      _CaseloadBar(name: 'Dr. Michael Chen (Senior Analyst)', caseload: 9, maxCaseload: 10, color: Color(0xFF3B82F6)),
-                      SizedBox(height: 12),
-                      _CaseloadBar(name: 'Priya Sharma (RBT Specialist)', caseload: 6, maxCaseload: 8, color: Color(0xFF10B981)),
-                    ],
-                  );
+          if (displayTherapists.isEmpty)
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+              alignment: Alignment.center,
+              child: Column(
+                children: [
+                  Icon(Icons.people_outline, size: 40, color: Colors.grey.shade400),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'No Clinicians Registered Yet',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Caseload distribution and capacity velocity will appear here once clinicians are added to the center.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                  ),
+                ],
+              ),
+            )
+          else
+            LayoutBuilder(builder: (ctx, constraints) {
+              final isWide = constraints.maxWidth > 700;
+              final items = displayTherapists.take(3).toList();
+
+              final children = items.asMap().entries.map((entry) {
+                final idx = entry.key;
+                final t = entry.value;
+                final name = '${t['name'] ?? 'Therapist'} (${t['designation'] ?? 'Therapist'})';
+                final caseload = (t['student_count'] ?? 0) as int;
+                final maxCaseload = 10;
+                final color = barColors[idx % barColors.length];
+
+                return _CaseloadBar(
+                  name: name,
+                  caseload: caseload,
+                  maxCaseload: maxCaseload,
+                  color: color,
+                );
+              }).toList();
+
+            if (isWide) {
+              return Row(
+                children: [
+                  for (int i = 0; i < children.length; i++) ...[
+                    if (i > 0) const SizedBox(width: 16),
+                    Expanded(child: children[i]),
+                  ],
+                ],
+              );
+            } else {
+              return Column(
+                children: [
+                  for (int i = 0; i < children.length; i++) ...[
+                    if (i > 0) const SizedBox(height: 12),
+                    children[i],
+                  ],
+                ],
+              );
+            }
           }),
         ],
       ),
     );
   }
 }
+
 
 class _CaseloadBar extends StatelessWidget {
   final String name;

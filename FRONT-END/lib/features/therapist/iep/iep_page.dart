@@ -279,7 +279,7 @@ class _IepPageState extends State<IepPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                _selectedStudent ?? 'Alex Thomas Sam',
+                _selectedStudent ?? 'Student',
                 style: const TextStyle(
                   fontFamily: 'Poppins',
                   fontSize: 18,

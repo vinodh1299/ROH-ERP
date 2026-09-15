@@ -66,7 +66,7 @@ class _IepReportsSectionPageState extends State<IepReportsSectionPage> {
         final items = res.map((r) {
           final id = 'IEP-${r['id']}';
           final sName = r['student_name'] ?? 'Student';
-          final tName = r['therapist_name'] ?? 'Dr. Sarah Lee';
+          final tName = r['therapist_name'] ?? 'Clinician';
           final cycle = r['cycle_term'] ?? 'Q3 2026 Treatment Plan';
           final goals = r['goals_summary'] ?? 'Clinical Protocol & Behavioral Milestones';
           final subDate = r['created_at'] != null ? r['created_at'].toString().split('T')[0] : '2026-09-11';

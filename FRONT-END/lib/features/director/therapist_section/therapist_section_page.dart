@@ -198,7 +198,7 @@ class _TherapistSectionPageState extends State<TherapistSectionPage> {
             scrollDirection: Axis.horizontal,
             child: Row(
               children: [
-                _buildToggleTab(0, 'Clinicians Directory (${_therapists.isNotEmpty ? _therapists.length : 6})', Icons.badge_outlined),
+                _buildToggleTab(0, 'Clinicians Directory (${_therapists.length})', Icons.badge_outlined),
                 const SizedBox(width: 10),
                 _buildToggleTab(1, 'BACB 5% Supervision Log', Icons.track_changes_outlined),
               ],
@@ -227,7 +227,7 @@ class _TherapistSectionPageState extends State<TherapistSectionPage> {
                             ),
                           )
                         : _therapists.isEmpty
-                            ? _buildFallbackTherapistsGrid()
+                            ? _buildEmptyTherapistsView()
                             : LayoutBuilder(builder: (ctx, constraints) {
                                 int cols = 4;
                                 if (constraints.maxWidth < 600) {
@@ -315,48 +315,68 @@ class _TherapistSectionPageState extends State<TherapistSectionPage> {
     );
   }
 
-  Widget _buildFallbackTherapistsGrid() {
-    final defaultClinicians = [
-      TherapistCard(id: '1', name: 'Dr. Sarah Lee', email: 'sarah.lee@roh.com', status: 'Active'),
-      TherapistCard(id: '2', name: 'James Rodriguez', email: 'james.rbt@roh.com', status: 'Active'),
-      TherapistCard(id: '3', name: 'Emily Chen', email: 'emily.chen@roh.com', status: 'Active'),
-      TherapistCard(id: '4', name: 'Michael Chang', email: 'michael.c@roh.com', status: 'Active'),
-      TherapistCard(id: '5', name: 'Priya Patel', email: 'priya.p@roh.com', status: 'Active'),
-      TherapistCard(id: '6', name: 'David Kim', email: 'david.kim@roh.com', status: 'Active'),
-    ];
-
-    return LayoutBuilder(builder: (ctx, constraints) {
-      int cols = 4;
-      if (constraints.maxWidth < 600) {
-        cols = 1;
-      } else if (constraints.maxWidth < 900) {
-        cols = 2;
-      } else if (constraints.maxWidth < 1200) {
-        cols = 3;
-      }
-
-      return GridView.builder(
-        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: cols,
-          crossAxisSpacing: 16,
-          mainAxisSpacing: 16,
-          childAspectRatio: 0.82,
+  Widget _buildEmptyTherapistsView() {
+    return Center(
+      child: Container(
+        padding: const EdgeInsets.all(40),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.badge_outlined, size: 64, color: Colors.grey.shade400),
+            const SizedBox(height: 16),
+            const Text(
+              'No Clinicians Registered Yet',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Your center staff roster is clean. Click "+ Add Therapist" above to add clinical team members.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+            ),
+          ],
         ),
-        itemCount: defaultClinicians.length,
-        itemBuilder: (ctx, i) => _TherapistTile(therapist: defaultClinicians[i], index: i),
-      );
-    });
+      ),
+    );
   }
 
   Widget _buildSupervisionLogView() {
-    final supervisionRows = [
-      {'name': 'James Rodriguez', 'role': 'Registered Behavior Tech (RBT)', 'therapyHours': '76.0 hrs', 'reqSupervision': '3.8 hrs (5%)', 'doneSupervision': '3.8 hrs', 'fidelity': '2 / 2 Signed', 'status': 'Compliant'},
-      {'name': 'Dr. Sarah Lee', 'role': 'Lead BCBA Clinician', 'therapyHours': '112.0 hrs', 'reqSupervision': 'Director Audit', 'doneSupervision': '4.0 hrs', 'fidelity': '1 / 1 Signed', 'status': 'Compliant'},
-      {'name': 'Emily Chen', 'role': 'BCBA Clinical Supervisor', 'therapyHours': '88.0 hrs', 'reqSupervision': 'Director Audit', 'doneSupervision': '3.5 hrs', 'fidelity': '1 / 1 Signed', 'status': 'Compliant'},
-      {'name': 'Michael Chang', 'role': 'Senior Behavioral Therapist', 'therapyHours': '80.0 hrs', 'reqSupervision': '4.0 hrs (5%)', 'doneSupervision': '4.2 hrs', 'fidelity': '2 / 2 Signed', 'status': 'Compliant'},
-      {'name': 'Priya Patel', 'role': 'Junior Behavioral Therapist', 'therapyHours': '64.0 hrs', 'reqSupervision': '3.2 hrs (5%)', 'doneSupervision': '3.2 hrs', 'fidelity': '2 / 2 Signed', 'status': 'Compliant'},
-      {'name': 'David Kim', 'role': 'RBT Specialist', 'therapyHours': '70.0 hrs', 'reqSupervision': '3.5 hrs (5%)', 'doneSupervision': '3.5 hrs', 'fidelity': '2 / 2 Signed', 'status': 'Compliant'},
-    ];
+    if (_therapists.isEmpty) {
+      return Center(
+        child: Container(
+          padding: const EdgeInsets.all(40),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.fact_check_outlined, size: 64, color: Colors.grey.shade400),
+              const SizedBox(height: 16),
+              const Text(
+                'No Supervision Logs Found',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Register clinicians to track BACB supervision hours, audit thresholds, and fidelity checklists.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final supervisionRows = _therapists.map((t) {
+      return {
+        'name': t.name,
+        'role': 'Behavioral Clinician',
+        'therapyHours': '0.0 hrs',
+        'reqSupervision': '0.0 hrs (5%)',
+        'doneSupervision': '0.0 hrs',
+        'fidelity': '0 / 0 Signed',
+        'status': 'Compliant',
+      };
+    }).toList();
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -632,49 +652,6 @@ class _AvatarPlaceholder extends StatelessWidget {
         radius: 36,
         backgroundColor: AppColors.primary.withValues(alpha: 0.2),
         child: const Icon(Icons.person, size: 40, color: AppColors.primary),
-      ),
-    );
-  }
-}
-
-// ── Empty State ───────────────────────────────────────────────────────────────
-class _EmptyState extends StatelessWidget {
-  final VoidCallback onAdd;
-  const _EmptyState({required this.onAdd});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            width: 80,
-            height: 80,
-            decoration: BoxDecoration(
-              color: AppColors.primary.withValues(alpha: 0.1),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(Icons.medical_services_outlined, size: 38, color: AppColors.primary),
-          ),
-          const SizedBox(height: 16),
-          const Text(
-            'No therapists yet',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Therapist records will load from the database.\nUse the Add button to add one manually.',
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 13, color: AppColors.textSecondary, height: 1.5),
-          ),
-          const SizedBox(height: 24),
-          ElevatedButton.icon(
-            onPressed: onAdd,
-            icon: const Icon(Icons.add, size: 18),
-            label: const Text('Add Therapist'),
-          ),
-        ],
       ),
     );
   }

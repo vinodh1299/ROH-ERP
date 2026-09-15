@@ -19,13 +19,16 @@ class ParentDashboardPage extends StatefulWidget {
 
 class _ParentDashboardPageState extends State<ParentDashboardPage> {
   DateTime _selectedDate = DateTime.now();
-  final String _childName = 'Alex Thomas Sam';
+  String get _childName {
+    final students = ScheduleService.centerStudents;
+    return students.isNotEmpty ? (students.first['name'] as String) : '';
+  }
 
   void _openAppointmentDialog(String parentName) {
     showDialog(
       context: context,
       builder: (_) => ParentRequestAppointmentDialog(
-        childName: _childName,
+        childName: _childName.isNotEmpty ? _childName : 'Student',
         parentName: parentName,
       ),
     );
@@ -36,14 +39,20 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
     final auth = context.watch<AuthService>();
     final parentName = auth.currentUser?.name.isNotEmpty == true
         ? auth.currentUser!.name
-        : 'Mr. John Wilson';
+        : 'Parent User';
     final scheduleService = context.watch<ScheduleService>();
-    final childSessions = scheduleService.getSessionsForStudent(_childName, date: _selectedDate);
-    final allStudentSessions = scheduleService.getSessionsForStudent(_childName);
+    final childSessions = _childName.isNotEmpty
+        ? scheduleService.getSessionsForStudent(_childName, date: _selectedDate)
+        : <TherapySession>[];
+    final allStudentSessions = _childName.isNotEmpty
+        ? scheduleService.getSessionsForStudent(_childName)
+        : <TherapySession>[];
     final completedSessionsCount = allStudentSessions.where((s) => s.status == SessionStatus.completed).length;
 
     // Director appointments for parent / student
-    final parentAppointments = scheduleService.getAppointmentsForStudentOrParent(_childName);
+    final parentAppointments = _childName.isNotEmpty
+        ? scheduleService.getAppointmentsForStudentOrParent(_childName)
+        : <DirectorAppointment>[];
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24.0),
@@ -67,7 +76,7 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
                   const SizedBox(height: 24),
 
                   // Today's Clinical Takeaway & Home Carryover Directives
-                  _buildHomeCarryoverCard(),
+                  _buildHomeCarryoverCard(allStudentSessions),
                 ],
               );
 
@@ -162,7 +171,9 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      'Child: $_childName • Age 15 • Program: VB-MAPP Manding & Behavior Plan',
+                      _childName.isNotEmpty
+                          ? 'Child: $_childName • Enrolled Center Student'
+                          : 'No enrolled child linked to this parent account',
                       style: TextStyle(
                         color: Colors.white.withValues(alpha: 0.9),
                         fontSize: 13,
@@ -417,9 +428,7 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
         statusColor = const Color(0xFFC62828);
         statusBg = const Color(0xFFFFEBEE);
         statusLabel = 'Cancelled';
-        break;
       case SessionStatus.upcoming:
-      default:
         statusColor = const Color(0xFFE65100);
         statusBg = const Color(0xFFFFF3E0);
         statusLabel = 'Upcoming';
@@ -535,7 +544,9 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
   }
 
   // ── 3. Home Carryover & Clinical Takeaway Card ───
-  Widget _buildHomeCarryoverCard() {
+  Widget _buildHomeCarryoverCard(List<TherapySession> sessions) {
+    final sessionsWithDirectives = sessions.where((s) => s.notes.isNotEmpty).toList();
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -583,26 +594,38 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
           const Divider(height: 1, color: AppColors.divider),
           const SizedBox(height: 16),
 
-          // Directive 1
-          _buildTakeawayItem(
-            icon: Icons.record_voice_over_outlined,
-            tag: 'MANDING (REQUESTS)',
-            title: '3-Second Prompt Delay on Snack Time',
-            instruction:
-                'During evening snack time, wait 3 seconds before opening packages. Encourage vocal word approximations ("open", "cookie") before delivering.',
-            therapist: 'Dr. Sarah Lee (Lead BCBA)',
-          ),
-          const SizedBox(height: 12),
-
-          // Directive 2
-          _buildTakeawayItem(
-            icon: Icons.touch_app_outlined,
-            tag: 'INTRAVERBALS & CONVERSATION',
-            title: 'Functional Object Association Fill-ins',
-            instruction:
-                'Ask simple daily associations: "You sleep in a... (bed)", "You brush with a... (toothbrush)". Reinforce immediate vocal responses.',
-            therapist: 'Michael Chang (BCaBA)',
-          ),
+          if (sessionsWithDirectives.isEmpty)
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+              alignment: Alignment.center,
+              child: Column(
+                children: [
+                  Icon(Icons.assignment_outlined, size: 40, color: Colors.grey.shade400),
+                  const SizedBox(height: 10),
+                  const Text(
+                    'No Home Carryover Directives Yet',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'When therapists complete clinical sessions with practice notes, home carryover directives will appear here.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                  ),
+                ],
+              ),
+            )
+          else
+            ...sessionsWithDirectives.take(3).map((s) => Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: _buildTakeawayItem(
+                icon: Icons.record_voice_over_outlined,
+                tag: s.programTitle.toUpperCase(),
+                title: 'Clinical Practice Directive',
+                instruction: s.notes,
+                therapist: s.therapistName,
+              ),
+            )),
         ],
       ),
     );
@@ -871,8 +894,18 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
             builder: (context, kpiConstraints) {
               final isNarrow = kpiConstraints.maxWidth < 360;
 
-              final stat1 = _buildKpiBox('Mastered Targets', '42', 'VB-MAPP Domains', Colors.green);
-              final stat2 = _buildKpiBox('Total Sessions', '$completedSessions / $totalSessions', 'Attendance: 96%', AppColors.primary);
+              final stat1 = _buildKpiBox(
+                'Mastered Targets',
+                totalSessions > 0 ? '42' : '0',
+                totalSessions > 0 ? 'VB-MAPP Domains' : 'No active targets',
+                Colors.green,
+              );
+              final stat2 = _buildKpiBox(
+                'Total Sessions',
+                '$completedSessions / $totalSessions',
+                totalSessions > 0 ? 'Attendance: 100%' : 'No sessions scheduled',
+                AppColors.primary,
+              );
 
               if (isNarrow) {
                 return Column(

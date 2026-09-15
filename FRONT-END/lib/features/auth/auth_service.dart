@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:roh_erp/core/constants/app_constants.dart';
 import '../../core/models/user_model.dart';
 import '../../core/services/api_service.dart';
+import '../../core/services/web_storage/web_storage.dart';
 
 class AuthService extends ChangeNotifier {
   UserModel? _currentUser;
@@ -15,20 +16,46 @@ class AuthService extends ChangeNotifier {
   bool get isLoading => _isLoading;
   bool get isLoggedIn => _currentUser != null;
 
-  // ── Load session from SharedPreferences on boot up ──
+  // ── Load session from SharedPreferences & Web LocalStorage on boot up ──
   Future<void> loadSession() async {
     final prefs = await SharedPreferences.getInstance();
-    final isLoggedIn = prefs.getBool(AppConstants.prefIsLoggedIn) ?? false;
-    if (isLoggedIn) {
+    bool isLoggedIn = prefs.getBool(AppConstants.prefIsLoggedIn) ?? false;
+    int userId = prefs.getInt(AppConstants.prefUserId) ?? 0;
+    String userName = prefs.getString(AppConstants.prefUserName) ?? '';
+    String userEmail = prefs.getString(AppConstants.prefUserEmail) ?? '';
+    String userRole = prefs.getString(AppConstants.prefUserRole) ?? '';
+    String? token = prefs.getString('jwt_token') ?? prefs.getString('auth_token');
+
+    // Fallback/sync directly from browser window.localStorage on Web
+    if (!isLoggedIn) {
+      final webLoggedIn = getWebStorage('is_logged_in');
+      if (webLoggedIn == 'true') {
+        isLoggedIn = true;
+        userId = int.tryParse(getWebStorage('user_id') ?? '0') ?? 0;
+        userName = getWebStorage('user_name') ?? '';
+        userEmail = getWebStorage('user_email') ?? '';
+        userRole = getWebStorage('user_role') ?? '';
+        token = getWebStorage('jwt_token') ?? getWebStorage('auth_token');
+      }
+    }
+
+    if (isLoggedIn && userRole.isNotEmpty) {
       _currentUser = UserModel(
-        id: prefs.getInt(AppConstants.prefUserId) ?? 0,
-        name: prefs.getString(AppConstants.prefUserName) ?? '',
-        email: prefs.getString(AppConstants.prefUserEmail) ?? '',
-        role: prefs.getString(AppConstants.prefUserRole) ?? '',
+        id: userId,
+        name: userName,
+        email: userEmail,
+        role: userRole,
       );
-      final token = prefs.getString('auth_token');
-      if (token != null) {
+      if (token != null && token.isNotEmpty) {
         ApiService().setAuthToken(token);
+        // Ensure web storage is kept in sync
+        saveWebStorage('jwt_token', token);
+        saveWebStorage('auth_token', token);
+        saveWebStorage('user_role', userRole);
+        saveWebStorage('user_email', userEmail);
+        saveWebStorage('user_name', userName);
+        saveWebStorage('user_id', userId.toString());
+        saveWebStorage('is_logged_in', 'true');
       }
       notifyListeners();
     }
@@ -104,8 +131,19 @@ class AuthService extends ChangeNotifier {
     await prefs.setString(AppConstants.prefUserName, user.name);
     await prefs.setString(AppConstants.prefUserEmail, user.email);
     await prefs.setString(AppConstants.prefUserRole, user.role);
+
+    // Save directly to browser window.localStorage so DevTools shows the JWT token clearly
+    saveWebStorage('is_logged_in', 'true');
+    saveWebStorage('user_id', user.id.toString());
+    saveWebStorage('user_name', user.name);
+    saveWebStorage('user_email', user.email);
+    saveWebStorage('user_role', user.role);
+
     if (token != null && token.isNotEmpty) {
       await prefs.setString('auth_token', token);
+      await prefs.setString('jwt_token', token);
+      saveWebStorage('auth_token', token);
+      saveWebStorage('jwt_token', token);
       ApiService().setAuthToken(token);
     }
   }
@@ -153,6 +191,8 @@ class AuthService extends ChangeNotifier {
     await prefs.remove(AppConstants.prefUserEmail);
     await prefs.remove(AppConstants.prefUserRole);
     await prefs.remove('auth_token');
+    await prefs.remove('jwt_token');
+    clearAllWebStorage();
     ApiService().setAuthToken(null);
     notifyListeners();
   }

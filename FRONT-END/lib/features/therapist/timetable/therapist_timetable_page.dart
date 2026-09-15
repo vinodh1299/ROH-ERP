@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:roh_erp/core/constants/app_colors.dart';
 import 'package:roh_erp/core/models/schedule_model.dart';
 import 'package:roh_erp/core/services/schedule_service.dart';
+import 'package:roh_erp/features/auth/auth_service.dart';
 
 class TherapistTimetablePage extends StatefulWidget {
   final Function(int)? onNavigateTab;
@@ -21,8 +22,14 @@ class _TherapistTimetablePageState extends State<TherapistTimetablePage> {
 
   @override
   Widget build(BuildContext context) {
+    final auth = context.watch<AuthService>();
+    final clinicianName = auth.currentUser?.name.isNotEmpty == true
+        ? auth.currentUser!.name
+        : (ScheduleService.centerTherapists.isNotEmpty ? ScheduleService.centerTherapists.first['name']! : 'Clinician');
+    final therapistId = auth.currentUser?.id.toString() ?? 'T1';
+
     final scheduleService = context.watch<ScheduleService>();
-    final sessions = scheduleService.getSessionsForTherapist('T1', date: _selectedDate);
+    final sessions = scheduleService.getSessionsForTherapist(therapistId, date: _selectedDate);
 
     final filteredSessions = sessions.where((s) {
       if (_statusFilter == 'All') return true;
@@ -67,9 +74,9 @@ class _TherapistTimetablePageState extends State<TherapistTimetablePage> {
                             color: Colors.white.withValues(alpha: 0.2),
                             borderRadius: BorderRadius.circular(20),
                           ),
-                          child: const Text(
-                            'Dr. Sarah Lee • Senior BCBA Clinician',
-                            style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                          child: Text(
+                            '$clinicianName • Daily Clinical Schedule',
+                            style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
                           ),
                         ),
                         Container(

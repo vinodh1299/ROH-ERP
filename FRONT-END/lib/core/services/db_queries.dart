@@ -6,106 +6,10 @@ final _api = ApiService();
 // IN-MEMORY MOCK DATABASE STORE FOR OFFLINE TESTING
 // ════════════════════════════════════════════════════════════════════════════
 class MockData {
-  static final List<Map<String, dynamic>> therapists = [
-    {'id': '1', 'name': 'Dr. Sarah Lee', 'email': 'sarah.lee@roh.com', 'status': 'Active'},
-    {'id': '2', 'name': 'Dr. Michael Chen', 'email': 'm.chen@roh.com', 'status': 'Active'},
-    {'id': '3', 'name': 'Priya Sharma', 'email': 'priya.s@roh.com', 'status': 'Active'},
-    {'id': '4', 'name': 'David Miller', 'email': 'd.miller@roh.com', 'status': 'Active'},
-    {'id': '5', 'name': 'Ananya Roy', 'email': 'ananya.r@roh.com', 'status': 'Active'},
-    {'id': '6', 'name': 'James Wilson', 'email': 'j.wilson@roh.com', 'status': 'Active'},
-  ];
-
-  static final List<Map<String, dynamic>> students = [
-    {
-      'id': '1',
-      'name': 'Aarav Patel',
-      'dob': '2018-05-14',
-      'phone_number': '+1 (555) 019-2831',
-      'email': 'parent.aarav@roh.com',
-      'parent_name': 'Suresh Patel',
-      'status': 'Active',
-    },
-    {
-      'id': '2',
-      'name': 'Emma Watson',
-      'dob': '2019-09-20',
-      'phone_number': '+1 (555) 014-9284',
-      'email': 'parent.emma@roh.com',
-      'parent_name': 'Robert Watson',
-      'status': 'Active',
-    },
-    {
-      'id': '3',
-      'name': 'Rahul Sharma',
-      'dob': '2017-11-03',
-      'phone_number': '+1 (555) 018-4720',
-      'email': 'parent.rahul@roh.com',
-      'parent_name': 'Sunita Sharma',
-      'status': 'Active',
-    },
-    {
-      'id': '4',
-      'name': 'Sophia Garcia',
-      'dob': '2020-02-17',
-      'phone_number': '+1 (555) 016-3912',
-      'email': 'parent.sophia@roh.com',
-      'parent_name': 'Maria Garcia',
-      'status': 'Active',
-    },
-    {
-      'id': '5',
-      'name': 'Leo Thomas',
-      'dob': '2018-12-08',
-      'phone_number': '+1 (555) 015-8392',
-      'email': 'parent.leo@roh.com',
-      'parent_name': 'David Thomas',
-      'status': 'Active',
-    },
-    {
-      'id': '6',
-      'name': 'Maya Lin',
-      'dob': '2019-04-25',
-      'phone_number': '+1 (555) 012-7491',
-      'email': 'parent.maya@roh.com',
-      'parent_name': 'Grace Lin',
-      'status': 'Active',
-    },
-  ];
-
-  static final List<Map<String, dynamic>> parents = [
-    {'id': '1', 'name': 'Mr. John Wilson', 'email': 'parent@roh.com', 'child_name': 'Aarav Patel', 'phone': '+1 (555) 019-2831', 'status': 'Active'},
-    {'id': '2', 'name': 'Suresh Patel', 'email': 'suresh.p@roh.com', 'child_name': 'Aarav Patel', 'phone': '+1 (555) 019-2831', 'status': 'Active'},
-    {'id': '3', 'name': 'Robert Watson', 'email': 'robert.w@roh.com', 'child_name': 'Emma Watson', 'phone': '+1 (555) 014-9284', 'status': 'Active'},
-    {'id': '4', 'name': 'Sunita Sharma', 'email': 'sunita.s@roh.com', 'child_name': 'Rahul Sharma', 'phone': '+1 (555) 018-4720', 'status': 'Active'},
-    {'id': '5', 'name': 'Maria Garcia', 'email': 'maria.g@roh.com', 'child_name': 'Sophia Garcia', 'phone': '+1 (555) 016-3912', 'status': 'Active'},
-  ];
-
-  static final List<Map<String, dynamic>> iepReports = [
-    {
-      'id': '1',
-      'title': 'Q3 Behavioral Plan',
-      'student_name': 'Aarav Patel',
-      'goals': 'Improve social interaction & non-verbal communication',
-      'status': 'Pending Approval',
-      'created_date': '2026-07-10',
-    },
-    {
-      'id': '2',
-      'title': 'Speech Therapy Assessment',
-      'student_name': 'Emma Watson',
-      'goals': 'Vocabulary expansion & vocal clarity exercises',
-      'status': 'Active',
-      'created_date': '2026-07-12',
-    },
-    {
-      'id': '3',
-      'title': 'Occupational Therapy Milestones',
-      'student_name': 'Rahul Sharma',
-      'goals': 'Fine motor skills & sensory integration protocol',
-      'status': 'Pending Approval',
-      'created_date': '2026-07-15',
-    },
-  ];
+  static final List<Map<String, dynamic>> therapists = [];
+  static final List<Map<String, dynamic>> students = [];
+  static final List<Map<String, dynamic>> parents = [];
+  static final List<Map<String, dynamic>> iepReports = [];
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -136,7 +40,7 @@ class TherapistQueries {
   static Future<List<Map<String, dynamic>>> fetchAll() async {
     try {
       final result = await _api.get('get_therapists');
-      if (result is List && result.isNotEmpty) {
+      if (result is List) {
         return result.map((e) => Map<String, dynamic>.from(e)).toList();
       }
     } catch (_) {}
@@ -223,7 +127,7 @@ class StudentQueries {
   static Future<List<Map<String, dynamic>>> fetchAll() async {
     try {
       final result = await _api.get('get_students_full');
-      if (result is List && result.isNotEmpty) {
+      if (result is List) {
         return result.map((e) => Map<String, dynamic>.from(e)).toList();
       }
     } catch (_) {}
@@ -269,13 +173,7 @@ class StudentQueries {
       final result = await _api.get('get_student_medical_info', params: {'student_id': studentId});
       if (result is Map<String, dynamic>) return result;
     } catch (_) {}
-    return {
-      'has_medical_conditions': 1,
-      'conditions_detail': 'Mild sensory sensitivity to loud noises',
-      'allergies': 'Peanuts',
-      'seizure_history': 0,
-      'taking_medications': 1,
-    };
+    return null;
   }
 
   static Future<bool> saveMedicalInfo(Map<String, dynamic> data) async {
@@ -290,14 +188,11 @@ class StudentQueries {
   static Future<List<Map<String, dynamic>>> fetchMedications(String studentId) async {
     try {
       final result = await _api.get('get_student_medications', params: {'student_id': studentId});
-      if (result is List && result.isNotEmpty) {
+      if (result is List) {
         return result.map((e) => Map<String, dynamic>.from(e)).toList();
       }
     } catch (_) {}
-    return [
-      {'id': '1', 'medication_name': 'Vitamin D3 Supplement', 'used_for': 'General Health'},
-      {'id': '2', 'medication_name': 'Melatonin (Low Dose)', 'used_for': 'Sleep Support'},
-    ];
+    return [];
   }
 
   static Future<bool> addMedication({
@@ -321,20 +216,11 @@ class StudentQueries {
   static Future<List<Map<String, dynamic>>> fetchGuardians(String studentId) async {
     try {
       final result = await _api.get('get_student_guardians', params: {'student_id': studentId});
-      if (result is List && result.isNotEmpty) {
+      if (result is List) {
         return result.map((e) => Map<String, dynamic>.from(e)).toList();
       }
     } catch (_) {}
-    return [
-      {
-        'id': '1',
-        'relationship': 'Mother',
-        'first_name': 'Sarah',
-        'last_name': 'Patel',
-        'mobile_number': '+1 (555) 019-2831',
-        'email': 'sarah.p@example.com',
-      },
-    ];
+    return [];
   }
 
   static Future<bool> addGuardian(Map<String, dynamic> data) async {
@@ -349,17 +235,11 @@ class StudentQueries {
   static Future<List<Map<String, dynamic>>> fetchEmergencyContacts(String studentId) async {
     try {
       final result = await _api.get('get_student_emergency_contacts', params: {'student_id': studentId});
-      if (result is List && result.isNotEmpty) {
+      if (result is List) {
         return result.map((e) => Map<String, dynamic>.from(e)).toList();
       }
     } catch (_) {}
-    return [
-      {
-        'id': '1',
-        'contact_name': 'Grandmother - Elena Patel',
-        'message': 'Call grandmother if parents are unreachable.',
-      },
-    ];
+    return [];
   }
 
   static Future<bool> saveEmergencyContact({
@@ -378,7 +258,7 @@ class IepQueries {
   static Future<List<Map<String, dynamic>>> fetchAll() async {
     try {
       final result = await _api.get('get_iep_reports');
-      if (result is List && result.isNotEmpty) {
+      if (result is List) {
         return result.map((e) => Map<String, dynamic>.from(e)).toList();
       }
     } catch (_) {}
@@ -412,19 +292,11 @@ class VbAssessmentQueries {
       String studentId) async {
     try {
       final result = await _api.get('get_vb_assessments', params: {'student_id': studentId});
-      if (result is List && result.isNotEmpty) {
+      if (result is List) {
         return result.map((e) => Map<String, dynamic>.from(e)).toList();
       }
     } catch (_) {}
-    return [
-      {
-        'id': '1',
-        'assessment_date': '2026-06-15',
-        'milestone_score': '42/170',
-        'barriers_score': '12/96',
-        'notes': 'Good progress on manding and tacting milestones.',
-      }
-    ];
+    return [];
   }
 
   static Future<bool> save(Map<String, dynamic> data) async {
@@ -444,18 +316,11 @@ class DailyDataQueries {
       String studentId) async {
     try {
       final result = await _api.get('get_daily_data', params: {'student_id': studentId});
-      if (result is List && result.isNotEmpty) {
+      if (result is List) {
         return result.map((e) => Map<String, dynamic>.from(e)).toList();
       }
     } catch (_) {}
-    return [
-      {
-        'id': '1',
-        'date': '2026-07-22',
-        'target_metric': 'Eye Contact (3sec)',
-        'score_value': '8/10 trials',
-      }
-    ];
+    return [];
   }
 
   static Future<bool> save(Map<String, dynamic> data) async {
@@ -474,15 +339,11 @@ class ReinforcerQueries {
   static Future<List<Map<String, dynamic>>> fetchAll() async {
     try {
       final result = await _api.get('get_reinforcers');
-      if (result is List && result.isNotEmpty) {
+      if (result is List) {
         return result.map((e) => Map<String, dynamic>.from(e)).toList();
       }
     } catch (_) {}
-    return [
-      {'id': '1', 'category': 'Edible', 'item_name': 'Apple', 'rating': 5, 'notes': 'Highly preferred during manding'},
-      {'id': '2', 'category': 'Social', 'item_name': 'High Five & Praise', 'rating': 4, 'notes': 'Effective after successful task'},
-      {'id': '3', 'category': 'Toys/Materials', 'item_name': 'Light-Up Sensory Ball', 'rating': 5, 'notes': 'Best for break time'},
-    ];
+    return [];
   }
 
   static Future<bool> save(Map<String, dynamic> data) async {

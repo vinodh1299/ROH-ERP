@@ -22,7 +22,7 @@ class DpdpConsentDialog extends StatefulWidget {
     );
   }
 
-  static Future<void> showIfNeeded(BuildContext context, {int studentId = 1, String studentName = 'Alex Thomas Sam'}) async {
+  static Future<void> showIfNeeded(BuildContext context, {int studentId = 1, String studentName = 'Student'}) async {
     final prefs = await SharedPreferences.getInstance();
     final consentGiven = prefs.getBool('dpdp_consent_student_$studentId') ?? false;
     if (!consentGiven && context.mounted) {

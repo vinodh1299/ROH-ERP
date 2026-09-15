@@ -40,6 +40,14 @@ class _DirectorShellState extends State<DirectorShell> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      final auth = Provider.of<AuthService>(context, listen: false);
+      if (!auth.isLoggedIn || auth.currentUser?.role != 'director') {
+        Navigator.of(context).pushNamedAndRemoveUntil(
+          AppConstants.routeLogin,
+          (route) => false,
+        );
+        return;
+      }
       ForcedPasswordChangeDialog.showIfNeeded(context);
       NotificationService().fetchNotifications();
     });

@@ -10,9 +10,9 @@ class StudentAssessmentBanner extends StatelessWidget {
 
   const StudentAssessmentBanner({
     super.key,
-    this.studentName = 'Alex Thomas Sam',
-    this.dateOfBirth = '16-02-2020',
-    this.age = '13',
+    this.studentName = 'Student',
+    this.dateOfBirth = '-',
+    this.age = '-',
     this.rightContent,
   });
 

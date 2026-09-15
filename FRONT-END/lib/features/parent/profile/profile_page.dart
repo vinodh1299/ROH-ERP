@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:roh_erp/core/constants/app_colors.dart';
+import 'package:roh_erp/core/services/schedule_service.dart';
 import 'package:roh_erp/features/auth/auth_service.dart';
 
 class ProfilePage extends StatefulWidget {
@@ -20,7 +21,7 @@ class _ProfilePageState extends State<ProfilePage> {
   Widget build(BuildContext context) {
     final auth = context.watch<AuthService>();
     final user = auth.currentUser;
-    final parentName = user?.name.isNotEmpty == true ? user!.name : 'Mr. John Wilson';
+    final parentName = user?.name.isNotEmpty == true ? user!.name : 'Parent User';
     final parentEmail = user?.email.isNotEmpty == true ? user!.email : 'parent@roh.com';
 
     return SingleChildScrollView(
@@ -148,12 +149,34 @@ class _ProfilePageState extends State<ProfilePage> {
                   ],
                 ),
                 const Divider(height: 24, color: AppColors.divider),
-                _buildInfoRow('Child Name', 'Alex Thomas Sam'),
-                _buildInfoRow('Date of Birth', '12 April 2019 (Age: 7)'),
-                _buildInfoRow('Primary Diagnosis', 'Autism Spectrum Disorder (Level 2)'),
-                _buildInfoRow('Assigned Clinical BCBA', 'Dr. Sarah Lee (Lead BCBA)'),
-                _buildInfoRow('Active Program', 'Comprehensive Verbal Behavior & DTT'),
-                _buildInfoRow('Emergency EpiPen', 'Clinic Cabinet #2 (Peanut Allergy Protocol)'),
+                if (ScheduleService.centerStudents.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 20),
+                    child: Center(
+                      child: Column(
+                        children: [
+                          Icon(Icons.child_care_outlined, size: 40, color: Colors.grey.shade400),
+                          const SizedBox(height: 10),
+                          const Text(
+                            'No Enrolled Child Linked Yet',
+                            style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                          ),
+                          const SizedBox(height: 6),
+                          const Text(
+                            'Once your child is enrolled by the Center Director, their clinical profile, assigned BCBA, and health protocols will appear here.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                else ...[
+                  _buildInfoRow('Child Name', ScheduleService.centerStudents.first['name'] as String),
+                  _buildInfoRow('Age', '${ScheduleService.centerStudents.first['age']} years'),
+                  _buildInfoRow('Active Program', (ScheduleService.centerStudents.first['programs'] as String?) ?? 'Comprehensive Behavioral Program'),
+                  _buildInfoRow('Assigned Clinical BCBA', ScheduleService.centerTherapists.isNotEmpty ? ScheduleService.centerTherapists.first['name']! : 'Pending Assignment'),
+                ],
               ],
             ),
           ),

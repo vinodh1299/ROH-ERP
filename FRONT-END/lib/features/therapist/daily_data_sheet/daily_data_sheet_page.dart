@@ -152,7 +152,7 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                _selectedStudent ?? 'Alex Thomas Sam',
+                _selectedStudent ?? 'Student',
                 style: const TextStyle(
                   fontFamily: 'Poppins',
                   fontSize: 18,
@@ -690,7 +690,7 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
                   Padding(padding: EdgeInsets.all(10), child: Text('09:30 - 10:15 AM')),
                   Padding(padding: EdgeInsets.all(10), child: Text('Listener Responding (LR Level 2)')),
                   Padding(padding: EdgeInsets.all(10), child: Text('8/10 Independent (+)')),
-                  Padding(padding: EdgeInsets.all(10), child: Text('SL (Dr. Sarah Lee)')),
+                  Padding(padding: EdgeInsets.all(10), child: Text('Supervising Clinician')),
                 ],
               ),
               TableRow(
@@ -698,7 +698,7 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
                   Padding(padding: EdgeInsets.all(10), child: Text('10:30 - 11:15 AM')),
                   Padding(padding: EdgeInsets.all(10), child: Text('Motor Imitation & Play Skills')),
                   Padding(padding: EdgeInsets.all(10), child: Text('9/10 Independent (+)')),
-                  Padding(padding: EdgeInsets.all(10), child: Text('SL (Dr. Sarah Lee)')),
+                  Padding(padding: EdgeInsets.all(10), child: Text('Supervising Clinician')),
                 ],
               ),
               TableRow(
@@ -706,7 +706,7 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
                   Padding(padding: EdgeInsets.all(10), child: Text('11:30 - 12:30 PM')),
                   Padding(padding: EdgeInsets.all(10), child: Text('EES & Tact Acquisition')),
                   Padding(padding: EdgeInsets.all(10), child: Text('7/10 Prompted (P)')),
-                  Padding(padding: EdgeInsets.all(10), child: Text('SL (Dr. Sarah Lee)')),
+                  Padding(padding: EdgeInsets.all(10), child: Text('Supervising Clinician')),
                 ],
               ),
             ],

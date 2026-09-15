@@ -58,30 +58,139 @@ class RohApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: AppConstants.appName,
-      debugShowCheckedModeBanner: false,
-      theme: AppTheme.light,
-      initialRoute: _initialRoute(context),
-      routes: {
-        AppConstants.routeLogin: (_) => const LoginPage(),
-        AppConstants.routeAdmin: (_) => const AdminShell(),
-        AppConstants.routeDirector: (_) => const DirectorShell(),
-        AppConstants.routeTherapist: (_) => const TherapistShell(),
-        AppConstants.routeParent: (_) => ParentShell(initialTab: initialTab),
+    return Consumer<AuthService>(
+      builder: (context, auth, _) {
+        return MaterialApp(
+          title: AppConstants.appName,
+          debugShowCheckedModeBanner: false,
+          theme: AppTheme.light,
+          initialRoute: _getInitialRoute(auth),
+          onGenerateRoute: (settings) => _generateGuardedRoute(context, auth, settings),
+          onUnknownRoute: (settings) => _generateGuardedRoute(context, auth, settings),
+        );
       },
     );
   }
 
-  String _initialRoute(BuildContext context) {
-    final auth = Provider.of<AuthService>(context, listen: false);
+  String _getInitialRoute(AuthService auth) {
     if (!auth.isLoggedIn) return AppConstants.routeLogin;
-    switch (auth.currentUser?.role) {
-      case 'admin': return AppConstants.routeAdmin;
-      case 'director': return AppConstants.routeDirector;
-      case 'therapist': return AppConstants.routeTherapist;
-      case 'parent': return AppConstants.routeParent;
-      default: return AppConstants.routeLogin;
+    return _roleHome(auth.currentUser?.role);
+  }
+
+  static String _roleHome(String? role) {
+    switch (role?.toLowerCase()) {
+      case 'admin':
+        return AppConstants.routeAdmin;
+      case 'director':
+        return AppConstants.routeDirector;
+      case 'therapist':
+        return AppConstants.routeTherapist;
+      case 'parent':
+        return AppConstants.routeParent;
+      default:
+        return AppConstants.routeLogin;
+    }
+  }
+
+  static String? _requiredRoleForRoute(String route) {
+    if (route == AppConstants.routeAdmin) return 'admin';
+    if (route == AppConstants.routeDirector) return 'director';
+    if (route == AppConstants.routeTherapist) return 'therapist';
+    if (route == AppConstants.routeParent) return 'parent';
+    return null;
+  }
+
+  Route<dynamic> _generateGuardedRoute(
+    BuildContext context,
+    AuthService auth,
+    RouteSettings settings,
+  ) {
+    final rawName = settings.name ?? AppConstants.routeLogin;
+    final cleanRoute = rawName.split('?').first;
+
+    debugPrint('🛡️ ROUTE GUARD: Navigation request to "$cleanRoute" | LoggedIn: ${auth.isLoggedIn} | Current Role: ${auth.currentUser?.role}');
+
+    // 1. Handling the Login route
+    if (cleanRoute == AppConstants.routeLogin || cleanRoute == '/') {
+      if (auth.isLoggedIn) {
+        final authorizedHome = _roleHome(auth.currentUser?.role);
+        debugPrint('🛡️ ROUTE GUARD: User already authenticated as ${auth.currentUser?.role}. Redirecting to $authorizedHome.');
+        return MaterialPageRoute(
+          settings: RouteSettings(name: authorizedHome),
+          builder: (_) => _buildRoleShell(auth.currentUser?.role),
+        );
+      }
+      return MaterialPageRoute(
+        settings: const RouteSettings(name: AppConstants.routeLogin),
+        builder: (_) => const LoginPage(),
+      );
+    }
+
+    // 2. Unauthenticated check: Block any protected route if not logged in
+    if (!auth.isLoggedIn) {
+      debugPrint('🚨 ROUTE GUARD DENIED: Unauthenticated access attempt to "$cleanRoute". Redirecting to /login.');
+      return MaterialPageRoute(
+        settings: const RouteSettings(name: AppConstants.routeLogin),
+        builder: (_) => const LoginPage(),
+      );
+    }
+
+    // 3. Authenticated: Role-Based Access Control (RBAC) check
+    final userRole = auth.currentUser?.role.toLowerCase() ?? '';
+    final requiredRole = _requiredRoleForRoute(cleanRoute);
+
+    if (requiredRole != null && userRole != requiredRole) {
+      debugPrint('🚨 ROUTE GUARD DENIED: Role mismatch! User is "$userRole", but "$cleanRoute" requires "$requiredRole". Redirecting to authorized home.');
+      final authorizedHome = _roleHome(userRole);
+      return MaterialPageRoute(
+        settings: RouteSettings(name: authorizedHome),
+        builder: (_) => _buildRoleShell(userRole),
+      );
+    }
+
+    // 4. Authorized access: return the appropriate shell
+    switch (cleanRoute) {
+      case AppConstants.routeAdmin:
+        return MaterialPageRoute(
+          settings: settings,
+          builder: (_) => const AdminShell(),
+        );
+      case AppConstants.routeDirector:
+        return MaterialPageRoute(
+          settings: settings,
+          builder: (_) => const DirectorShell(),
+        );
+      case AppConstants.routeTherapist:
+        return MaterialPageRoute(
+          settings: settings,
+          builder: (_) => const TherapistShell(),
+        );
+      case AppConstants.routeParent:
+        return MaterialPageRoute(
+          settings: settings,
+          builder: (_) => ParentShell(initialTab: initialTab),
+        );
+      default:
+        final fallback = auth.isLoggedIn ? _roleHome(userRole) : AppConstants.routeLogin;
+        return MaterialPageRoute(
+          settings: RouteSettings(name: fallback),
+          builder: (_) => auth.isLoggedIn ? _buildRoleShell(userRole) : const LoginPage(),
+        );
+    }
+  }
+
+  Widget _buildRoleShell(String? role) {
+    switch (role?.toLowerCase()) {
+      case 'admin':
+        return const AdminShell();
+      case 'director':
+        return const DirectorShell();
+      case 'therapist':
+        return const TherapistShell();
+      case 'parent':
+        return ParentShell(initialTab: initialTab);
+      default:
+        return const LoginPage();
     }
   }
 }

@@ -148,7 +148,7 @@ class _MilestoneAssessmentPageState extends State<MilestoneAssessmentPage> {
       children: [
         // Student Assessment Banner
         StudentAssessmentBanner(
-          studentName: _selectedStudent ?? 'Alex Thomas Sam',
+          studentName: _selectedStudent ?? 'Student',
         ),
         const SizedBox(height: 20),
 
@@ -602,7 +602,7 @@ class _MilestoneAssessmentPageState extends State<MilestoneAssessmentPage> {
       children: [
         // Student Assessment Banner with Key Table
         StudentAssessmentBanner(
-          studentName: _selectedStudent ?? 'Alex Thomas Sam',
+          studentName: _selectedStudent ?? 'Student',
           rightContent: _buildBannerKeyTable(),
         ),
         const SizedBox(height: 20),
