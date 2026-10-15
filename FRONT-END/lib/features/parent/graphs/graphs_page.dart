@@ -14,11 +14,11 @@ class _GraphsPageState extends State<GraphsPage> {
   bool _isLoading = true;
   int _totalTrials = 0;
   int _successfulTrials = 0;
-  double _independentRatio = 0.62;
-  double _gesturalRatio = 0.22;
-  double _verbalRatio = 0.11;
-  double _physicalRatio = 0.05;
-  int _currentMonthAcquired = 42;
+  double _independentRatio = 0.0;
+  double _gesturalRatio = 0.0;
+  double _verbalRatio = 0.0;
+  double _physicalRatio = 0.0;
+  int _currentMonthAcquired = 0;
 
   @override
   void initState() {
@@ -59,11 +59,11 @@ class _GraphsPageState extends State<GraphsPage> {
           setState(() {
             _totalTrials = total;
             _successfulTrials = successful;
-            _independentRatio = (indCount / total).clamp(0.05, 0.95);
-            _gesturalRatio = (gestCount / total).clamp(0.05, 0.95);
-            _verbalRatio = (verbCount / total).clamp(0.05, 0.95);
-            _physicalRatio = (physCount / total).clamp(0.02, 0.95);
-            _currentMonthAcquired = 35 + (successful ~/ 4);
+            _independentRatio = (indCount / total).clamp(0.0, 1.0);
+            _gesturalRatio = (gestCount / total).clamp(0.0, 1.0);
+            _verbalRatio = (verbCount / total).clamp(0.0, 1.0);
+            _physicalRatio = (physCount / total).clamp(0.0, 1.0);
+            _currentMonthAcquired = successful ~/ 4;
             _isLoading = false;
           });
           return;
@@ -163,7 +163,7 @@ class _GraphsPageState extends State<GraphsPage> {
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Text(
-                          '+${(_successfulTrials > 0 ? (_successfulTrials * 3) : 24)}% Velocity',
+                          _successfulTrials > 0 ? '+${_successfulTrials * 3}% Velocity' : '0.0% Velocity',
                           style: const TextStyle(color: Color(0xFF2E7D32), fontSize: 11, fontWeight: FontWeight.bold),
                         ),
                       ),
@@ -181,14 +181,14 @@ class _GraphsPageState extends State<GraphsPage> {
                   // Stylized Visual Bar Chart
                   LayoutBuilder(
                     builder: (context, constraints) {
-                      final maxVal = _currentMonthAcquired > 45 ? _currentMonthAcquired : 45;
+                      final maxVal = _currentMonthAcquired > 10 ? _currentMonthAcquired : 10;
                       final months = [
-                        {'m': 'Apr', 'v': 14, 'pct': (14 / maxVal)},
-                        {'m': 'May', 'v': 20, 'pct': (20 / maxVal)},
-                        {'m': 'Jun', 'v': 26, 'pct': (26 / maxVal)},
-                        {'m': 'Jul', 'v': 31, 'pct': (31 / maxVal)},
-                        {'m': 'Aug', 'v': 38, 'pct': (38 / maxVal)},
-                        {'m': 'Sep (Live)', 'v': _currentMonthAcquired, 'pct': (_currentMonthAcquired / maxVal)},
+                        {'m': 'Apr', 'v': 0, 'pct': 0.0},
+                        {'m': 'May', 'v': 0, 'pct': 0.0},
+                        {'m': 'Jun', 'v': 0, 'pct': 0.0},
+                        {'m': 'Jul', 'v': 0, 'pct': 0.0},
+                        {'m': 'Aug', 'v': 0, 'pct': 0.0},
+                        {'m': 'Sep (Live)', 'v': _currentMonthAcquired, 'pct': maxVal > 0 ? (_currentMonthAcquired / maxVal) : 0.0},
                       ];
 
                       return Row(
@@ -196,9 +196,10 @@ class _GraphsPageState extends State<GraphsPage> {
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: months.map((data) {
                           final val = data['v'] as int;
-                          final pct = ((data['pct'] as double)).clamp(0.1, 1.0);
+                          final pct = ((data['pct'] as double)).clamp(0.0, 1.0);
                           final monthName = data['m'] as String;
                           final isCurrent = monthName.contains('Sep');
+                          final barHeight = val == 0 ? 4.0 : (150.0 * pct).clamp(8.0, 150.0);
 
                           return Column(
                             mainAxisAlignment: MainAxisAlignment.end,
@@ -214,9 +215,9 @@ class _GraphsPageState extends State<GraphsPage> {
                               const SizedBox(height: 8),
                               Container(
                                 width: constraints.maxWidth > 500 ? 44 : 26,
-                                height: 150 * pct,
+                                height: barHeight,
                                 decoration: BoxDecoration(
-                                  color: isCurrent ? AppColors.primary : AppColors.primaryLight,
+                                  color: val == 0 ? AppColors.divider : (isCurrent ? AppColors.primary : AppColors.primaryLight),
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                               ),

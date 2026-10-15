@@ -8,6 +8,7 @@ import '../../core/widgets/animated_top_bar_title.dart';
 import '../../core/widgets/two_step_logout_dialog.dart';
 import '../../core/widgets/notification_center_drawer.dart';
 import '../../core/services/notification_service.dart';
+import '../../core/services/system_notifications.dart';
 import '../auth/auth_service.dart';
 import '../auth/widgets/forced_password_change_dialog.dart';
 import 'dashboard/therapist_dashboard_page.dart';
@@ -23,19 +24,24 @@ import 'daily_data_sheet/daily_data_sheet_page.dart';
 import 'profile/profile_page.dart';
 
 class TherapistShell extends StatefulWidget {
-  const TherapistShell({super.key});
+  final int initialTab;
+  const TherapistShell({super.key, this.initialTab = 0});
 
   @override
   State<TherapistShell> createState() => _TherapistShellState();
 }
 
 class _TherapistShellState extends State<TherapistShell> {
-  int _selectedIndex = 0;
+  late int _selectedIndex;
   bool _isVbAssessmentExpanded = true;
 
   @override
   void initState() {
     super.initState();
+    _selectedIndex = widget.initialTab;
+    if (_selectedIndex >= 2 && _selectedIndex <= 7) {
+      _isVbAssessmentExpanded = true;
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final auth = Provider.of<AuthService>(context, listen: false);
       if (!auth.isLoggedIn || auth.currentUser?.role != 'therapist') {
@@ -47,6 +53,7 @@ class _TherapistShellState extends State<TherapistShell> {
       }
       ForcedPasswordChangeDialog.showIfNeeded(context);
       NotificationService().fetchNotifications();
+      SystemNotifications.requestPermission();
     });
   }
 
@@ -147,7 +154,7 @@ class _TherapistShellState extends State<TherapistShell> {
                 ),
                 _buildMenuItem(
                   index: 9,
-                  title: 'Daily Data Sheet',
+                  title: 'Daily Data Analysis',
                   icon: Icons.credit_card,
                   isDrawer: isMobile,
                 ),

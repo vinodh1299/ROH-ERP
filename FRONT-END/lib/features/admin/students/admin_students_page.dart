@@ -182,8 +182,8 @@ class _AdminStudentsPageState extends State<AdminStudentsPage> {
                                   final name = student['name'] ?? '${student['first_name']} ${student['last_name']}';
                                   final age = _calculateAge(student['dob']);
                                   final studentId = student['id'] is int ? student['id'] : int.tryParse(student['id'].toString()) ?? 0;
-                                  final phone = student['phone'] ?? '+1 (555) 019-2834';
-                                  final email = '${(student['first_name'] ?? 'student').toString().toLowerCase()}@rohcenter.org';
+                                  final phone = student['phone']?.toString().isNotEmpty == true ? student['phone'].toString() : 'Not provided';
+                                  final email = student['email']?.toString().isNotEmpty == true ? student['email'].toString() : 'Not provided';
 
                                   return Container(
                                     padding: const EdgeInsets.all(16),
@@ -201,11 +201,11 @@ class _AdminStudentsPageState extends State<AdminStudentsPage> {
                                     ),
                                     child: Row(
                                       children: [
-                                        AppImages.studentAvatar(
-                                          width: 70,
-                                          height: 70,
-                                          borderRadius: BorderRadius.circular(35),
-                                        ),
+                                         CircleAvatar(
+                                           radius: 35,
+                                           backgroundColor: AppColors.primary.withValues(alpha: 0.12),
+                                           child: const Icon(Icons.person, size: 36, color: AppColors.primary),
+                                         ),
                                         const SizedBox(width: 16),
                                         Expanded(
                                           child: Column(

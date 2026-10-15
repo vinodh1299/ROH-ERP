@@ -15,5 +15,8 @@
     "jsonwebtoken": "^9.0.2",
     "mysql2": "^3.11.0",
     "swagger-ui-express": "^5.0.1"
+  },
+  "devDependencies": {
+    "puppeteer-core": "^25.11.0"
   }
 }

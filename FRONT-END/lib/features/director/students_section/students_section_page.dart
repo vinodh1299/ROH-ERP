@@ -464,10 +464,10 @@ class _StudentCard extends StatelessWidget {
                     style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
                 if (age != null)
                   Text('Age  $age', style: const TextStyle(fontSize: 11, color: AppColors.textPrimary)),
-                Text('Phone  ${phone.isEmpty ? 'xxxxxxxxxx' : phone}',
+                Text('Phone  ${phone.isEmpty ? 'Not provided' : phone}',
                     maxLines: 1, overflow: TextOverflow.ellipsis,
                     style: const TextStyle(fontSize: 11, color: AppColors.textPrimary)),
-                Text('Email  ${email.isEmpty ? 'xxxxxxxxxx' : email}',
+                Text('Email  ${email.isEmpty ? 'Not provided' : email}',
                     maxLines: 1, overflow: TextOverflow.ellipsis,
                     style: const TextStyle(fontSize: 11, color: AppColors.textPrimary)),
                 const Spacer(),

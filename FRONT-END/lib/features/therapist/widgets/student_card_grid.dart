@@ -8,7 +8,7 @@ class StudentCardGrid extends StatefulWidget {
   final String title;
   final String buttonLabel;
   final VoidCallback? onStudentTap;
-  final void Function(String studentName)? onStudentAction;
+  final void Function(String studentName, int? studentId)? onStudentAction;
   final Widget? extraTopRightWidget;
   final List<Map<String, dynamic>>? students;
 
@@ -262,7 +262,7 @@ class _StudentCardGridState extends State<StudentCardGrid> {
                                     borderRadius: BorderRadius.circular(12),
                                     onTap: () {
                                       if (widget.onStudentAction != null) {
-                                        widget.onStudentAction!(name);
+                                        widget.onStudentAction!(name, int.tryParse(student['id']?.toString() ?? ''));
                                       } else if (widget.onStudentTap != null) {
                                         widget.onStudentTap!();
                                       }

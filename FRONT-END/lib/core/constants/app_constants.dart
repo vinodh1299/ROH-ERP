@@ -8,29 +8,13 @@ class AppConstants {
   static const String appShortName = 'ROH';
   static const String centerName = 'Ray of Hope Center for Autism';
 
-  // Admin
-  static const String adminEmail = 'admin@roh.com';
-  static const String adminPassword = 'admin123';
-  static const String adminName = 'System Admin';
-  static const String adminRole = 'admin';
 
-  // Director
-  static const String directorEmail = 'director@roh.com';
-  static const String directorPassword = 'director123';
-  static const String directorName = 'ROH Admin';
-  static const String directorRole = 'director';
 
-  // Therapist
-  static const String therapistEmail = 'therapist@roh.com';
-  static const String therapistPassword = 'therapist123';
-  static const String therapistName = 'Therapist User';
-  static const String therapistRole = 'therapist';
-
-  // Parent
-  static const String parentEmail = 'parent@roh.com';
-  static const String parentPassword = 'parent123';
-  static const String parentName = 'Parent User';
-  static const String parentRole = 'parent';
+  // ── Network / API ──
+  static const String apiBaseUrl = String.fromEnvironment(
+    'API_BASE_URL',
+    defaultValue: 'http://localhost:8000',
+  );
 
   // ── Shared Prefs Keys ──
   static const String prefUserId = 'user_id';

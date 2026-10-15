@@ -17,9 +17,9 @@ class _SettingsSectionPageState extends State<SettingsSectionPage> {
   String _stagnationDays = '21';
   String _supervisionRatio = '5.0%';
   bool _dualSignOffCrisis = true;
-  final TextEditingController _nameController = TextEditingController(text: 'Dr. Vincent Sterling');
-  final TextEditingController _titleController = TextEditingController(text: 'BCBA-D, Clinical Director');
-  final TextEditingController _certController = TextEditingController(text: 'BACB # 1-19-38291');
+  final TextEditingController _nameController = TextEditingController(text: 'Clinical Director');
+  final TextEditingController _titleController = TextEditingController(text: 'BCBA, Clinical Director');
+  final TextEditingController _certController = TextEditingController(text: '');
 
   @override
   void dispose() {
@@ -220,13 +220,13 @@ class _SettingsSectionPageState extends State<SettingsSectionPage> {
             subtitle: 'Staff limits, emergency contacts, and daily operating windows.',
             icon: Icons.business_outlined,
             children: [
-              _buildStaticRow('Maximum Center Caseload Capacity', '30 Students (Current: 24 active)'),
+              _buildStaticRow('Maximum Center Caseload Capacity', '30 Students'),
               const Divider(height: 20, color: AppColors.divider),
               _buildStaticRow('Maximum Student Ratio per Clinician', '6 Cases maximum per therapist'),
               const Divider(height: 20, color: AppColors.divider),
               _buildStaticRow('Center Operating Hours', '08:00 AM - 06:00 PM (Monday - Saturday)'),
               const Divider(height: 20, color: AppColors.divider),
-              _buildStaticRow('Emergency Clinical Escalation Line', '+1 (555) 911-0199 (24/7 On-Call BCBA)'),
+              _buildStaticRow('Emergency Clinical Escalation Line', 'Not configured'),
             ],
           ),
         ],

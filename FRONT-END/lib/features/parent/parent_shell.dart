@@ -8,6 +8,7 @@ import '../../core/widgets/animated_top_bar_title.dart';
 import '../../core/widgets/two_step_logout_dialog.dart';
 import '../../core/widgets/notification_center_drawer.dart';
 import '../../core/services/notification_service.dart';
+import '../../core/services/system_notifications.dart';
 import '../auth/auth_service.dart';
 import '../auth/widgets/forced_password_change_dialog.dart';
 import 'dashboard/parent_dashboard_page.dart';
@@ -19,7 +20,7 @@ import 'consent/dpdp_consent_dialog.dart';
 
 class ParentShell extends StatefulWidget {
   final int initialTab;
-  const ParentShell({super.key, this.initialTab = 3});
+  const ParentShell({super.key, this.initialTab = 0});
 
   @override
   State<ParentShell> createState() => _ParentShellState();
@@ -43,17 +44,18 @@ class _ParentShellState extends State<ParentShell> {
       }
       ForcedPasswordChangeDialog.showIfNeeded(context);
       NotificationService().fetchNotifications();
+      SystemNotifications.requestPermission();
       DpdpConsentDialog.showIfNeeded(context);
     });
   }
 
   List<Widget> get _pages => [
-    const GraphsPage(),
-    const ProgressReportsPage(),
-    const IepGoalDataPage(),
     ParentDashboardPage(
       onNavigateTab: (index) => setState(() => _selectedIndex = index),
     ),
+    const ProgressReportsPage(),
+    const IepGoalDataPage(),
+    const GraphsPage(),
     const ProfilePage(),
   ];
 

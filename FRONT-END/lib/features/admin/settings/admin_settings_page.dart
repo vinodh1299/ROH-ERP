@@ -58,9 +58,9 @@ class AdminSettingsPage extends StatelessWidget {
                       if (isNarrow) {
                         return Column(
                           children: [
-                            _buildTextField('Navigation Name', 'text here'),
+                            _buildTextField('Center Name', 'Ray of Hope Center for Autism'),
                             const SizedBox(height: 16),
-                            _buildTextField('Top Bar Name', 'text here'),
+                            _buildTextField('Portal Title', 'Ray of Hope Center for Autism'),
                             const SizedBox(height: 24),
                             Center(
                               child: SizedBox(
@@ -78,9 +78,9 @@ class AdminSettingsPage extends StatelessWidget {
                               ),
                             ),
                             const SizedBox(height: 24),
-                            _buildTextField('Navigation Name', 'text here'),
+                            _buildTextField('Support Contact Email', 'admin@roh.com'),
                             const SizedBox(height: 16),
-                            _buildTextField('Navigation Name', 'text here'),
+                            _buildTextField('Emergency Hotline', 'Contact center administration'),
                           ],
                         );
                       }
@@ -88,9 +88,9 @@ class AdminSettingsPage extends StatelessWidget {
                         children: [
                           Row(
                             children: [
-                              Expanded(child: _buildTextField('Navigation Name', 'text here')),
+                              Expanded(child: _buildTextField('Center Name', 'Ray of Hope Center for Autism')),
                               const SizedBox(width: 24),
-                              Expanded(child: _buildTextField('Top Bar Name', 'text here')),
+                              Expanded(child: _buildTextField('Portal Title', 'Ray of Hope Center for Autism')),
                             ],
                           ),
                           const SizedBox(height: 24),
@@ -112,9 +112,9 @@ class AdminSettingsPage extends StatelessWidget {
                           const SizedBox(height: 24),
                           Row(
                             children: [
-                              Expanded(child: _buildTextField('Navigation Name', 'text here')),
+                              Expanded(child: _buildTextField('Support Contact Email', 'admin@roh.com')),
                               const SizedBox(width: 24),
-                              Expanded(child: _buildTextField('Navigation Name', 'text here')),
+                              Expanded(child: _buildTextField('Emergency Hotline', 'Contact center administration')),
                             ],
                           ),
                         ],

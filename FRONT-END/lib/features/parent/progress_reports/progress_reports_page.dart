@@ -108,7 +108,7 @@ class _ProgressReportsPageState extends State<ProgressReportsPage> {
               final therapistName = report['therapist_name'] ?? 'Lead BCBA';
               final status = report['status'] ?? 'Active';
               final isPending = status.toString().toLowerCase().contains('pending');
-              final dateStr = report['created_at'] != null ? report['created_at'].toString().split('T')[0] : '2026-09-11';
+              final dateStr = report['created_at'] != null ? report['created_at'].toString().split('T')[0] : '—';
 
               return Container(
                 decoration: BoxDecoration(
