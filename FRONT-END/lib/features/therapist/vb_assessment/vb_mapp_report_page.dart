@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:roh_erp/core/constants/app_colors.dart';
 import '../../../core/layout/responsive.dart';
+import '../../../core/services/db_queries.dart';
 import '../widgets/student_card_grid.dart';
 import '../widgets/student_assessment_banner.dart';
+import 'milestone_matrix.dart';
 
 class VbMappReportPage extends StatefulWidget {
   const VbMappReportPage({super.key});
@@ -15,6 +17,15 @@ class _VbMappReportPageState extends State<VbMappReportPage> {
   String? _selectedStudent;
   bool _isBarrierMode = false;
   int _activeMilestoneLevel = 1; // 1, 2, or 3
+  int? _selectedStudentId;
+  List<Map<String, dynamic>> _milestoneRecords = [];
+
+  Future<void> _loadMilestoneData() async {
+    final studentId = _selectedStudentId;
+    if (studentId == null) return;
+    final res = await MilestoneAssessmentQueries.fetchForStudent('$studentId');
+    if (mounted) setState(() => _milestoneRecords = res);
+  }
 
   final List<String> _level1Columns = [
     'Mand',
@@ -115,7 +126,10 @@ class _VbMappReportPageState extends State<VbMappReportPage> {
         onStudentAction: (student, studentId) {
           setState(() {
             _selectedStudent = student;
+            _selectedStudentId = studentId;
+            _milestoneRecords = [];
           });
+          _loadMilestoneData();
         },
       );
     }
@@ -305,17 +319,15 @@ class _VbMappReportPageState extends State<VbMappReportPage> {
 
   Widget _buildMilestoneMatrix() {
     List<String> cols;
-    int startRow;
     if (_activeMilestoneLevel == 1) {
       cols = _level1Columns;
-      startRow = 5;
     } else if (_activeMilestoneLevel == 2) {
       cols = _level2Columns;
-      startRow = 6;
     } else {
       cols = _level3Columns;
-      startRow = 11;
     }
+    // Highest milestone of the level on top (e.g. Level 2: 10 down to 6).
+    final topRow = _activeMilestoneLevel * 5;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -345,30 +357,36 @@ class _VbMappReportPageState extends State<VbMappReportPage> {
             ),
             const SizedBox(height: 12),
 
-            // 5 Data Rows
-            for (int r = 0; r < 5; r++) ...[
+            // 5 Data Rows: ½ fills a cell's bottom half, 1 the whole cell.
+            for (int row = topRow; row > topRow - 5; row--) ...[
               Row(
                 children: [
                   SizedBox(
                     width: 40,
                     child: Text(
-                      _activeMilestoneLevel == 1
-                          ? '${startRow - r}'
-                          : '${startRow + r}',
+                      '$row',
                       style: const TextStyle(
                           fontWeight: FontWeight.bold, fontSize: 13),
                     ),
                   ),
-                  for (int c = 0; c < cols.length; c++)
-                    Container(
-                      width: colWidth,
-                      height: 32,
-                      decoration: BoxDecoration(
-                        color: _getSampleMilestoneColor(r, c),
-                        border: Border.all(
-                            color: const Color(0xFFD8B4E2), width: 0.8),
-                      ),
-                    ),
+                  for (final col in cols)
+                    Builder(builder: (context) {
+                      final tests =
+                          milestoneCellTests(_milestoneRecords, col, row);
+                      return Container(
+                        width: colWidth,
+                        decoration: BoxDecoration(
+                          border: Border.all(
+                              color: const Color(0xFFD8B4E2), width: 0.8),
+                        ),
+                        child: MilestoneMatrixCell(
+                          row: row,
+                          bottomTest: tests.bottom,
+                          topTest: tests.top,
+                          height: 32,
+                        ),
+                      );
+                    }),
                 ],
               ),
             ],
@@ -376,10 +394,6 @@ class _VbMappReportPageState extends State<VbMappReportPage> {
         );
       },
     );
-  }
-
-  Color _getSampleMilestoneColor(int r, int c) {
-    return Colors.transparent;
   }
 
   // ── BARRIERS MASTER SCORING FORM ──

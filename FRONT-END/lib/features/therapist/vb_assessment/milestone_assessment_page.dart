@@ -5,6 +5,7 @@ import '../../../core/services/db_queries.dart';
 import '../widgets/student_card_grid.dart';
 import '../widgets/student_assessment_banner.dart';
 import 'assessment_records.dart';
+import 'milestone_matrix.dart';
 
 class MilestoneAssessmentPage extends StatefulWidget {
   const MilestoneAssessmentPage({super.key});
@@ -1027,43 +1028,6 @@ class _MilestoneAssessmentPageState extends State<MilestoneAssessmentPage> {
     );
   }
 
-  double _getScoreForColumn(Map<String, dynamic> m, String colName) {
-    final lower = colName.toLowerCase();
-    if (lower.contains('mand'))
-      return double.tryParse(m['manding_score']?.toString() ?? '0') ?? 0.0;
-    if (lower.contains('tact'))
-      return double.tryParse(m['tacting_score']?.toString() ?? '0') ?? 0.0;
-    if (lower.contains('listener'))
-      return double.tryParse(m['listener_score']?.toString() ?? '0') ?? 0.0;
-    if (lower.contains('vp') || lower.contains('mts'))
-      return double.tryParse(m['vp_mts_score']?.toString() ?? '0') ?? 0.0;
-    if (lower.contains('play'))
-      return double.tryParse(m['play_score']?.toString() ?? '0') ?? 0.0;
-    if (lower.contains('social'))
-      return double.tryParse(m['social_score']?.toString() ?? '0') ?? 0.0;
-    if (lower.contains('imitation'))
-      return double.tryParse(m['imitation_score']?.toString() ?? '0') ?? 0.0;
-    if (lower.contains('echoic'))
-      return double.tryParse(m['echoic_score']?.toString() ?? '0') ?? 0.0;
-    if (lower.contains('vocal'))
-      return double.tryParse(m['vocal_score']?.toString() ?? '0') ?? 0.0;
-    if (lower.contains('lrffc'))
-      return double.tryParse(m['lrffc_score']?.toString() ?? '0') ?? 0.0;
-    if (lower.contains('intraverbal'))
-      return double.tryParse(m['intraverbal_score']?.toString() ?? '0') ?? 0.0;
-    if (lower.contains('group'))
-      return double.tryParse(m['group_score']?.toString() ?? '0') ?? 0.0;
-    if (lower.contains('linguistic'))
-      return double.tryParse(m['linguistic_score']?.toString() ?? '0') ?? 0.0;
-    if (lower.contains('reading'))
-      return double.tryParse(m['reading_score']?.toString() ?? '0') ?? 0.0;
-    if (lower.contains('writing'))
-      return double.tryParse(m['writing_score']?.toString() ?? '0') ?? 0.0;
-    if (lower.contains('math'))
-      return double.tryParse(m['math_score']?.toString() ?? '0') ?? 0.0;
-    return 0.0;
-  }
-
   Widget _buildMilestoneMatrixCard(
       String title, List<String> columns, int maxRow, int minRow) {
     return Container(
@@ -1120,49 +1084,14 @@ class _MilestoneAssessmentPageState extends State<MilestoneAssessmentPage> {
                   for (int row = maxRow; row >= minRow; row--)
                     TableRow(
                       children: List.generate(columns.length, (colIdx) {
-                        final colName = columns[colIdx];
-                        Color cellColor = Colors.white;
-
-                        // Colour each milestone by the first test in which it was achieved
-                        int? firstTest;
-                        for (final m in _milestoneRecords) {
-                          final tNum = int.tryParse(
-                                  m['test_number']?.toString() ?? '1') ??
-                              1;
-                          final score = _getScoreForColumn(m, colName);
-                          if (score >= row &&
-                              (firstTest == null || tNum < firstTest)) {
-                            firstTest = tNum;
-                          }
-                        }
-                        if (firstTest == 1) {
-                          cellColor =
-                              const Color(0xFFFBBF24); // Yellow (1st Test)
-                        } else if (firstTest == 2) {
-                          cellColor =
-                              const Color(0xFFF97316); // Orange (2nd Test)
-                        } else if (firstTest == 3) {
-                          cellColor =
-                              const Color(0xFF10B981); // Green (3rd Test)
-                        } else if (firstTest == 4) {
-                          cellColor =
-                              const Color(0xFF3B82F6); // Blue (4th Test)
-                        }
-
-                        return Container(
-                          height: 38,
-                          color: cellColor,
-                          alignment: Alignment.center,
-                          child: Text(
-                            '$row',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: cellColor == Colors.white
-                                  ? AppColors.textSecondary
-                                  : Colors.black87,
-                            ),
-                          ),
+                        // ½ fills the bottom half, 1 the whole cell; each
+                        // half is coloured by the first test that reached it.
+                        final tests = milestoneCellTests(
+                            _milestoneRecords, columns[colIdx], row);
+                        return MilestoneMatrixCell(
+                          row: row,
+                          bottomTest: tests.bottom,
+                          topTest: tests.top,
                         );
                       }),
                     ),
