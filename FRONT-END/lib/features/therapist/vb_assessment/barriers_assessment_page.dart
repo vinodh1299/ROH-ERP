@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:roh_erp/core/constants/app_colors.dart';
 import '../../../core/layout/responsive.dart';
 import '../../../core/services/db_queries.dart';
@@ -18,6 +19,132 @@ class _BarriersAssessmentPageState extends State<BarriersAssessmentPage> {
   int? _selectedStudentId;
   int _activeTab = 0; // 0: Assessment, 1: Graph
   List<Map<String, dynamic>> _barrierRecords = [];
+  bool _saving = false;
+
+  /// The 18 barriers; these names are the keys of barrier_scores.
+  static const List<String> _barrierNames = [
+    'Behaviour Problems',
+    'Instructional Control',
+    'Impaired Mand',
+    'Impaired Tact',
+    'Impaired Imitation',
+    'Impaired Echoic',
+    'Impaired VP-MTS',
+    'Impaired Listener Responding',
+    'Impaired Intraverbal',
+    'Impaired Social Skills',
+    'Prompt Dependent',
+    'Scrolling',
+    'Impaired Scanning',
+    'Impaired Conditional Discrimination',
+    'Failure to Generalize',
+    'Weak Motivators',
+    'Response Requirement weakens MO',
+    'Reinforcer Dependent',
+  ];
+  static const _testLabels = ['1ST', '2ND', '3RD', '4TH'];
+
+  /// Score boxes keyed '<barrier>|<test number>'.
+  final Map<String, TextEditingController> _scoreControllers = {};
+
+  TextEditingController _scoreController(String barrier, int testNum) =>
+      _scoreControllers.putIfAbsent(
+          '$barrier|$testNum', () => TextEditingController());
+
+  @override
+  void dispose() {
+    for (final c in _scoreControllers.values) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  Future<void> _saveBarriersAssessment() async {
+    final studentId = _selectedStudentId;
+    if (studentId == null || _saving) return;
+
+    // Collect the filled boxes per test column; every value must be 0–4.
+    final byTest = <int, Map<String, int>>{};
+    for (final barrier in _barrierNames) {
+      for (int t = 1; t <= 4; t++) {
+        final text = _scoreController(barrier, t).text.trim();
+        if (text.isEmpty) continue;
+        final v = int.tryParse(text);
+        if (v == null || v < 0 || v > 4) {
+          _showError('"$barrier" ${_testLabels[t - 1]} score must be 0 to 4.');
+          return;
+        }
+        (byTest[t] ??= {})[barrier] = v;
+      }
+    }
+    if (byTest.isEmpty) {
+      _showError('Enter at least one barrier score before saving.');
+      return;
+    }
+
+    setState(() => _saving = true);
+    final date = DateTime.now().toIso8601String().substring(0, 10);
+    var ok = true;
+    for (final entry in byTest.entries) {
+      ok = await BarriersAssessmentQueries.save({
+        'student_id': studentId,
+        'test_number': entry.key,
+        'assessment_date': date,
+        'barrier_scores': entry.value,
+        'total_score': entry.value.values.fold<int>(0, (a, b) => a + b),
+        'max_score': _barrierNames.length * 4,
+      });
+      if (!ok) break;
+    }
+    if (!mounted) return;
+    setState(() => _saving = false);
+    if (!ok) {
+      _showError('Could not save the barriers assessment. Please try again.');
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Barriers Assessment Saved Successfully!')),
+    );
+    for (final c in _scoreControllers.values) {
+      c.clear();
+    }
+    await _loadBarriersData();
+    if (mounted) setState(() => _activeTab = 1);
+  }
+
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: Colors.red),
+    );
+  }
+
+  /// Barrier scores per test number (1–4). Records are applied oldest
+  /// first, so a later partial entry only overrides the barriers it scored.
+  Map<int, Map<String, int>> get _scoresPerTest {
+    int idOf(Map<String, dynamic> r) =>
+        int.tryParse(r['id']?.toString() ?? '') ?? 0;
+    final records = [..._barrierRecords]
+      ..sort((a, b) => idOf(a).compareTo(idOf(b)));
+    final perTest = <int, Map<String, int>>{};
+    for (final r in records) {
+      final tNum = int.tryParse(r['test_number']?.toString() ?? '') ?? 1;
+      Map<String, dynamic> bMap = {};
+      try {
+        final rawScores = r['barrier_scores'];
+        if (rawScores is Map) {
+          bMap = Map<String, dynamic>.from(rawScores);
+        } else if (rawScores is String && rawScores.isNotEmpty) {
+          bMap = Map<String, dynamic>.from(jsonDecode(rawScores));
+        }
+      } catch (_) {}
+      final scores = perTest[tNum] ??= {};
+      bMap.forEach((barrier, v) {
+        final score = int.tryParse(v.toString());
+        if (score != null) scores[barrier] = score;
+      });
+    }
+    return perTest;
+  }
 
   int _resolveStudentId(String name) {
     final lower = name.toLowerCase();
@@ -54,6 +181,10 @@ class _BarriersAssessmentPageState extends State<BarriersAssessmentPage> {
             _selectedStudent = student;
             _selectedStudentId = studentId ?? _resolveStudentId(student);
             _activeTab = 0;
+            _barrierRecords = [];
+            for (final c in _scoreControllers.values) {
+              c.clear();
+            }
             _loadBarriersData();
           });
         },
@@ -191,18 +322,9 @@ class _BarriersAssessmentPageState extends State<BarriersAssessmentPage> {
   }
 
   Widget _buildBarriersList() {
-    final barriers = [
-      'Negative Behaviors',
-      'Instructional Control',
-      'Impaired Mand',
-      'Impaired Tact',
-      'Impaired Motor Imitation',
-      'Impaired Echoic',
-    ];
-
     return Column(
       children: [
-        for (final title in barriers) ...[
+        for (final title in _barrierNames) ...[
           _buildBarrierQuestionCard(title),
           const SizedBox(height: 16),
         ],
@@ -225,13 +347,7 @@ class _BarriersAssessmentPageState extends State<BarriersAssessmentPage> {
             ),
             const SizedBox(width: 16),
             ElevatedButton(
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                      content: Text('Barriers Assessment Saved Successfully!')),
-                );
-                setState(() => _activeTab = 1);
-              },
+              onPressed: _saving ? null : _saveBarriersAssessment,
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
                 padding:
@@ -239,8 +355,8 @@ class _BarriersAssessmentPageState extends State<BarriersAssessmentPage> {
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8)),
               ),
-              child: const Text('Save',
-                  style: TextStyle(
+              child: Text(_saving ? 'Saving…' : 'Save',
+                  style: const TextStyle(
                       color: Colors.white, fontWeight: FontWeight.bold)),
             ),
           ],
@@ -273,16 +389,24 @@ class _BarriersAssessmentPageState extends State<BarriersAssessmentPage> {
                 ),
               ),
               const SizedBox(height: 12),
-              _buildScoreOption('0',
-                  'Does not demonstrate any significant negative behaviors'),
-              _buildScoreOption('1',
-                  'Engages in some minor negative behaviors weekly, but recovery is quick'),
-              _buildScoreOption('2',
-                  'Emits a variety of minor negative behaviors daily (e.g., crying, verbal refusal)'),
-              _buildScoreOption('3',
-                  'Emits more severe negative behavior daily (e.g., tantrums, throwing things)'),
-              _buildScoreOption('4',
-                  'Often emits severe negative behavior that is a danger to himself or others'),
+              if (title == 'Behaviour Problems') ...[
+                _buildScoreOption('0',
+                    'Does not demonstrate any significant negative behaviors'),
+                _buildScoreOption('1',
+                    'Engages in some minor negative behaviors weekly, but recovery is quick'),
+                _buildScoreOption('2',
+                    'Emits a variety of minor negative behaviors daily (e.g., crying, verbal refusal)'),
+                _buildScoreOption('3',
+                    'Emits more severe negative behavior daily (e.g., tantrums, throwing things)'),
+                _buildScoreOption('4',
+                    'Often emits severe negative behavior that is a danger to himself or others'),
+              ] else ...[
+                _buildScoreOption('0', 'No problem'),
+                _buildScoreOption('1', 'Occasional problem'),
+                _buildScoreOption('2', 'Moderate problem'),
+                _buildScoreOption('3', 'Persistent problem'),
+                _buildScoreOption('4', 'Severe problem'),
+              ],
             ],
           );
           const scoreTitle = Text(
@@ -305,8 +429,9 @@ class _BarriersAssessmentPageState extends State<BarriersAssessmentPage> {
                   spacing: 16,
                   runSpacing: 8,
                   children: [
-                    for (final l in const ['1ST', '2ND', '3RD', '4TH'])
-                      _buildScoreInputRow(l),
+                    for (int t = 1; t <= 4; t++)
+                      _buildScoreInputRow(
+                          _testLabels[t - 1], _scoreController(title, t)),
                   ],
                 ),
               ],
@@ -325,13 +450,11 @@ class _BarriersAssessmentPageState extends State<BarriersAssessmentPage> {
                   children: [
                     scoreTitle,
                     const SizedBox(height: 12),
-                    _buildScoreInputRow('1ST'),
-                    const SizedBox(height: 8),
-                    _buildScoreInputRow('2ND'),
-                    const SizedBox(height: 8),
-                    _buildScoreInputRow('3RD'),
-                    const SizedBox(height: 8),
-                    _buildScoreInputRow('4TH'),
+                    for (int t = 1; t <= 4; t++) ...[
+                      if (t > 1) const SizedBox(height: 8),
+                      _buildScoreInputRow(
+                          _testLabels[t - 1], _scoreController(title, t)),
+                    ],
                   ],
                 ),
               ),
@@ -385,7 +508,7 @@ class _BarriersAssessmentPageState extends State<BarriersAssessmentPage> {
     );
   }
 
-  Widget _buildScoreInputRow(String label) {
+  Widget _buildScoreInputRow(String label, TextEditingController controller) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       mainAxisAlignment: MainAxisAlignment.center,
@@ -414,11 +537,19 @@ class _BarriersAssessmentPageState extends State<BarriersAssessmentPage> {
             border: Border.all(color: AppColors.divider),
           ),
           alignment: Alignment.center,
-          child: const TextField(
+          child: TextField(
+            controller: controller,
             textAlign: TextAlign.center,
-            decoration: InputDecoration(
-                border: InputBorder.none, contentPadding: EdgeInsets.zero),
-            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+            keyboardType: TextInputType.number,
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(RegExp('[0-4]')),
+              LengthLimitingTextInputFormatter(1),
+            ],
+            decoration: const InputDecoration(
+                hintText: '–',
+                border: InputBorder.none,
+                contentPadding: EdgeInsets.zero),
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
           ),
         ),
       ],
@@ -427,26 +558,7 @@ class _BarriersAssessmentPageState extends State<BarriersAssessmentPage> {
 
   // ── 2. GRAPH VIEW (18 BARRIER CHARTS) ──
   Widget _buildGraphView() {
-    final chartTitles = [
-      'Behaviour Problems',
-      'Instructional Control',
-      'Impaired Mand',
-      'Impaired Tact',
-      'Impaired Imitation',
-      'Impaired Echoic',
-      'Impaired VP-MTS',
-      'Impaired Listener Responding',
-      'Impaired Intraverbal',
-      'Impaired Social Skills',
-      'Prompt Dependent',
-      'Scrolling',
-      'Impaired Scanning',
-      'Impaired Conditional Discrimination',
-      'Failure to Generalize',
-      'Weak Motivators',
-      'Response Requirement weakens MO',
-      'Reinforcer Dependent',
-    ];
+    const chartTitles = _barrierNames;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -518,6 +630,7 @@ class _BarriersAssessmentPageState extends State<BarriersAssessmentPage> {
   Widget _buildBarrierGrid(int chartIndex, List<String> chartTitles) {
     final title =
         chartIndex < chartTitles.length ? chartTitles[chartIndex] : '';
+    final scoresPerTest = _scoresPerTest;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -534,35 +647,18 @@ class _BarriersAssessmentPageState extends State<BarriersAssessmentPage> {
                 final testNum = colIndex + 1;
                 Color cellColor = Colors.transparent;
 
-                for (final r in _barrierRecords) {
-                  final tNum =
-                      int.tryParse(r['test_number']?.toString() ?? '1') ?? 1;
-                  if (tNum == testNum) {
-                    Map<String, dynamic> bMap = {};
-                    try {
-                      final rawScores = r['barrier_scores'];
-                      if (rawScores is Map) {
-                        bMap = Map<String, dynamic>.from(rawScores);
-                      } else if (rawScores is String && rawScores.isNotEmpty) {
-                        bMap = Map<String, dynamic>.from(jsonDecode(rawScores));
-                      }
-                    } catch (_) {}
-
-                    final score =
-                        int.tryParse(bMap[title]?.toString() ?? '0') ?? 0;
-                    if (score >= rating && rating > 0) {
-                      if (testNum == 1) {
-                        cellColor =
-                            const Color(0xFFFBBF24); // Yellow (1st Test)
-                      } else if (testNum == 2) {
-                        cellColor =
-                            const Color(0xFFF97316); // Orange (2nd Test)
-                      } else if (testNum == 3) {
-                        cellColor = const Color(0xFF10B981); // Green (3rd Test)
-                      } else if (testNum == 4) {
-                        cellColor = const Color(0xFF3B82F6); // Blue (4th Test)
-                      }
-                    }
+                final score = scoresPerTest[testNum]?[title] ?? 0;
+                if (score >= rating && rating > 0) {
+                  if (testNum == 1) {
+                    cellColor =
+                        const Color(0xFFFBBF24); // Yellow (1st Test)
+                  } else if (testNum == 2) {
+                    cellColor =
+                        const Color(0xFFF97316); // Orange (2nd Test)
+                  } else if (testNum == 3) {
+                    cellColor = const Color(0xFF10B981); // Green (3rd Test)
+                  } else if (testNum == 4) {
+                    cellColor = const Color(0xFF3B82F6); // Blue (4th Test)
                   }
                 }
 

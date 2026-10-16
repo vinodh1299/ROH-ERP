@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:roh_erp/core/constants/app_colors.dart';
 import 'package:roh_erp/core/constants/app_images.dart';
 import '../../../core/layout/responsive.dart';
+import '../../../core/services/db_queries.dart';
 import '../widgets/student_card_grid.dart';
 
 class IepPage extends StatefulWidget {
@@ -13,15 +14,160 @@ class IepPage extends StatefulWidget {
 
 class _IepPageState extends State<IepPage> {
   String? _selectedStudent;
+  int? _selectedStudentId;
+  bool _saving = false;
+  String? _savedStatus; // status of the latest saved IEP, if any
+  String? _savedTitle;
+  // Latest IEP's goals when they were not written by this page (free text).
+  String? _previousSummary;
 
   final List<Map<String, dynamic>> _mandingGoals = [];
   final List<Map<String, dynamic>> _tactingGoals = [];
 
+  static const _defaultBaseline = 'Baseline assessment in progress.';
+
+  /// goals_summary is plain text (the director, admin and parent portals show
+  /// it as-is), written in a fixed shape so it can be read back here:
+  ///   MANDING
+  ///   A. <goal>
+  ///      Baseline: <baseline>
+  String _goalsSummary() {
+    String clean(Object? v) =>
+        (v ?? '').toString().replaceAll(RegExp(r'\s*\n\s*'), ' ').trim();
+    final out = StringBuffer();
+    for (final section in [
+      ('MANDING', _mandingGoals),
+      ('TACTING', _tactingGoals),
+    ]) {
+      if (section.$2.isEmpty) continue;
+      if (out.isNotEmpty) out.writeln();
+      out.writeln(section.$1);
+      for (final g in section.$2) {
+        out.writeln('${g['label']}. ${clean(g['goal'])}');
+        out.writeln('   Baseline: ${clean(g['baseline'])}');
+      }
+    }
+    return out.toString().trimRight();
+  }
+
+  void _restoreGoals(String summary) {
+    _mandingGoals.clear();
+    _tactingGoals.clear();
+    List<Map<String, dynamic>>? target;
+    for (final line in summary.split('\n')) {
+      final trimmed = line.trim();
+      if (trimmed == 'MANDING') {
+        target = _mandingGoals;
+      } else if (trimmed == 'TACTING') {
+        target = _tactingGoals;
+      } else if (target != null) {
+        final goal = RegExp(r'^([A-Z])\. (.*)$').firstMatch(trimmed);
+        final baseline = RegExp(r'^Baseline: (.*)$').firstMatch(trimmed);
+        if (goal != null) {
+          target.add({
+            'label': goal.group(1)!,
+            'goal': goal.group(2)!,
+            'baseline': _defaultBaseline,
+          });
+        } else if (baseline != null && target.isNotEmpty) {
+          target.last['baseline'] = baseline.group(1)!;
+        }
+      }
+    }
+  }
+
+  /// Loads the student's most recent IEP so its goals can be reviewed/extended.
+  Future<void> _loadIep() async {
+    final studentId = _selectedStudentId;
+    if (studentId == null) return;
+    final reports = await IepQueries.fetchAll();
+    Map<String, dynamic>? latest;
+    for (final r in reports) {
+      if (r['student_id']?.toString() != '$studentId') continue;
+      final id = int.tryParse(r['id']?.toString() ?? '') ?? 0;
+      if (latest == null ||
+          id > (int.tryParse(latest['id']?.toString() ?? '') ?? 0)) {
+        latest = r;
+      }
+    }
+    if (!mounted) return;
+    setState(() {
+      _savedStatus = latest?['status']?.toString();
+      _savedTitle = latest?['title']?.toString();
+      final summary = (latest?['goals_summary'] ?? '').toString().trim();
+      _restoreGoals(summary);
+      _previousSummary =
+          _mandingGoals.isEmpty && _tactingGoals.isEmpty && summary.isNotEmpty
+              ? summary
+              : null;
+    });
+  }
+
+  Future<void> _saveIep() async {
+    final studentId = _selectedStudentId;
+    if (studentId == null || _saving) return;
+    if (_mandingGoals.isEmpty && _tactingGoals.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Add at least one goal before saving the IEP.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+    setState(() => _saving = true);
+
+    // Domain scores come from the student's latest VB-MAPP milestone record.
+    final milestones =
+        await MilestoneAssessmentQueries.fetchForStudent('$studentId');
+    Map<String, dynamic>? baseline;
+    for (final m in milestones) {
+      final id = int.tryParse(m['id']?.toString() ?? '') ?? 0;
+      if (baseline == null ||
+          id > (int.tryParse(baseline['id']?.toString() ?? '') ?? 0)) {
+        baseline = m;
+      }
+    }
+    int score(String column) =>
+        (double.tryParse(baseline?[column]?.toString() ?? '') ?? 0).round();
+
+    final now = DateTime.now();
+    final ok = await IepQueries.save({
+      'student_id': studentId,
+      'title': '${_selectedStudent ?? 'Student'} IEP Treatment Plan',
+      'cycle_term': 'Q${(now.month - 1) ~/ 3 + 1} ${now.year} Treatment Plan',
+      'manding_score': score('manding_score'),
+      'tacting_score': score('tacting_score'),
+      'listener_score': score('listener_score'),
+      'echoic_score': score('echoic_score'),
+      'lrffc_score': score('lrffc_score'),
+      'goals_summary': _goalsSummary(),
+    });
+    if (!mounted) return;
+    setState(() => _saving = false);
+    if (!ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not save the IEP. Please try again.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Student IEP Saved Successfully!')),
+    );
+    await _loadIep();
+  }
+
   void _showAddItemDialog() {
     final textController = TextEditingController();
+    final baselineController = TextEditingController();
+    var domain = 'Manding';
     showDialog(
       context: context,
-      builder: (context) => Dialog(
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => Dialog(
         backgroundColor: Colors.transparent,
         child: Container(
           width: 440,
@@ -43,32 +189,72 @@ class _IepPageState extends State<IepPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                'Add Item',
+                'Add Goal',
                 style: TextStyle(
                   fontFamily: 'Poppins',
                   fontSize: 22,
                   fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                  decoration: TextDecoration.underline,
-                  decorationColor: Colors.white,
+                  color: AppColors.textPrimary,
                 ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 20),
+              Wrap(
+                spacing: 8,
+                children: [
+                  for (final d in const ['Manding', 'Tacting'])
+                    ChoiceChip(
+                      label: Text(d),
+                      selected: domain == d,
+                      onSelected: (_) => setDialogState(() => domain = d),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 16),
               const Text(
-                'Item Name',
+                'Goal',
                 style: TextStyle(
-                    color: Colors.white, fontSize: 13, fontFamily: 'Poppins'),
+                    color: AppColors.textPrimary,
+                    fontSize: 13,
+                    fontFamily: 'Poppins'),
               ),
               const SizedBox(height: 8),
               Container(
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AppColors.border),
                 ),
                 child: TextField(
                   controller: textController,
                   decoration: const InputDecoration(
-                    hintText: 'enter item name',
+                    hintText: 'enter the target goal',
+                    hintStyle:
+                        TextStyle(color: Color(0xFF9CA3AF), fontSize: 13),
+                    border: InputBorder.none,
+                    contentPadding:
+                        EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Baseline (optional)',
+                style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 13,
+                    fontFamily: 'Poppins'),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AppColors.border),
+                ),
+                child: TextField(
+                  controller: baselineController,
+                  decoration: const InputDecoration(
+                    hintText: 'current level of performance',
                     hintStyle:
                         TextStyle(color: Color(0xFF9CA3AF), fontSize: 13),
                     border: InputBorder.none,
@@ -84,7 +270,7 @@ class _IepPageState extends State<IepPage> {
                   OutlinedButton(
                     onPressed: () => Navigator.pop(context),
                     style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: Colors.white),
+                      side: const BorderSide(color: AppColors.primary),
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(8)),
                       padding: const EdgeInsets.symmetric(
@@ -92,18 +278,23 @@ class _IepPageState extends State<IepPage> {
                     ),
                     child: const Text('Cancel',
                         style: TextStyle(
-                            color: Colors.white, fontWeight: FontWeight.bold)),
+                            color: AppColors.primary,
+                            fontWeight: FontWeight.bold)),
                   ),
                   const SizedBox(width: 12),
                   ElevatedButton(
                     onPressed: () {
                       if (textController.text.trim().isNotEmpty) {
+                        final goals = domain == 'Tacting'
+                            ? _tactingGoals
+                            : _mandingGoals;
+                        final baseline = baselineController.text.trim();
                         setState(() {
-                          _mandingGoals.add({
-                            'label':
-                                String.fromCharCode(65 + _mandingGoals.length),
+                          goals.add({
+                            'label': String.fromCharCode(65 + goals.length),
                             'goal': textController.text.trim(),
-                            'baseline': 'Baseline assessment in progress.',
+                            'baseline':
+                                baseline.isEmpty ? _defaultBaseline : baseline,
                           });
                         });
                       }
@@ -126,6 +317,7 @@ class _IepPageState extends State<IepPage> {
           ),
         ),
       ),
+      ),
     );
   }
 
@@ -138,7 +330,14 @@ class _IepPageState extends State<IepPage> {
         onStudentAction: (student, studentId) {
           setState(() {
             _selectedStudent = student;
+            _selectedStudentId = studentId;
+            _savedStatus = null;
+            _savedTitle = null;
+            _previousSummary = null;
+            _mandingGoals.clear();
+            _tactingGoals.clear();
           });
+          _loadIep();
         },
       );
     }
@@ -181,6 +380,17 @@ class _IepPageState extends State<IepPage> {
           Row(
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
+              if (_savedStatus != null) ...[
+                Expanded(
+                  child: Text(
+                    'Last saved IEP: ${_savedTitle ?? 'IEP'} ($_savedStatus)',
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        fontSize: 12, color: AppColors.textSecondary),
+                  ),
+                ),
+                const SizedBox(width: 12),
+              ],
               InkWell(
                 onTap: _showAddItemDialog,
                 child: Container(
@@ -209,6 +419,39 @@ class _IepPageState extends State<IepPage> {
           ),
           const SizedBox(height: 12),
 
+          if (_previousSummary != null) ...[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.divider),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'PREVIOUS PLAN GOALS',
+                    style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textSecondary),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    _previousSummary!,
+                    style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textPrimary,
+                        height: 1.4),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
+
           // 1. MANDING Section
           _buildGoalSection('1. MANDING', _mandingGoals),
           const SizedBox(height: 24),
@@ -236,13 +479,7 @@ class _IepPageState extends State<IepPage> {
               ),
               const SizedBox(width: 16),
               ElevatedButton(
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                        content: Text('Student IEP Saved Successfully!')),
-                  );
-                  setState(() => _selectedStudent = null);
-                },
+                onPressed: _saving ? null : _saveIep,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
                   padding:
@@ -250,8 +487,8 @@ class _IepPageState extends State<IepPage> {
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8)),
                 ),
-                child: const Text('Save',
-                    style: TextStyle(
+                child: Text(_saving ? 'Saving…' : 'Save',
+                    style: const TextStyle(
                         color: Colors.white, fontWeight: FontWeight.bold)),
               ),
             ],

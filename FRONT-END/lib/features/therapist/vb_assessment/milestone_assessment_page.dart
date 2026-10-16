@@ -23,6 +23,86 @@ class _MilestoneAssessmentPageState extends State<MilestoneAssessmentPage> {
   List<Map<String, dynamic>> _milestoneRecords = [];
 
   final Map<String, bool> _toggles = {};
+  bool _saving = false;
+
+  // Each task card is one milestone; its toggle-key prefix says which domain
+  // score column it counts towards.
+  static const Map<String, String> _milestoneDomains = {
+    'l1_tact': 'tacting_score',
+    'l1_lr': 'listener_score',
+    'l2_mand': 'manding_score',
+    'l2_tact': 'tacting_score',
+    'l3_mand': 'manding_score',
+    'l3_tact': 'tacting_score',
+    'l4_iv': 'intraverbal_score',
+  };
+
+  /// A milestone scores 1 when both list items are achieved, 1/2 for one.
+  double _milestoneScore(String prefix) {
+    final yes = [1, 2].where((i) => _toggles['${prefix}_$i'] ?? false).length;
+    return yes / 2;
+  }
+
+  /// Domain score = number of milestones achieved in that domain, which is
+  /// what the milestone matrix graph plots (cells 1..score are filled).
+  Map<String, double> _domainScores() {
+    final scores = <String, double>{};
+    _milestoneDomains.forEach((prefix, column) {
+      scores[column] = (scores[column] ?? 0) + _milestoneScore(prefix);
+    });
+    return scores;
+  }
+
+  double get _totalScore =>
+      _domainScores().values.fold(0.0, (sum, v) => sum + v);
+
+  String _formatScore(double v) =>
+      v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(1);
+
+  Future<void> _saveMilestoneAssessment() async {
+    final studentId = _selectedStudentId;
+    if (studentId == null || _saving) return;
+    setState(() => _saving = true);
+    final scores = _domainScores();
+    final ok = await MilestoneAssessmentQueries.save({
+      'student_id': studentId,
+      'test_number': int.tryParse(_selectedAssessment.split(' ').last) ?? 1,
+      'level': _selectedLevel <= 3 ? 'Level $_selectedLevel' : 'Comprehensive',
+      'assessment_date': DateTime.now().toIso8601String().substring(0, 10),
+      'total_score': _totalScore,
+      ...scores,
+      'scores_detail': {
+        'items': Map<String, bool>.from(_toggles),
+        'milestones': {
+          for (final prefix in _milestoneDomains.keys)
+            prefix: _milestoneScore(prefix),
+        },
+      },
+    });
+    if (!mounted) return;
+    setState(() => _saving = false);
+    if (!ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+              'Could not save the milestone assessment. Please try again.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+          content:
+              Text('Milestone Assessment Level $_selectedLevel Saved Successfully!')),
+    );
+    await _loadMilestoneData();
+    if (!mounted) return;
+    setState(() {
+      _activeTab = 1;
+      if (_selectedLevel <= 3) _activeMilestoneGraphLevel = _selectedLevel;
+    });
+  }
 
   int _resolveStudentId(String name) {
     final lower = name.toLowerCase();
@@ -102,6 +182,7 @@ class _MilestoneAssessmentPageState extends State<MilestoneAssessmentPage> {
             _selectedStudent = student;
             _selectedStudentId = studentId ?? _resolveStudentId(student);
             _activeTab = 0;
+            _toggles.clear();
             _selectedLevel = 1;
             _activeMilestoneGraphLevel = 1;
             _loadMilestoneData();
@@ -301,14 +382,7 @@ class _MilestoneAssessmentPageState extends State<MilestoneAssessmentPage> {
                   ),
                   const SizedBox(width: 16),
                   ElevatedButton(
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                            content: Text(
-                                'Milestone Assessment Level $_selectedLevel Saved Successfully!')),
-                      );
-                      setState(() => _selectedStudent = null);
-                    },
+                    onPressed: _saving ? null : _saveMilestoneAssessment,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primary,
                       padding: const EdgeInsets.symmetric(
@@ -316,8 +390,8 @@ class _MilestoneAssessmentPageState extends State<MilestoneAssessmentPage> {
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(8)),
                     ),
-                    child: const Text('Save',
-                        style: TextStyle(
+                    child: Text(_saving ? 'Saving…' : 'Save',
+                        style: const TextStyle(
                             color: Colors.white, fontWeight: FontWeight.bold)),
                   ),
                 ],
@@ -452,7 +526,7 @@ class _MilestoneAssessmentPageState extends State<MilestoneAssessmentPage> {
                 fontFamily: 'Poppins'),
           ),
           Text(
-            _selectedLevel == 1 ? '5.5' : (_selectedLevel == 2 ? '7.0' : '9.5'),
+            _formatScore(_totalScore),
             style: const TextStyle(
                 color: Colors.white,
                 fontSize: 16,
@@ -575,9 +649,9 @@ class _MilestoneAssessmentPageState extends State<MilestoneAssessmentPage> {
         halfCriteria: 'Answers 10-15 WH questions with partial prompts',
         oneCriteria: 'Answers 25 different WH questions independently',
         item1: 'Item 1: What do you wear on feet? (Shoes)',
-        item1Key: 'l1_tact_1',
+        item1Key: 'l4_iv_1',
         item2: 'Item 2: Where do you sleep? (Bed)',
-        item2Key: 'l1_tact_2',
+        item2Key: 'l4_iv_2',
       ),
     ];
   }
