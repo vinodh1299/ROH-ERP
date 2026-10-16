@@ -38,6 +38,9 @@ class _PreferenceAssessmentPageState extends State<PreferenceAssessmentPage> {
   /// re-saving keeps their category, rating, rank and notes.
   final Map<String, Map<String, dynamic>> _savedItems = {};
 
+  /// Preference rating (1–5) per ticked item; new items start at 5.
+  final Map<String, int> _ratings = {};
+
   /// Restores the checked items from the student's latest saved snapshot.
   Future<void> _loadPreferences() async {
     final studentId = _selectedStudentId;
@@ -51,6 +54,7 @@ class _PreferenceAssessmentPageState extends State<PreferenceAssessmentPage> {
       _lastSavedDate = latestDate;
       _checkedItems.clear();
       _savedItems.clear();
+      _ratings.clear();
       for (final r in rows) {
         if ((r['assessment_date'] ?? '').toString().split('T').first !=
             latestDate) {
@@ -62,6 +66,8 @@ class _PreferenceAssessmentPageState extends State<PreferenceAssessmentPage> {
         final list = _reinforcers[section]!;
         if (!list.contains(item)) list.add(item);
         _checkedItems.add(_itemId(section, item));
+        _ratings[_itemId(section, item)] =
+            (int.tryParse(r['rating']?.toString() ?? '') ?? 5).clamp(1, 5);
         _savedItems[_itemId(section, item)] = {
           'category': r['category'],
           'rating': r['rating'],
@@ -81,9 +87,11 @@ class _PreferenceAssessmentPageState extends State<PreferenceAssessmentPage> {
           if (_checkedItems.contains(_itemId(entry.key, item)))
             {
               'category': _categoryValues[entry.key] ?? 'Other',
-              'rating': 5,
-              'hierarchy_rank': 'High-Preference Primary Reinforcer',
               ...?_savedItems[_itemId(entry.key, item)],
+              'rating': _ratings[_itemId(entry.key, item)] ?? 5,
+              'hierarchy_rank': (_ratings[_itemId(entry.key, item)] ?? 5) >= 4
+                  ? 'High-Preference Primary Reinforcer'
+                  : 'Moderate Preference',
               'item_name': item,
             },
     ];
@@ -282,6 +290,7 @@ class _PreferenceAssessmentPageState extends State<PreferenceAssessmentPage> {
             _lastSavedDate = null;
             _checkedItems.clear();
             _savedItems.clear();
+            _ratings.clear();
           });
           _loadPreferences();
         },
@@ -319,8 +328,10 @@ class _PreferenceAssessmentPageState extends State<PreferenceAssessmentPage> {
           const SizedBox(height: 16),
 
           // Student Assessment Banner
+          // Preference assessments have no numbered tests, so no test key.
           StudentAssessmentBanner(
             studentName: _selectedStudent ?? 'Student',
+            rightContent: const SizedBox.shrink(),
           ),
           const SizedBox(height: 20),
           if (_lastSavedDate != null) ...[
@@ -514,6 +525,31 @@ class _PreferenceAssessmentPageState extends State<PreferenceAssessmentPage> {
                 ),
               ),
             ),
+            if (isChecked)
+              // Tap to change the rating (5 → 1 → 2 … 5).
+              Tooltip(
+                message: 'Preference rating — tap to change',
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(10),
+                  onTap: () => setState(
+                      () => _ratings[id] = (_ratings[id] ?? 5) % 5 + 1),
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      '★${_ratings[id] ?? 5}',
+                      style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.primary),
+                    ),
+                  ),
+                ),
+              ),
           ],
         ),
       ),

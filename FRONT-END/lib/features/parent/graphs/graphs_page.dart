@@ -2,7 +2,8 @@
 import 'package:flutter/material.dart';
 import 'package:roh_erp/core/constants/app_colors.dart';
 import 'package:roh_erp/core/layout/responsive.dart';
-import 'package:roh_erp/core/services/api_service.dart';
+import 'package:roh_erp/core/services/db_queries.dart';
+import 'package:roh_erp/core/services/progress_metrics.dart';
 
 class GraphsPage extends StatefulWidget {
   const GraphsPage({super.key});
@@ -13,76 +14,120 @@ class GraphsPage extends StatefulWidget {
 
 class _GraphsPageState extends State<GraphsPage> {
   bool _isLoading = true;
+  List<Map<String, dynamic>> _children = [];
+  String? _selectedChildId;
+
+  // Metrics for the selected child.
+  List<({DateTime month, int count})> _monthly = [];
   int _totalTrials = 0;
-  int _successfulTrials = 0;
-  double _independentRatio = 0.0;
-  double _gesturalRatio = 0.0;
-  double _verbalRatio = 0.0;
-  double _physicalRatio = 0.0;
-  int _currentMonthAcquired = 0;
+  int _independentTrials = 0;
+  int _gesturalTrials = 0;
+  int _verbalTrials = 0;
+  int _physicalTrials = 0;
+  int _otherTrials = 0;
 
   @override
   void initState() {
     super.initState();
-    _loadLiveGraphMetrics();
+    _loadChildren();
   }
 
-  Future<void> _loadLiveGraphMetrics() async {
-    try {
-      final res = await ApiService().get('get_daily_data');
-      if (res is List && res.isNotEmpty) {
-        int total = 0;
-        int successful = 0;
-        int indCount = 0;
-        int gestCount = 0;
-        int verbCount = 0;
-        int physCount = 0;
+  String _childName(Map<String, dynamic> s) {
+    final name = (s['name'] ?? '').toString().trim();
+    if (name.isNotEmpty) return name;
+    final full = '${s['first_name'] ?? ''} ${s['last_name'] ?? ''}'.trim();
+    return full.isEmpty ? 'Child' : full;
+  }
 
-        for (final row in res) {
-          final trials =
-              int.tryParse(row['trials_completed']?.toString() ?? '0') ?? 0;
-          final succ =
-              int.tryParse(row['trials_successful']?.toString() ?? '0') ?? 0;
-          total += trials;
-          successful += succ;
-
-          final prompt = (row['prompt_level'] ?? '').toString().toLowerCase();
-          if (prompt.contains('indep')) {
-            indCount += trials;
-          } else if (prompt.contains('gest')) {
-            gestCount += trials;
-          } else if (prompt.contains('verb')) {
-            verbCount += trials;
-          } else {
-            physCount += trials;
-          }
-        }
-
-        if (total > 0 && mounted) {
-          setState(() {
-            _totalTrials = total;
-            _successfulTrials = successful;
-            _independentRatio = (indCount / total).clamp(0.0, 1.0);
-            _gesturalRatio = (gestCount / total).clamp(0.0, 1.0);
-            _verbalRatio = (verbCount / total).clamp(0.0, 1.0);
-            _physicalRatio = (physCount / total).clamp(0.0, 1.0);
-            _currentMonthAcquired = successful ~/ 4;
-            _isLoading = false;
-          });
-          return;
-        }
-      }
-    } catch (_) {}
-
-    if (mounted) {
-      setState(() => _isLoading = false);
+  String get _selectedChildName {
+    for (final c in _children) {
+      if ('${c['id']}' == _selectedChildId) return _childName(c);
     }
+    return 'your child';
+  }
+
+  Future<void> _loadChildren() async {
+    if (mounted) setState(() => _isLoading = true);
+    final children = await StudentQueries.fetchAll();
+    if (!mounted) return;
+    _children = children;
+    final ids = children.map((c) => '${c['id']}').toList();
+    if (_selectedChildId == null || !ids.contains(_selectedChildId)) {
+      _selectedChildId = ids.isEmpty ? null : ids.first;
+    }
+    await _loadChildMetrics();
+  }
+
+  Future<void> _loadChildMetrics() async {
+    final childId = _selectedChildId;
+    if (childId == null) {
+      _resetMetrics();
+      if (mounted) setState(() => _isLoading = false);
+      return;
+    }
+    if (mounted) setState(() => _isLoading = true);
+
+    final rows = (await DailyDataQueries.fetchForStudent(childId))
+        .where((r) => '${r['student_id']}' == childId)
+        .toList();
+    if (!mounted || childId != _selectedChildId) return;
+
+    final skillRows = rows.where(isSkillRow).toList();
+    int total = 0, ind = 0, gest = 0, verb = 0, phys = 0, other = 0;
+    for (final row in skillRows) {
+      final trials =
+          int.tryParse(row['trials_completed']?.toString() ?? '0') ?? 0;
+      total += trials;
+      final prompt = (row['prompt_level'] ?? '').toString().toLowerCase();
+      if (prompt.contains('indep')) {
+        ind += trials;
+      } else if (prompt.contains('gest')) {
+        gest += trials;
+      } else if (prompt.contains('verb')) {
+        verb += trials;
+      } else if (prompt.contains('phys')) {
+        phys += trials;
+      } else {
+        other += trials;
+      }
+    }
+
+    setState(() {
+      _monthly = masteredPerMonth(targetProgress(skillRows));
+      _totalTrials = total;
+      _independentTrials = ind;
+      _gesturalTrials = gest;
+      _verbalTrials = verb;
+      _physicalTrials = phys;
+      _otherTrials = other;
+      _isLoading = false;
+    });
+  }
+
+  void _resetMetrics() {
+    _monthly = [];
+    _totalTrials = 0;
+    _independentTrials = 0;
+    _gesturalTrials = 0;
+    _verbalTrials = 0;
+    _physicalTrials = 0;
+    _otherTrials = 0;
+  }
+
+  void _selectChild(String id) {
+    if (id == _selectedChildId) return;
+    setState(() {
+      _selectedChildId = id;
+      _resetMetrics();
+    });
+    _loadChildMetrics();
   }
 
   @override
   Widget build(BuildContext context) {
+    final hasChild = _selectedChildId != null;
     return RefreshIndicator(
-      onRefresh: _loadLiveGraphMetrics,
+      onRefresh: _loadChildren,
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: Breakpoints.pagePadding(context),
@@ -105,12 +150,12 @@ class _GraphsPageState extends State<GraphsPage> {
               ),
               child: Row(
                 children: [
-                  const Expanded(
+                  Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          'Clinical Performance & Skill Acquisition Graphs',
+                        const Text(
+                          'Skill Acquisition Graphs',
                           style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
@@ -118,230 +163,285 @@ class _GraphsPageState extends State<GraphsPage> {
                             fontFamily: 'Poppins',
                           ),
                         ),
-                        SizedBox(height: 6),
+                        const SizedBox(height: 6),
                         Text(
-                          'Cumulative learning trends, prompt fading progression, and behavior deceleration curves',
-                          style: TextStyle(fontSize: 12, color: Colors.white70),
+                          hasChild
+                              ? 'Targets mastered each month and prompt levels used, from $_selectedChildName\'s daily therapy data sheets'
+                              : 'Targets mastered each month and prompt levels used, from your child\'s daily therapy data sheets',
+                          style: const TextStyle(
+                              fontSize: 12, color: Colors.white70),
                         ),
                       ],
                     ),
                   ),
                   IconButton(
                     icon: const Icon(Icons.refresh, color: Colors.white70),
-                    onPressed: _loadLiveGraphMetrics,
-                    tooltip: 'Refresh Live Graph Metrics',
+                    onPressed: _isLoading ? null : _loadChildren,
+                    tooltip: 'Refresh',
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 16),
 
-            // Monthly Target Acquisition Bar Chart Card
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppColors.divider),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+            if (_children.length > 1) ...[
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
                 children: [
-                  Row(
-                    children: [
-                      const Icon(Icons.show_chart,
-                          color: AppColors.primary, size: 20),
-                      const SizedBox(width: 8),
-                      const Expanded(
-                        child: Text(
-                          'Cumulative Targets Mastered (Last 6 Months)',
-                          style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.textPrimary),
-                          overflow: TextOverflow.ellipsis,
-                        ),
+                  for (final c in _children)
+                    ChoiceChip(
+                      label: Text(_childName(c)),
+                      selected: '${c['id']}' == _selectedChildId,
+                      selectedColor: AppColors.primaryLight,
+                      labelStyle: TextStyle(
+                        fontSize: 12,
+                        fontWeight: '${c['id']}' == _selectedChildId
+                            ? FontWeight.bold
+                            : FontWeight.normal,
+                        color: '${c['id']}' == _selectedChildId
+                            ? AppColors.primaryDark
+                            : AppColors.textPrimary,
                       ),
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFE8F5E9),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          _successfulTrials > 0
-                              ? '+${_successfulTrials * 3}% Velocity'
-                              : '0.0% Velocity',
-                          style: const TextStyle(
-                              color: Color(0xFF2E7D32),
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    _isLoading
-                        ? 'Connecting to live discrete trials...'
-                        : 'Verified under BACB mastery criteria • Live DB: $_totalTrials trials logged, $_successfulTrials successful',
-                    style: const TextStyle(
-                        fontSize: 12, color: AppColors.textSecondary),
-                  ),
-                  const SizedBox(height: 24),
-
-                  // Stylized Visual Bar Chart
-                  LayoutBuilder(
-                    builder: (context, constraints) {
-                      final maxVal = _currentMonthAcquired > 10
-                          ? _currentMonthAcquired
-                          : 10;
-                      final months = [
-                        {'m': 'Apr', 'v': 0, 'pct': 0.0},
-                        {'m': 'May', 'v': 0, 'pct': 0.0},
-                        {'m': 'Jun', 'v': 0, 'pct': 0.0},
-                        {'m': 'Jul', 'v': 0, 'pct': 0.0},
-                        {'m': 'Aug', 'v': 0, 'pct': 0.0},
-                        {
-                          'm': 'Sep (Live)',
-                          'v': _currentMonthAcquired,
-                          'pct': maxVal > 0
-                              ? (_currentMonthAcquired / maxVal)
-                              : 0.0
-                        },
-                      ];
-
-                      return Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: months.map((data) {
-                          final val = data['v'] as int;
-                          final pct = ((data['pct'] as double)).clamp(0.0, 1.0);
-                          final monthName = data['m'] as String;
-                          final isCurrent = monthName.contains('Sep');
-                          final barHeight =
-                              val == 0 ? 4.0 : (150.0 * pct).clamp(8.0, 150.0);
-
-                          return Column(
-                            mainAxisAlignment: MainAxisAlignment.end,
-                            children: [
-                              Text(
-                                '$val',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                  color: isCurrent
-                                      ? AppColors.primary
-                                      : AppColors.textPrimary,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Container(
-                                width: constraints.maxWidth > 500 ? 44 : 26,
-                                height: barHeight,
-                                decoration: BoxDecoration(
-                                  color: val == 0
-                                      ? AppColors.divider
-                                      : (isCurrent
-                                          ? AppColors.primary
-                                          : AppColors.primaryLight),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                              ),
-                              const SizedBox(height: 10),
-                              Text(
-                                monthName,
-                                style: TextStyle(
-                                  fontSize:
-                                      constraints.maxWidth > 500 ? 12 : 9.5,
-                                  color: isCurrent
-                                      ? AppColors.primary
-                                      : AppColors.textSecondary,
-                                  fontWeight: isCurrent
-                                      ? FontWeight.bold
-                                      : FontWeight.normal,
-                                ),
-                              ),
-                            ],
-                          );
-                        }).toList(),
-                      );
-                    },
-                  ),
+                      onSelected: (_) => _selectChild('${c['id']}'),
+                    ),
                 ],
               ),
-            ),
-            const SizedBox(height: 24),
+              const SizedBox(height: 16),
+            ],
+            const SizedBox(height: 8),
 
-            // Prompt Level Breakdown Card
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppColors.divider),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Row(
-                    children: [
-                      Icon(Icons.auto_awesome_motion,
-                          color: AppColors.primary, size: 20),
-                      SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Prompt Fading Hierarchy & Independence Level',
-                          style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.textPrimary),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    'Live prompt distribution across $_totalTrials recorded trial sets',
-                    style: const TextStyle(
-                        fontSize: 12, color: AppColors.textSecondary),
-                  ),
-                  const SizedBox(height: 20),
-                  _buildPromptLevelRow(
-                    'Independent (Unprompted)',
-                    _independentRatio,
-                    '${(_independentRatio * 100).toStringAsFixed(0)}% of trials',
-                    Colors.green,
-                  ),
-                  const SizedBox(height: 12),
-                  _buildPromptLevelRow(
-                    'Gestural / Point Prompt',
-                    _gesturalRatio,
-                    '${(_gesturalRatio * 100).toStringAsFixed(0)}% of trials',
-                    Colors.blue,
-                  ),
-                  const SizedBox(height: 12),
-                  _buildPromptLevelRow(
-                    'Verbal / Phonemic Prompt',
-                    _verbalRatio,
-                    '${(_verbalRatio * 100).toStringAsFixed(0)}% of trials',
-                    Colors.orange,
-                  ),
-                  const SizedBox(height: 12),
-                  _buildPromptLevelRow(
-                    'Physical Guidance Prompt',
-                    _physicalRatio,
-                    '${(_physicalRatio * 100).toStringAsFixed(0)}% of trials',
-                    Colors.redAccent,
-                  ),
-                ],
-              ),
-            ),
+            if (_isLoading)
+              const Padding(
+                padding: EdgeInsets.all(40),
+                child: Center(child: CircularProgressIndicator()),
+              )
+            else if (!hasChild)
+              _buildEmptyCard(
+                Icons.child_care_outlined,
+                'No child linked to this account',
+                'Graphs will appear here once your child is enrolled and linked to your parent account.',
+              )
+            else if (_totalTrials == 0 && _monthly.every((m) => m.count == 0))
+              _buildEmptyCard(
+                Icons.show_chart,
+                'No therapy data yet',
+                'Graphs for $_selectedChildName will appear once therapists record daily data sheets.',
+              )
+            else ...[
+              _buildMonthlyCard(),
+              const SizedBox(height: 24),
+              _buildPromptCard(),
+            ],
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyCard(IconData icon, String title, String message) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.divider),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, size: 40, color: AppColors.primary),
+          const SizedBox(height: 12),
+          Text(title,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary)),
+          const SizedBox(height: 6),
+          Text(message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                  fontSize: 12, color: AppColors.textSecondary)),
+        ],
+      ),
+    );
+  }
+
+  // Monthly Target Acquisition Bar Chart Card
+  Widget _buildMonthlyCard() {
+    final totalMastered = _monthly.fold<int>(0, (sum, m) => sum + m.count);
+    final maxVal =
+        _monthly.fold<int>(0, (mx, m) => m.count > mx ? m.count : mx);
+    final now = DateTime.now();
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.divider),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.show_chart, color: AppColors.primary, size: 20),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'Targets Mastered per Month',
+                  style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE8F5E9),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  '$totalMastered in 6 months',
+                  style: const TextStyle(
+                      color: Color(0xFF2E7D32),
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'New skill targets mastered in each of the last 6 months. A target is mastered in its first session with at least 5 trials at 80% or better.',
+            style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+          ),
+          const SizedBox(height: 24),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final wide = constraints.maxWidth > 500;
+              return Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: _monthly.map((m) {
+                  final isCurrent =
+                      m.month.year == now.year && m.month.month == now.month;
+                  final barHeight = m.count == 0 || maxVal == 0
+                      ? 4.0
+                      : (150.0 * m.count / maxVal).clamp(8.0, 150.0);
+                  return Column(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      Text(
+                        '${m.count}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: isCurrent
+                              ? AppColors.primary
+                              : AppColors.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Container(
+                        width: wide ? 44 : 26,
+                        height: barHeight,
+                        decoration: BoxDecoration(
+                          color: m.count == 0
+                              ? AppColors.divider
+                              : (isCurrent
+                                  ? AppColors.primary
+                                  : AppColors.primary.withValues(alpha: 0.45)),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        monthLabel(m.month),
+                        style: TextStyle(
+                          fontSize: wide ? 12 : 10,
+                          color: isCurrent
+                              ? AppColors.primary
+                              : AppColors.textSecondary,
+                          fontWeight:
+                              isCurrent ? FontWeight.bold : FontWeight.normal,
+                        ),
+                      ),
+                    ],
+                  );
+                }).toList(),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Prompt Level Breakdown Card
+  Widget _buildPromptCard() {
+    double ratio(int n) => _totalTrials == 0 ? 0 : n / _totalTrials;
+    String pct(int n) => '${(ratio(n) * 100).toStringAsFixed(0)}% of trials';
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.divider),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.auto_awesome_motion,
+                  color: AppColors.primary, size: 20),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Prompt Levels Used',
+                  style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            _totalTrials == 0
+                ? 'No skill trials recorded yet'
+                : 'Share of $_totalTrials recorded skill trials by the prompt level used',
+            style:
+                const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+          ),
+          const SizedBox(height: 20),
+          _buildPromptLevelRow('Independent (Unprompted)',
+              ratio(_independentTrials), pct(_independentTrials), Colors.green),
+          const SizedBox(height: 12),
+          _buildPromptLevelRow('Gestural / Point Prompt',
+              ratio(_gesturalTrials), pct(_gesturalTrials), Colors.blue),
+          const SizedBox(height: 12),
+          _buildPromptLevelRow('Verbal / Phonemic Prompt',
+              ratio(_verbalTrials), pct(_verbalTrials), Colors.orange),
+          const SizedBox(height: 12),
+          _buildPromptLevelRow('Physical Guidance Prompt',
+              ratio(_physicalTrials), pct(_physicalTrials), Colors.redAccent),
+          if (_otherTrials > 0) ...[
+            const SizedBox(height: 12),
+            _buildPromptLevelRow('Other / Not Recorded', ratio(_otherTrials),
+                pct(_otherTrials), Colors.grey),
+          ],
+        ],
       ),
     );
   }

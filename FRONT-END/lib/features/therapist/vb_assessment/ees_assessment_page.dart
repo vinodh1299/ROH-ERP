@@ -234,6 +234,18 @@ class _EesAssessmentPageState extends State<EesAssessmentPage> {
           // Student Assessment Banner
           StudentAssessmentBanner(
             studentName: _selectedStudent ?? 'Student',
+            records: _eesaRecords,
+            scoreLabel: (r) {
+              String f(Object? v) {
+                final d = double.tryParse(v?.toString() ?? '') ?? 0;
+                return d == d.roundToDouble()
+                    ? d.toStringAsFixed(0)
+                    : d.toStringAsFixed(1);
+              }
+              // Group 1 + Group 2 = total
+              return '${f(r['group1_score'])}+${f(r['group2_score'])}='
+                  '${f(r['total_score'])}';
+            },
           ),
           const SizedBox(height: 20),
 

@@ -144,19 +144,8 @@ class _BarriersAssessmentPageState extends State<BarriersAssessmentPage> {
 
   /// Barrier scores per test number (1–4). Records are applied oldest
   /// first, so a later partial entry only overrides the barriers it scored.
-  Map<int, Map<String, int>> get _scoresPerTest {
-    final records = [..._barrierRecords]
-      ..sort((a, b) => recordId(a).compareTo(recordId(b)));
-    final perTest = <int, Map<String, int>>{};
-    for (final r in records) {
-      final scores = perTest[recordTestNumber(r)] ??= {};
-      jsonColumnMap(r['barrier_scores']).forEach((barrier, v) {
-        final score = int.tryParse(v.toString());
-        if (score != null) scores[barrier] = score;
-      });
-    }
-    return perTest;
-  }
+  Map<int, Map<String, int>> get _scoresPerTest =>
+      scoresPerTest(_barrierRecords, 'barrier_scores');
 
   int _resolveStudentId(String name) {
     final lower = name.toLowerCase();
@@ -328,7 +317,10 @@ class _BarriersAssessmentPageState extends State<BarriersAssessmentPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        StudentAssessmentBanner(studentName: _selectedStudent ?? 'Student'),
+        StudentAssessmentBanner(
+          studentName: _selectedStudent ?? 'Student',
+          records: _barrierRecords,
+        ),
         const SizedBox(height: 20),
         _buildBarriersList(),
       ],
@@ -577,7 +569,10 @@ class _BarriersAssessmentPageState extends State<BarriersAssessmentPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        StudentAssessmentBanner(studentName: _selectedStudent ?? 'Student'),
+        StudentAssessmentBanner(
+          studentName: _selectedStudent ?? 'Student',
+          records: _barrierRecords,
+        ),
         const SizedBox(height: 24),
         LayoutBuilder(
           builder: (context, constraints) {

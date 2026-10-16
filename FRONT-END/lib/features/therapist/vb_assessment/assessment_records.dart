@@ -40,3 +40,20 @@ String assessmentDateFor(Map<String, dynamic>? record) {
   if (saved.isNotEmpty) return saved;
   return DateTime.now().toIso8601String().substring(0, 10);
 }
+
+/// Item scores per test number from a JSON score column (barrier_scores,
+/// area_scores). Rows are applied oldest first, so a newer save of a test
+/// overrides the items it scored.
+Map<int, Map<String, int>> scoresPerTest(
+    List<Map<String, dynamic>> records, String jsonColumn) {
+  final sorted = [...records]..sort((a, b) => recordId(a).compareTo(recordId(b)));
+  final perTest = <int, Map<String, int>>{};
+  for (final r in sorted) {
+    final scores = perTest[recordTestNumber(r)] ??= {};
+    jsonColumnMap(r[jsonColumn]).forEach((item, v) {
+      final score = int.tryParse(v.toString());
+      if (score != null) scores[item] = score;
+    });
+  }
+  return perTest;
+}

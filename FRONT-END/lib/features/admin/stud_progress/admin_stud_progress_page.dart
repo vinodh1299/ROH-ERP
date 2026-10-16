@@ -1,70 +1,85 @@
 import 'package:flutter/material.dart';
 import 'package:roh_erp/core/constants/app_colors.dart';
 import 'package:roh_erp/core/layout/responsive.dart';
+import 'package:roh_erp/features/shared_progress/progress_data.dart';
+import 'package:roh_erp/features/shared_progress/student_progress_table.dart';
 
-import 'package:roh_erp/core/constants/app_images.dart';
-
-class AdminStudProgressPage extends StatelessWidget {
+class AdminStudProgressPage extends StatefulWidget {
   const AdminStudProgressPage({super.key});
 
   @override
+  State<AdminStudProgressPage> createState() => _AdminStudProgressPageState();
+}
+
+class _AdminStudProgressPageState extends State<AdminStudProgressPage> {
+  ProgressData? _data;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    if (mounted) setState(() => _isLoading = true);
+    final data = await ProgressData.load();
+    if (!mounted) return;
+    setState(() {
+      _data = data;
+      _isLoading = false;
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: Breakpoints.pagePadding(context),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('Students Progress',
-              style: TextStyle(
-                  color: AppColors.textPrimary,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 18)),
-          const SizedBox(height: 24),
-          Container(
-            width: double.infinity,
-            padding: EdgeInsets.all(Breakpoints.isCompact(context) ? 20 : 36),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.divider),
-            ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.center,
+    final data = _data;
+    final Widget content;
+    if (_isLoading && data == null) {
+      content = const Padding(
+        padding: EdgeInsets.all(40),
+        child: Center(child: CircularProgressIndicator()),
+      );
+    } else if (data == null || !data.hasAnyData) {
+      content = const ProgressEmptyState(
+        icon: Icons.bar_chart_outlined,
+        title: 'No Student Progress Data Available',
+        message:
+            'Per-student progress will display here once therapists log daily data sheets or VB-MAPP milestone assessments.',
+      );
+    } else {
+      content = StudentProgressTable(rows: data.studentRows());
+    }
+
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: Breakpoints.pagePadding(context),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
               children: [
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: 0.08),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.bar_chart_outlined,
-                      size: 48, color: AppColors.primary),
+                const Expanded(
+                  child: Text('Students Progress',
+                      style: TextStyle(
+                          color: AppColors.textPrimary,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 18)),
                 ),
-                const SizedBox(height: 16),
-                const Text(
-                  'No Student Progress Data Available',
-                  style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary),
-                ),
-                const SizedBox(height: 8),
-                ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 500),
-                  child: const Text(
-                    'Center-wide student progress metrics and milestone acquisition rates will display here once therapists log clinical data sheets.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                        fontSize: 13,
-                        color: AppColors.textSecondary,
-                        height: 1.5),
-                  ),
+                IconButton(
+                  icon: const Icon(Icons.refresh,
+                      color: AppColors.textSecondary),
+                  tooltip: 'Refresh',
+                  onPressed: _isLoading ? null : _load,
                 ),
               ],
             ),
-          ),
-        ],
+            const SizedBox(height: 16),
+            content,
+          ],
+        ),
       ),
     );
   }

@@ -52,6 +52,7 @@ class MandingLineChart extends StatelessWidget {
       return const Center(
         child: Text(
           'No manding data points recorded for this student in selected date range.',
+          textAlign: TextAlign.center,
           style: TextStyle(
               color: Color(0xFF6B7280), fontSize: 13, fontFamily: 'Poppins'),
         ),
@@ -305,12 +306,13 @@ class _AcquisitionChartPainter extends CustomPainter {
     final chartW = size.width - leftMargin;
     final chartH = size.height - bottomMargin - topMargin;
 
-    double maxVal = 10.0;
+    double maxVal = 4.0;
     for (final d in data) {
       final c = (d['count'] as num? ?? 0).toDouble();
       if (c > maxVal) maxVal = c;
     }
-    maxVal = (maxVal * 1.25).ceilToDouble();
+    // Round up to a multiple of the 4 grid steps so labels are whole numbers.
+    maxVal = ((maxVal * 1.25) / 4).ceilToDouble() * 4;
 
     final gridPaint = Paint()
       ..color = const Color(0xFFE5E7EB)
@@ -469,12 +471,13 @@ class _PbDurationChartPainter extends CustomPainter {
     final chartW = size.width - leftMargin;
     final chartH = size.height - bottomMargin - topMargin;
 
-    double maxVal = 35.0;
+    double maxVal = 5.0;
     for (final d in data) {
       final dur = (d['duration'] as num? ?? 0).toDouble();
       if (dur > maxVal) maxVal = dur;
     }
-    maxVal = (maxVal * 1.15).ceilToDouble();
+    // Round up to a multiple of the 7 grid steps so labels are whole numbers.
+    maxVal = ((maxVal * 1.15) / 7).ceilToDouble() * 7;
 
     final gridPaint = Paint()
       ..color = const Color(0xFFE2E8F0)
@@ -579,16 +582,38 @@ class _PbDurationChartPainter extends CustomPainter {
 // ══════════════════════════════════════════════════════════════════════════════
 // 4. MULTI-BEHAVIOR FREQUENCY LINE CHART (matches THERAPIST BRP-4.png)
 // ══════════════════════════════════════════════════════════════════════════════
+
+/// Line colours for the behaviours of the multi-behaviour chart, by index.
+const List<Color> pbBehaviorPalette = [
+  Color(0xFF2563EB),
+  Color(0xFFDC2626),
+  Color(0xFF16A34A),
+  Color(0xFF7C3AED),
+  Color(0xFF0891B2),
+  Color(0xFFEA580C),
+  Color(0xFF0284C7),
+  Color(0xFF991B1B),
+  Color(0xFF4D7C0F),
+];
+
+Color pbBehaviorColor(int index) =>
+    pbBehaviorPalette[index % pbBehaviorPalette.length];
+
+/// One line per entry of [behaviors]; each [data] point holds 'date' plus a
+/// count under each behaviour name.
 class PbMultiBehaviorLineChart extends StatelessWidget {
   final List<Map<String, dynamic>> data;
-  const PbMultiBehaviorLineChart({super.key, required this.data});
+  final List<String> behaviors;
+  const PbMultiBehaviorLineChart(
+      {super.key, required this.data, required this.behaviors});
 
   @override
   Widget build(BuildContext context) {
-    if (data.isEmpty) {
+    if (data.isEmpty || behaviors.isEmpty) {
       return const Center(
         child: Text(
-          'No multi-behavior incident frequencies recorded for this student.',
+          'No behaviour counts recorded for this student.',
+          textAlign: TextAlign.center,
           style: TextStyle(
               color: Color(0xFF6B7280), fontSize: 13, fontFamily: 'Poppins'),
         ),
@@ -599,7 +624,7 @@ class PbMultiBehaviorLineChart extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(16, 8, 24, 28),
       child: CustomPaint(
         size: Size.infinite,
-        painter: _PbMultiBehaviorChartPainter(data),
+        painter: _PbMultiBehaviorChartPainter(data, behaviors),
       ),
     );
   }
@@ -607,19 +632,8 @@ class PbMultiBehaviorLineChart extends StatelessWidget {
 
 class _PbMultiBehaviorChartPainter extends CustomPainter {
   final List<Map<String, dynamic>> data;
-  _PbMultiBehaviorChartPainter(this.data);
-
-  static final Map<String, Color> behaviorColors = {
-    'FLOP': const Color(0xFF2563EB),
-    'HIT': const Color(0xFFDC2626),
-    'KICK': const Color(0xFF16A34A),
-    'BOLT': const Color(0xFF7C3AED),
-    'GRAB': const Color(0xFF0891B2),
-    'CRYING': const Color(0xFFEA580C),
-    'WHINE': const Color(0xFF0284C7),
-    'Throwing': const Color(0xFF991B1B),
-    'Bite': const Color(0xFF4D7C0F),
-  };
+  final List<String> behaviors;
+  _PbMultiBehaviorChartPainter(this.data, this.behaviors);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -629,26 +643,28 @@ class _PbMultiBehaviorChartPainter extends CustomPainter {
     final chartW = size.width - leftMargin;
     final chartH = size.height - bottomMargin - topMargin;
 
-    double maxVal = 8.0;
+    double maxVal = 4.0;
     for (final d in data) {
-      for (final k in behaviorColors.keys) {
+      for (final k in behaviors) {
         final val = (d[k] as num? ?? 0).toDouble();
         if (val > maxVal) maxVal = val;
       }
     }
+    // Whole-number steps so every grid line has an integer label.
+    const int steps = 4;
+    maxVal = ((maxVal * 1.15) / steps).ceilToDouble() * steps;
 
     final gridPaint = Paint()
       ..color = const Color(0xFFE2E8F0)
       ..strokeWidth = 1;
     final textPainter = TextPainter(textDirection: TextDirection.ltr);
 
-    const int steps = 8;
     for (int i = 0; i <= steps; i++) {
       final y = topMargin + chartH - (i / steps) * chartH;
       canvas.drawLine(Offset(leftMargin, y), Offset(size.width, y), gridPaint);
 
       textPainter.text = TextSpan(
-        text: '$i',
+        text: '${(maxVal / steps * i).round()}',
         style: const TextStyle(fontSize: 9.5, color: Color(0xFF64748B)),
       );
       textPainter.layout();
@@ -680,19 +696,10 @@ class _PbMultiBehaviorChartPainter extends CustomPainter {
       canvas.restore();
     }
 
-    // Draw lines for each behavior that has non-zero data
-    for (final entry in behaviorColors.entries) {
-      final bName = entry.key;
-      final color = entry.value;
-
-      bool hasData = false;
-      for (final d in data) {
-        if ((d[bName] as num? ?? 0) > 0) {
-          hasData = true;
-          break;
-        }
-      }
-      if (!hasData) continue;
+    // One line per behaviour, coloured by its index in [behaviors].
+    for (int b = 0; b < behaviors.length; b++) {
+      final bName = behaviors[b];
+      final color = pbBehaviorColor(b);
 
       final linePaint = Paint()
         ..color = color

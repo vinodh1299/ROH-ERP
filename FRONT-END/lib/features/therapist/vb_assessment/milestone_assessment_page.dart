@@ -24,64 +24,60 @@ class _MilestoneAssessmentPageState extends State<MilestoneAssessmentPage> {
   int _activeMilestoneGraphLevel = 1;
   List<Map<String, dynamic>> _milestoneRecords = [];
 
-  final Map<String, bool> _toggles = {};
+  /// Milestone scores being edited: "<domain>_score|<milestone>" → ½ or 1.
+  final Map<String, double> _scores = {};
   bool _saving = false;
-  // The saved record for this test has domain scores but no per-item answers
-  // (e.g. entered before item answers were stored), so toggles can't be shown.
-  bool _scoresOnly = false;
+  // The saved record for this test has only domain totals (no per-milestone
+  // scores), so the milestones shown are spread from those totals.
+  bool _derivedFromTotals = false;
 
   int get _testNumber => int.tryParse(_selectedAssessment.split(' ').last) ?? 1;
 
-  /// Fills the toggles (and level) from the newest saved record for the
-  /// selected test, or clears them when that test has not been saved yet.
+  String _scoreKey(String column, int milestone) => '$column|$milestone';
+
+  double _scoreOf(String column, int milestone) =>
+      _scores[_scoreKey(column, milestone)] ?? 0;
+
+  /// Fills the milestone scores (and level) from the newest saved record for
+  /// the selected test, or clears them when that test has not been saved yet.
   void _prefillForTest() {
-    _toggles.clear();
-    _scoresOnly = false;
+    _scores.clear();
+    _derivedFromTotals = false;
     final record = newestRecordForTest(_milestoneRecords, _testNumber);
     if (record == null) return;
-    final items = jsonColumnMap(jsonColumnMap(record['scores_detail'])['items']);
-    items.forEach((key, value) => _toggles[key] = value == true);
-    final level = (record['level'] ?? '').toString();
-    _selectedLevel = level == 'Comprehensive'
-        ? 4
-        : (int.tryParse(level.replaceAll(RegExp(r'[^0-9]'), '')) ?? 1);
-    _scoresOnly = items.isEmpty &&
-        record.entries.any((e) =>
-            e.key.endsWith('_score') &&
-            e.key != 'max_score' &&
-            (double.tryParse(e.value?.toString() ?? '') ?? 0) > 0);
-  }
-
-  // Each task card is one milestone; its toggle-key prefix says which domain
-  // score column it counts towards.
-  static const Map<String, String> _milestoneDomains = {
-    'l1_tact': 'tacting_score',
-    'l1_lr': 'listener_score',
-    'l2_mand': 'manding_score',
-    'l2_tact': 'tacting_score',
-    'l3_mand': 'manding_score',
-    'l3_tact': 'tacting_score',
-    'l4_iv': 'intraverbal_score',
-  };
-
-  /// A milestone scores 1 when both list items are achieved, 1/2 for one.
-  double _milestoneScore(String prefix) {
-    final yes = [1, 2].where((i) => _toggles['${prefix}_$i'] ?? false).length;
-    return yes / 2;
-  }
-
-  /// Domain score = number of milestones achieved in that domain, which is
-  /// what the milestone matrix graph plots (cells 1..score are filled).
-  Map<String, double> _domainScores() {
-    final scores = <String, double>{};
-    _milestoneDomains.forEach((prefix, column) {
-      scores[column] = (scores[column] ?? 0) + _milestoneScore(prefix);
+    milestoneScoresOf(record).forEach((column, items) {
+      items.forEach((n, v) => _scores[_scoreKey(column, n)] = v);
     });
-    return scores;
+    final level = int.tryParse(
+            (record['level'] ?? '').toString().replaceAll(RegExp(r'[^0-9]'), ''));
+    _selectedLevel = (level ?? 1).clamp(1, 3);
+    _derivedFromTotals = !hasMilestoneDetail(record) && _scores.isNotEmpty;
   }
+
+  /// Domain score = sum of that domain's milestone scores (max 5 per level).
+  Map<String, double> _domainScores() => {
+        for (final column in milestoneScoreColumns)
+          column: [
+            for (int n = 1; n <= 15; n++) _scoreOf(column, n),
+          ].fold(0.0, (sum, v) => sum + v),
+      };
 
   double get _totalScore =>
       _domainScores().values.fold(0.0, (sum, v) => sum + v);
+
+  double _levelScore(int level) => [
+        for (final c in milestoneLevelColumns[level]!)
+          for (final n in milestoneNumbers(level))
+            _scoreOf(milestoneScoreColumn(c)!, n),
+      ].fold(0.0, (sum, v) => sum + v);
+
+  /// Highest level with any milestone scored (the level saved on the record).
+  int get _highestScoredLevel {
+    for (int level = 3; level >= 1; level--) {
+      if (_levelScore(level) > 0) return level;
+    }
+    return _selectedLevel;
+  }
 
   String _formatScore(double v) =>
       v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(1);
@@ -90,22 +86,22 @@ class _MilestoneAssessmentPageState extends State<MilestoneAssessmentPage> {
     final studentId = _selectedStudentId;
     if (studentId == null || _saving) return;
     setState(() => _saving = true);
-    final scores = _domainScores();
+    final milestoneScores = <String, Map<String, double>>{};
+    _scores.forEach((key, v) {
+      if (v <= 0) return;
+      final parts = key.split('|');
+      (milestoneScores[parts[0]] ??= {})[parts[1]] = v;
+    });
     final ok = await MilestoneAssessmentQueries.save({
       'student_id': studentId,
       'test_number': _testNumber,
-      'level': _selectedLevel <= 3 ? 'Level $_selectedLevel' : 'Comprehensive',
+      'level': 'Level $_highestScoredLevel',
       'assessment_date': assessmentDateFor(
           newestRecordForTest(_milestoneRecords, _testNumber)),
       'total_score': _totalScore,
-      ...scores,
-      'scores_detail': {
-        'items': Map<String, bool>.from(_toggles),
-        'milestones': {
-          for (final prefix in _milestoneDomains.keys)
-            prefix: _milestoneScore(prefix),
-        },
-      },
+      'max_score': 170,
+      ..._domainScores(),
+      'scores_detail': {'milestone_scores': milestoneScores},
     });
     if (!mounted) return;
     setState(() => _saving = false);
@@ -121,14 +117,14 @@ class _MilestoneAssessmentPageState extends State<MilestoneAssessmentPage> {
     }
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-          content:
-              Text('Milestone Assessment Level $_selectedLevel Saved Successfully!')),
+          content: Text(
+              'Milestone $_selectedAssessment saved (total ${_formatScore(_totalScore)} / 170).')),
     );
     await _loadMilestoneData();
     if (!mounted) return;
     setState(() {
       _activeTab = 1;
-      if (_selectedLevel <= 3) _activeMilestoneGraphLevel = _selectedLevel;
+      _activeMilestoneGraphLevel = _selectedLevel;
     });
   }
 
@@ -157,49 +153,6 @@ class _MilestoneAssessmentPageState extends State<MilestoneAssessmentPage> {
     } catch (_) {}
   }
 
-  final List<String> _level1Columns = [
-    'Mand',
-    'Tact',
-    'Listener',
-    'VP/ MTS',
-    'Play',
-    'Social',
-    'Imitation',
-    'Echoic',
-    'Vocal'
-  ];
-
-  final List<String> _level2Columns = [
-    'Mand',
-    'Tact',
-    'Listener',
-    'VP/ MTS',
-    'Play',
-    'Social',
-    'Imitation',
-    'Echoic',
-    'LRFFC',
-    'Intraverbal',
-    'Group',
-    'Linguistics'
-  ];
-
-  final List<String> _level3Columns = [
-    'Mand',
-    'Tact',
-    'Listener',
-    'VP/ MTS',
-    'Play',
-    'Social',
-    'Reading',
-    'LRFFC',
-    'writing',
-    'Intraverbal',
-    'Group',
-    'Linguistics',
-    'Math'
-  ];
-
   @override
   Widget build(BuildContext context) {
     if (_selectedStudent == null) {
@@ -211,7 +164,7 @@ class _MilestoneAssessmentPageState extends State<MilestoneAssessmentPage> {
             _selectedStudent = student;
             _selectedStudentId = studentId ?? _resolveStudentId(student);
             _activeTab = 0;
-            _toggles.clear();
+            _scores.clear();
             _milestoneRecords = [];
             _selectedAssessment = 'Assessment 1';
             _selectedLevel = 1;
@@ -320,7 +273,7 @@ class _MilestoneAssessmentPageState extends State<MilestoneAssessmentPage> {
   }
 
   // ==========================================
-  // ASSESSMENT TAB (LEVEL 1 - 4)
+  // ASSESSMENT TAB (LEVELS 1 - 3)
   // ==========================================
   Widget _buildAssessmentTab() {
     return Column(
@@ -329,6 +282,7 @@ class _MilestoneAssessmentPageState extends State<MilestoneAssessmentPage> {
         // Student Assessment Banner
         StudentAssessmentBanner(
           studentName: _selectedStudent ?? 'Student',
+          records: _milestoneRecords,
         ),
         const SizedBox(height: 20),
 
@@ -387,19 +341,16 @@ class _MilestoneAssessmentPageState extends State<MilestoneAssessmentPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (_scoresOnly) ...[
+              if (_derivedFromTotals) ...[
                 const Text(
-                  'This test was saved as domain scores only, so its item answers '
-                  'can\'t be shown. Saving it again replaces those scores with the '
-                  'items marked below.',
+                  'This test was saved as domain totals only, so its milestones '
+                  'are shown filled in order from those totals. Check them '
+                  'before saving again.',
                   style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
                 ),
                 const SizedBox(height: 16),
               ],
-              if (_selectedLevel == 1) ..._buildLevel1Tasks(),
-              if (_selectedLevel == 2) ..._buildLevel2Tasks(),
-              if (_selectedLevel == 3) ..._buildLevel3Tasks(),
-              if (_selectedLevel >= 4) ..._buildLevel4Tasks(),
+              ..._buildLevelMilestones(),
 
               const SizedBox(height: 24),
               // Action Buttons
@@ -485,9 +436,21 @@ class _MilestoneAssessmentPageState extends State<MilestoneAssessmentPage> {
   Widget _buildAddSessionButton() {
     return InkWell(
       onTap: () {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('New assessment session added')),
-        );
+        final next = [1, 2, 3, 4].firstWhere(
+            (t) => newestRecordForTest(_milestoneRecords, t) == null,
+            orElse: () => 0);
+        if (next == 0) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+                content: Text(
+                    'All 4 assessments are recorded; pick one to edit it.')),
+          );
+          return;
+        }
+        setState(() {
+          _selectedAssessment = 'Assessment $next';
+          _prefillForTest();
+        });
       },
       borderRadius: BorderRadius.circular(8),
       child: Container(
@@ -502,7 +465,7 @@ class _MilestoneAssessmentPageState extends State<MilestoneAssessmentPage> {
           children: [
             Icon(Icons.add, size: 16, color: AppColors.primary),
             SizedBox(width: 4),
-            Text('+ Add',
+            Text('New',
                 style: TextStyle(
                     color: AppColors.primary,
                     fontWeight: FontWeight.bold,
@@ -525,7 +488,7 @@ class _MilestoneAssessmentPageState extends State<MilestoneAssessmentPage> {
           value: _selectedLevel,
           isDense: true,
           icon: const Icon(Icons.keyboard_arrow_down, color: AppColors.primary),
-          items: List.generate(7, (index) => index + 1).map((lvl) {
+          items: [1, 2, 3].map((lvl) {
             return DropdownMenuItem(
               value: lvl,
               child: Text('Level $lvl',
@@ -543,7 +506,7 @@ class _MilestoneAssessmentPageState extends State<MilestoneAssessmentPage> {
     );
   }
 
-  // Total Score: 5.5 Badge
+  // Total score of the test being edited (max 170)
   Widget _buildTotalScoreBadge() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
@@ -582,307 +545,149 @@ class _MilestoneAssessmentPageState extends State<MilestoneAssessmentPage> {
     );
   }
 
-  // Level 1 Tasks (TACT + LISTENER RESPONDING)
-  List<Widget> _buildLevel1Tasks() {
+  /// The selected level's domains, each with its 5 milestones scored 0/½/1.
+  List<Widget> _buildLevelMilestones() {
+    final level = _selectedLevel;
+    final numbers = milestoneNumbers(level);
+    final columns = milestoneLevelColumns[level]!;
     return [
-      _buildCategoryBadge('TACT'),
-      const SizedBox(height: 16),
-      _buildMilestoneTaskCard(
-        title: 'Tacts people, pets, characters, or favorite objects',
-        zeroCriteria: 'Does not tact',
-        halfCriteria:
-            'Tact 1 nonverbal stimulus, but not if he calls everything by the same name',
-        oneCriteria: 'Tacts any 2 items 1',
-        item1: 'Item 1: Mom / Dad',
-        item1Key: 'l1_tact_1',
-        item2: 'Item 2: Ball / Car',
-        item2Key: 'l1_tact_2',
-      ),
-      const SizedBox(height: 24),
-      _buildCategoryBadge('LISTENER RESPONDING'),
-      const SizedBox(height: 16),
-      _buildMilestoneTaskCard(
-        title: 'Attends to a speaker\'s voice by orienting toward the speaker',
-        zeroCriteria: 'Does not attend to speaker',
-        halfCriteria: 'Attends occasionally when name is called',
-        oneCriteria: 'Consistently orients toward speaker in 5 trials',
-        item1: 'Item 1: Turn to speaker voice',
-        item1Key: 'l1_lr_1',
-        item2: 'Item 2: Turn to own name',
-        item2Key: 'l1_lr_2',
-      ),
-    ];
-  }
-
-  // Level 2 Tasks (MAND + TACT)
-  List<Widget> _buildLevel2Tasks() {
-    return [
-      _buildCategoryBadge('MAND'),
-      const SizedBox(height: 16),
-      _buildMilestoneTaskCard(
-        title: 'Mands 20 different missing items without prompts',
-        zeroCriteria: 'Does not mand for missing items',
-        halfCriteria: 'Mands for 10 missing items with minimal prompts',
-        oneCriteria:
-            'Mands 20 different missing items without prompts (e.g. shoe/sock)',
-        item1: 'Item 1: Shoe / Sock',
-        item1Key: 'l2_mand_1',
-        item2: 'Item 2: Paper / Crayon',
-        item2Key: 'l2_mand_2',
-      ),
-      const SizedBox(height: 24),
-      _buildCategoryBadge('TACT'),
-      const SizedBox(height: 16),
-      _buildMilestoneTaskCard(
-        title:
-            'Tacts 20 actions when asked, for example, what am I doing? jumping',
-        zeroCriteria: 'Does not tact actions',
-        halfCriteria: 'Tacts 10 actions with prompt',
-        oneCriteria: 'Tacts 20 actions independently',
-        item1: 'Item 1: Jumping / Clapping',
-        item1Key: 'l2_tact_1',
-        item2: 'Item 2: Running / Sleeping',
-        item2Key: 'l2_tact_2',
-      ),
-    ];
-  }
-
-  // Level 3 Tasks (MAND + TACT)
-  List<Widget> _buildLevel3Tasks() {
-    return [
-      _buildCategoryBadge('MAND'),
-      const SizedBox(height: 16),
-      _buildMilestoneTaskCard(
-        title:
-            'Mands for others to emit 5 different actions or directions necessary to participate in an activity',
-        zeroCriteria: 'Does not mand for others\' actions',
-        halfCriteria: 'Mands for 2 actions with verbal prompt',
-        oneCriteria:
-            'Mands for others to emit 5 actions independently (e.g. open door, push me)',
-        item1: 'Item 1: Open door / Push swing',
-        item1Key: 'l3_mand_1',
-        item2: 'Item 2: Spin wheel / Help carry',
-        item2Key: 'l3_mand_2',
-      ),
-      const SizedBox(height: 24),
-      _buildCategoryBadge('TACT'),
-      const SizedBox(height: 16),
-      _buildMilestoneTaskCard(
-        title: 'Tacts 200 nouns and verbs across multiple exemplars',
-        zeroCriteria: 'Tacts fewer than 50 nouns/verbs',
-        halfCriteria: 'Tacts 100 nouns/verbs across pictures and objects',
-        oneCriteria:
-            'Tacts 200 nouns and verbs generalized across natural settings',
-        item1: 'Item 1: Ball / Bouncing / Rolling',
-        item1Key: 'l3_tact_1',
-        item2: 'Item 2: Car / Driving / Washing',
-        item2Key: 'l3_tact_2',
-      ),
-    ];
-  }
-
-  // Level 4+ Tasks
-  List<Widget> _buildLevel4Tasks() {
-    return [
-      _buildCategoryBadge('INTRAVERBAL'),
-      const SizedBox(height: 16),
-      _buildMilestoneTaskCard(
-        title:
-            'Answers 25 different questions containing who, what, where, or why',
-        zeroCriteria: 'Answers fewer than 5 WH questions',
-        halfCriteria: 'Answers 10-15 WH questions with partial prompts',
-        oneCriteria: 'Answers 25 different WH questions independently',
-        item1: 'Item 1: What do you wear on feet? (Shoes)',
-        item1Key: 'l4_iv_1',
-        item2: 'Item 2: Where do you sleep? (Bed)',
-        item2Key: 'l4_iv_2',
-      ),
-    ];
-  }
-
-  Widget _buildCategoryBadge(String label) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-      decoration: BoxDecoration(
-        color: AppColors.primary,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(
-        label,
+      Text(
+        'Level $level · milestones ${numbers.first}–${numbers.last} · '
+        'score each milestone 0, ½ or 1 · level subtotal '
+        '${_formatScore(_levelScore(level))} / ${columns.length * 5}',
         style: const TextStyle(
-          color: Colors.white,
-          fontWeight: FontWeight.bold,
-          fontSize: 13,
-          fontFamily: 'Poppins',
-        ),
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: AppColors.textPrimary),
       ),
-    );
+      const SizedBox(height: 14),
+      LayoutBuilder(
+        builder: (context, constraints) {
+          final perRow = constraints.maxWidth >= 900
+              ? 3
+              : (constraints.maxWidth >= 560 ? 2 : 1);
+          final width = (constraints.maxWidth - (perRow - 1) * 12) / perRow;
+          return Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: [
+              for (final domain in columns)
+                SizedBox(width: width, child: _buildDomainCard(domain, level)),
+            ],
+          );
+        },
+      ),
+    ];
   }
 
-  Widget _buildMilestoneTaskCard({
-    required String title,
-    required String zeroCriteria,
-    required String halfCriteria,
-    required String oneCriteria,
-    required String item1,
-    required String item1Key,
-    required String item2,
-    required String item2Key,
-  }) {
+  Widget _buildDomainCard(String domain, int level) {
+    final column = milestoneScoreColumn(domain)!;
+    final subtotal = milestoneNumbers(level)
+        .fold(0.0, (sum, n) => sum + _scoreOf(column, n));
     return Container(
-      width: double.infinity,
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFFE5E7EB).withValues(alpha: 0.6),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.divider),
       ),
-      padding: EdgeInsets.all(Breakpoints.isCompact(context) ? 12 : 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            title,
-            style: const TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.bold,
-                color: AppColors.textPrimary,
-                fontFamily: 'Poppins'),
-          ),
-          const SizedBox(height: 12),
-          // Scoring criteria table
-          Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: const Color(0xFFE5D5F5)),
-            ),
-            child: Table(
-              columnWidths: const {
-                0: FixedColumnWidth(60),
-                1: FlexColumnWidth(),
-              },
-              border: const TableBorder(
-                horizontalInside:
-                    BorderSide(color: Color(0xFFE5D5F5), width: 1),
-                verticalInside: BorderSide(color: Color(0xFFE5D5F5), width: 1),
-              ),
-              children: [
-                _buildCriteriaRow('0', zeroCriteria),
-                _buildCriteriaRow('1/2', halfCriteria),
-                _buildCriteriaRow('1', oneCriteria),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-
-          // List Items header
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('List Items',
-                  style: TextStyle(
+              Expanded(
+                child: Text(
+                  domain.replaceAll('/ ', '/'),
+                  style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.primary,
+                      fontFamily: 'Poppins'),
+                ),
+              ),
+              Text('${_formatScore(subtotal)} / 5',
+                  style: const TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
                       color: AppColors.textSecondary)),
-              TextButton.icon(
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                        content: Text('Item added to assessment task')),
-                  );
-                },
-                icon: const Icon(Icons.add, size: 16, color: AppColors.primary),
-                label: const Text('Add',
-                    style: TextStyle(
-                        fontSize: 12,
-                        color: AppColors.primary,
-                        fontWeight: FontWeight.bold)),
-              ),
             ],
           ),
-          const SizedBox(height: 6),
-
-          // Interactive items with switches
-          _buildItemRow(item1, item1Key),
           const SizedBox(height: 8),
-          _buildItemRow(item2, item2Key),
+          for (final n in milestoneNumbers(level))
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 3),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text('Milestone $n',
+                        style: const TextStyle(
+                            fontSize: 13, color: AppColors.textPrimary)),
+                  ),
+                  _buildScoreSelector(column, n),
+                ],
+              ),
+            ),
         ],
       ),
     );
   }
 
-  TableRow _buildCriteriaRow(String score, String desc) {
-    return TableRow(
-      children: [
-        Padding(
-          padding: const EdgeInsets.all(8.0),
-          child: Text(score,
-              textAlign: TextAlign.center,
-              style:
-                  const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-        ),
-        Padding(
-          padding: const EdgeInsets.all(8.0),
-          child: Text(desc,
-              style:
-                  const TextStyle(fontSize: 12, color: AppColors.textPrimary)),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildItemRow(String label, String toggleKey) {
-    final isYes = _toggles[toggleKey] ?? false;
+  /// 0 | ½ | 1 selector for one milestone.
+  Widget _buildScoreSelector(String column, int milestone) {
+    final current = _scoreOf(column, milestone);
+    final compact = Breakpoints.isCompact(context);
     return Container(
-      constraints: const BoxConstraints(minHeight: 40),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.divider),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.primary, width: 1.2),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Expanded(
-            child: Text(
-              label,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style:
-                  const TextStyle(fontSize: 13, color: AppColors.textPrimary),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                isYes ? 'Yes' : 'No',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  color: isYes ? const Color(0xFF10B981) : Colors.red,
+          for (final option in const [0.0, 0.5, 1.0])
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => setState(() {
+                final key = _scoreKey(column, milestone);
+                if (option == 0) {
+                  _scores.remove(key);
+                } else {
+                  _scores[key] = option;
+                }
+              }),
+              child: Container(
+                width: compact ? 40 : 34,
+                padding: EdgeInsets.symmetric(vertical: compact ? 8 : 4),
+                decoration: BoxDecoration(
+                  color: current == option
+                      ? (option == 0 ? AppColors.textSecondary : AppColors.primary)
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.horizontal(
+                    left: Radius.circular(option == 0 ? 15 : 0),
+                    right: Radius.circular(option == 1 ? 15 : 0),
+                  ),
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  option == 0 ? '0' : (option == 0.5 ? '½' : '1'),
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: current == option
+                        ? Colors.white
+                        : AppColors.textPrimary,
+                  ),
                 ),
               ),
-              const SizedBox(width: 8),
-              Switch(
-                value: isYes,
-                activeThumbColor: const Color(0xFF10B981),
-                inactiveThumbColor: Colors.red,
-                inactiveTrackColor: Colors.red.shade100,
-                onChanged: (val) {
-                  setState(() => _toggles[toggleKey] = val);
-                },
-              ),
-            ],
-          ),
+            ),
         ],
       ),
     );
   }
 
   // ==========================================
-  // GRAPH TAB (LEVEL 5, LEVEL 6, LEVEL 7)
+  // GRAPH TAB (LEVELS 1 - 3)
   // ==========================================
   Widget _buildGraphTab() {
     return Column(
@@ -891,7 +696,7 @@ class _MilestoneAssessmentPageState extends State<MilestoneAssessmentPage> {
         // Student Assessment Banner with Key Table
         StudentAssessmentBanner(
           studentName: _selectedStudent ?? 'Student',
-          rightContent: _buildBannerKeyTable(),
+          records: _milestoneRecords,
         ),
         const SizedBox(height: 20),
 
@@ -910,13 +715,13 @@ class _MilestoneAssessmentPageState extends State<MilestoneAssessmentPage> {
         // Milestone Matrix Grid
         if (_activeMilestoneGraphLevel == 1)
           _buildMilestoneMatrixCard(
-              'Level 1 Milestone Matrix', _level1Columns, 5, 1)
+              'Level 1 Milestone Matrix', milestoneLevelColumns[1]!, 5, 1)
         else if (_activeMilestoneGraphLevel == 2)
           _buildMilestoneMatrixCard(
-              'Level 2 Milestone Matrix', _level2Columns, 10, 6)
+              'Level 2 Milestone Matrix', milestoneLevelColumns[2]!, 10, 6)
         else
           _buildMilestoneMatrixCard(
-              'Level 3 Milestone Matrix', _level3Columns, 15, 11),
+              'Level 3 Milestone Matrix', milestoneLevelColumns[3]!, 15, 11),
       ],
     );
   }
@@ -937,93 +742,6 @@ class _MilestoneAssessmentPageState extends State<MilestoneAssessmentPage> {
         title,
         style: const TextStyle(
             fontWeight: FontWeight.bold, fontSize: 13, fontFamily: 'Poppins'),
-      ),
-    );
-  }
-
-  Widget _buildBannerKeyTable() {
-    String t1Date = '—', t1Tester = '—';
-    String t2Date = '—', t2Tester = '—';
-    String t3Date = '—', t3Tester = '—';
-    String t4Date = '—', t4Tester = '—';
-
-    for (final m in _milestoneRecords) {
-      final tNum = int.tryParse(m['test_number']?.toString() ?? '1') ?? 1;
-      final d = (m['assessment_date'] ?? '').toString().split('T')[0];
-      const tName = 'Ms. Priya';
-      if (tNum == 1) {
-        t1Date = d;
-        t1Tester = tName;
-      } else if (tNum == 2) {
-        t2Date = d;
-        t2Tester = tName;
-      } else if (tNum == 3) {
-        t3Date = d;
-        t3Tester = tName;
-      } else if (tNum == 4) {
-        t4Date = d;
-        t4Tester = tName;
-      }
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Row(
-            children: [
-              Text('Key',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
-              SizedBox(width: 32),
-              Text('Date',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
-              SizedBox(width: 32),
-              Text('Tester',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
-            ],
-          ),
-          const SizedBox(height: 4),
-          _buildKeyRow('1st Test', const Color(0xFFFBBF24), t1Date, t1Tester),
-          _buildKeyRow('2nd Test', const Color(0xFFF97316), t2Date, t2Tester),
-          _buildKeyRow('3rd Test', const Color(0xFF10B981), t3Date, t3Tester),
-          _buildKeyRow('4th Test', const Color(0xFF3B82F6), t4Date, t4Tester),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildKeyRow(String label, Color color, String date, String tester) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2.0),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-              width: 12,
-              height: 12,
-              decoration: BoxDecoration(
-                  color: color, borderRadius: BorderRadius.circular(2))),
-          const SizedBox(width: 6),
-          SizedBox(
-              width: 50,
-              child: Text(label,
-                  style: const TextStyle(
-                      fontSize: 10, fontWeight: FontWeight.w600))),
-          const SizedBox(width: 8),
-          SizedBox(
-              width: 65,
-              child: Text(date, style: const TextStyle(fontSize: 10))),
-          const SizedBox(width: 8),
-          SizedBox(
-              width: 45,
-              child: Text(tester, style: const TextStyle(fontSize: 10))),
-        ],
       ),
     );
   }

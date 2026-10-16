@@ -83,7 +83,8 @@ function dailyRows(profile) {
   const sessions = 10;
 
   for (let i = 0; i < sessions; i++) {
-    const date = day(-21 + i * 2);
+    // Spread over ~5 months so monthly graphs have history.
+    const date = day(-150 + i * 16);
     const progress = i / (sessions - 1); // 0 → 1
     const completed = 16 + Math.round(progress * 8);
     const successful = Math.min(completed, Math.round(completed * (profile.start + progress * (profile.end - profile.start))));
@@ -104,19 +105,61 @@ function dailyRows(profile) {
   return rows;
 }
 
-// VB-MAPP milestone scores are cumulative milestone numbers per domain (0-15)
+// VB-MAPP milestones: each scores 0, ½ or 1. Level 1 = milestones 1-5 of its
+// 9 domains, Level 2 = 6-10 (12 domains), Level 3 = 11-15. A domain score is
+// the sum of its milestones (max 5 per level); scores_detail.milestone_scores
+// holds the per-milestone values the app's form and matrix read.
+const MILESTONE_LEVELS = {
+  1: ['manding', 'tacting', 'listener', 'vp_mts', 'play', 'social', 'imitation', 'echoic', 'vocal'],
+  2: ['manding', 'tacting', 'listener', 'vp_mts', 'play', 'social', 'imitation', 'echoic', 'lrffc', 'intraverbal', 'group', 'linguistic'],
+};
+const MILESTONE_DOMAINS = [...new Set(Object.values(MILESTONE_LEVELS).flat())];
+
 function milestoneTests(base) {
-  const domains = ['manding', 'tacting', 'listener', 'echoic', 'vocal', 'vp_mts', 'play', 'social', 'imitation', 'lrffc', 'intraverbal', 'group', 'linguistic'];
   return [0, 1, 2].map(t => {
-    const scores = {};
-    domains.forEach((d, idx) => {
-      const lvl1 = ['manding', 'tacting', 'listener', 'echoic', 'vocal', 'vp_mts', 'play', 'social', 'imitation'].includes(d);
-      const start = lvl1 ? base + (idx % 3) : 0;
-      scores[d] = Math.min(lvl1 ? 10 : 7, start + t * (lvl1 ? 2 + (idx % 2) : 2) + (lvl1 ? 0 : (t > 0 ? 4 : 0)));
+    const detail = {};
+    const scores = Object.fromEntries(MILESTONE_DOMAINS.map(d => [d, 0]));
+    const award = (domain, n, value) => {
+      (detail[`${domain}_score`] ??= {})[String(n)] = value;
+      scores[domain] += value;
+    };
+    // Level 1: base..5 milestones met, growing by one per test, with a half on the next one.
+    MILESTONE_LEVELS[1].forEach((d, idx) => {
+      const met = Math.min(5, base + t + (idx % 2));
+      for (let n = 1; n <= met; n++) award(d, n, 1);
+      if (met < 5 && (idx + t) % 3 === 0) award(d, met + 1, 0.5);
     });
+    // Level 2: only once Level 1 is mostly complete (later tests, stronger students).
+    if (base + t >= 4) {
+      MILESTONE_LEVELS[2].forEach((d, idx) => {
+        if (!MILESTONE_LEVELS[1].includes(d) || scores[d] < 5) return;
+        const met = Math.min(5, (base + t - 4) + (idx % 2));
+        for (let n = 6; n < 6 + met; n++) award(d, n, 1);
+        if (met < 5) award(d, 6 + met, 0.5);
+      });
+    }
     const total = Object.values(scores).reduce((a, b) => a + b, 0);
-    return { test_number: t + 1, date: day(-90 + t * 40), level: t < 2 ? 'Level 1' : 'Level 2', total, scores };
+    const level = Object.keys(detail).some(c => Object.keys(detail[c]).some(n => Number(n) > 5)) ? 'Level 2' : 'Level 1';
+    return { test_number: t + 1, date: day(-120 + t * 50), level, total, scores, detail };
   });
+}
+
+// EESA items as listed on the app's EES page (group 1: 25 items, group 2: 16).
+const EESA_GROUP1 = ['ah', 'ee', 'oo', 'oh', 'ay', 'm', 'b', 'p', 'w', 'h', 'mama', 'bye', 'uh-oh', 'baby', 'pup', 'moo',
+  'neigh', 'night', 'hi', 'me', 'cookie', 'bubble', 'open', 'bottle', 'happy'];
+const EESA_GROUP2 = ['no-no', 'dada', 'kitty', 'ball', 'go', 'eat', 'shoe', 'car', 'up', 'hot', 'two', 'key', 'see', 'light',
+  'cup', 'boat'];
+
+// Yes = 1, Half = ½, No = 0 for the first items, so scores match the responses.
+function eesaResponses(items, yes, half) {
+  const answers = {};
+  let score = 0;
+  items.forEach((word, i) => {
+    const answer = i < yes ? 'Yes' : (i < yes + half ? 'Half' : 'No');
+    answers[word] = answer;
+    score += answer === 'Yes' ? 1 : (answer === 'Half' ? 0.5 : 0);
+  });
+  return { answers, score };
 }
 
 const BARRIERS = ['Behaviour Problems', 'Instructional Control', 'Impaired Mand', 'Impaired Tact', 'Impaired Imitation',
@@ -151,15 +194,20 @@ async function seedStudent(db, s, therapistId, directorId) {
     );
   }
 
-  for (const t of milestoneTests(s.profile.milestoneBase)) {
+  const milestones = milestoneTests(s.profile.milestoneBase);
+  // IEP domain scores are the VB-MAPP milestone scores of the test the plan was written from.
+  const iepScores = t => [t.scores.manding, t.scores.tacting, t.scores.listener, t.scores.echoic, t.scores.lrffc]
+    .map(v => Math.round(v));
+  for (const t of milestones) {
     const sc = t.scores;
     await db.query(
       `INSERT INTO milestone_assessments (student_id, therapist_id, test_number, level, assessment_date, total_score, max_score,
          manding_score, tacting_score, listener_score, echoic_score, vocal_score, vp_mts_score, play_score, social_score, imitation_score,
          lrffc_score, intraverbal_score, group_score, linguistic_score, scores_detail, therapist_notes)
-       VALUES (?, ?, ?, ?, ?, ?, 170, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '{}', ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, 170, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [id, therapistId, t.test_number, t.level, t.date, t.total, sc.manding, sc.tacting, sc.listener, sc.echoic, sc.vocal,
         sc.vp_mts, sc.play, sc.social, sc.imitation, sc.lrffc, sc.intraverbal, sc.group, sc.linguistic,
+        JSON.stringify({ milestone_scores: t.detail }),
         ['Baseline assessment', 'Mid-term progress assessment', 'Quarterly re-assessment'][t.test_number - 1]]
     );
   }
@@ -189,12 +237,13 @@ async function seedStudent(db, s, therapistId, directorId) {
   }
 
   for (const t of [1, 2]) {
-    const g1 = 18 + t * 12 + s.profile.seed * 2;
-    const g2 = 10 + t * 8 + s.profile.seed;
+    const g1 = eesaResponses(EESA_GROUP1, Math.min(23, 8 + t * 6 + s.profile.seed * 2), 2);
+    const g2 = eesaResponses(EESA_GROUP2, Math.min(14, 3 + t * 4 + s.profile.seed), 2);
     await db.query(
       `INSERT INTO eesa_assessments (student_id, therapist_id, test_number, assessment_date, group1_score, group2_score, total_score, responses, therapist_notes)
-       VALUES (?, ?, ?, ?, ?, ?, ?, '{}', ?)`,
-      [id, therapistId, t, day(t === 1 ? -80 : -12), g1, g2, g1 + g2, t === 1 ? 'Baseline EESA' : 'EESA re-assessment']
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [id, therapistId, t, day(t === 1 ? -80 : -12), g1.score, g2.score, g1.score + g2.score,
+        JSON.stringify({ group1: g1.answers, group2: g2.answers }), t === 1 ? 'Baseline EESA' : 'EESA re-assessment']
     );
   }
 
@@ -222,13 +271,13 @@ async function seedStudent(db, s, therapistId, directorId) {
     `INSERT INTO iep_reports (student_id, therapist_id, title, cycle_term, status, manding_score, tacting_score, listener_score, echoic_score, lrffc_score,
        goals_summary, director_notes, director_signed_by, director_signed_at)
      VALUES (?, ?, ?, 'Q3 2026 Treatment Plan', 'Active', ?, ?, ?, ?, ?, ?, 'Approved. Continue current prompt-fading plan.', ?, NOW())`,
-    [id, therapistId, `${s.first} — Q3 IEP`, 60, 55, 50, 58, 40,
+    [id, therapistId, `${s.first} — Q3 IEP`, ...iepScores(milestones[1]),
       'Increase independent 2-word mands to 80%; reduce problem behaviour duration by 50%; generalise tacting across 3 settings.', directorId]
   );
   await db.query(
     `INSERT INTO iep_reports (student_id, therapist_id, title, cycle_term, status, manding_score, tacting_score, listener_score, echoic_score, lrffc_score, goals_summary)
      VALUES (?, ?, ?, 'Q4 2026 Treatment Plan', 'Pending Approval', ?, ?, ?, ?, ?, ?)`,
-    [id, therapistId, `${s.first} — Q4 IEP draft`, 75, 70, 66, 72, 55,
+    [id, therapistId, `${s.first} — Q4 IEP draft`, ...iepScores(milestones[2]),
       'Introduce intraverbal fill-ins; group instruction readiness; maintain mastered mands.']
   );
   return id;

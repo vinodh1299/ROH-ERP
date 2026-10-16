@@ -1241,9 +1241,10 @@ app.all(['/api.php', '/api', '/api/api.php', '/api/v1'], async (req, res) => {
         const scope = studentScopeSql('m.student_id', await accessibleStudentIds(auth));
 
         const studentId = req.query.student_id ? parseInt(req.query.student_id) : null;
-        let query = `SELECT m.*, CONCAT(s.first_name, ' ', s.last_name) AS student_name 
+        let query = `SELECT m.*, CONCAT(s.first_name, ' ', s.last_name) AS student_name, s.dob AS student_dob, u.name AS therapist_name
                      FROM milestone_assessments m 
                      LEFT JOIN students s ON m.student_id = s.id
+                     LEFT JOIN users u ON m.therapist_id = u.id
                      WHERE ${scope.sql}`;
         const params = [...scope.params];
         if (studentId) {
@@ -1298,9 +1299,10 @@ app.all(['/api.php', '/api', '/api/api.php', '/api/v1'], async (req, res) => {
         const scope = studentScopeSql('b.student_id', await accessibleStudentIds(auth));
 
         const studentId = req.query.student_id ? parseInt(req.query.student_id) : null;
-        let query = `SELECT b.*, CONCAT(s.first_name, ' ', s.last_name) AS student_name 
+        let query = `SELECT b.*, CONCAT(s.first_name, ' ', s.last_name) AS student_name, s.dob AS student_dob, u.name AS therapist_name
                      FROM barriers_assessments b 
                      LEFT JOIN students s ON b.student_id = s.id
+                     LEFT JOIN users u ON b.therapist_id = u.id
                      WHERE ${scope.sql}`;
         const params = [...scope.params];
         if (studentId) {
@@ -1337,9 +1339,10 @@ app.all(['/api.php', '/api', '/api/api.php', '/api/v1'], async (req, res) => {
         const scope = studentScopeSql('t.student_id', await accessibleStudentIds(auth));
 
         const studentId = req.query.student_id ? parseInt(req.query.student_id) : null;
-        let query = `SELECT t.*, CONCAT(s.first_name, ' ', s.last_name) AS student_name 
+        let query = `SELECT t.*, CONCAT(s.first_name, ' ', s.last_name) AS student_name, s.dob AS student_dob, u.name AS therapist_name
                      FROM transition_assessments t 
                      LEFT JOIN students s ON t.student_id = s.id
+                     LEFT JOIN users u ON t.therapist_id = u.id
                      WHERE ${scope.sql}`;
         const params = [...scope.params];
         if (studentId) {
@@ -1376,9 +1379,10 @@ app.all(['/api.php', '/api', '/api/api.php', '/api/v1'], async (req, res) => {
         const scope = studentScopeSql('e.student_id', await accessibleStudentIds(auth));
 
         const studentId = req.query.student_id ? parseInt(req.query.student_id) : null;
-        let query = `SELECT e.*, CONCAT(s.first_name, ' ', s.last_name) AS student_name 
+        let query = `SELECT e.*, CONCAT(s.first_name, ' ', s.last_name) AS student_name, s.dob AS student_dob, u.name AS therapist_name
                      FROM eesa_assessments e 
                      LEFT JOIN students s ON e.student_id = s.id
+                     LEFT JOIN users u ON e.therapist_id = u.id
                      WHERE ${scope.sql}`;
         const params = [...scope.params];
         if (studentId) {
@@ -1484,9 +1488,10 @@ app.all(['/api.php', '/api', '/api/api.php', '/api/v1'], async (req, res) => {
         const scope = studentScopeSql('m.student_id', await accessibleStudentIds(auth));
 
         const studentId = req.query.student_id ? parseInt(req.query.student_id) : null;
-        let query = `SELECT m.*, CONCAT(s.first_name, ' ', s.last_name) AS student_name 
+        let query = `SELECT m.*, CONCAT(s.first_name, ' ', s.last_name) AS student_name, s.dob AS student_dob, u.name AS therapist_name
                      FROM milestone_assessments m 
                      LEFT JOIN students s ON m.student_id = s.id
+                     LEFT JOIN users u ON m.therapist_id = u.id
                      WHERE ${scope.sql}`;
         const params = [...scope.params];
         if (studentId) {
