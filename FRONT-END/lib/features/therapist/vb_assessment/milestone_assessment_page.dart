@@ -4,6 +4,7 @@ import '../../../core/layout/responsive.dart';
 import '../../../core/services/db_queries.dart';
 import '../widgets/student_card_grid.dart';
 import '../widgets/student_assessment_banner.dart';
+import 'assessment_records.dart';
 
 class MilestoneAssessmentPage extends StatefulWidget {
   const MilestoneAssessmentPage({super.key});
@@ -24,6 +25,31 @@ class _MilestoneAssessmentPageState extends State<MilestoneAssessmentPage> {
 
   final Map<String, bool> _toggles = {};
   bool _saving = false;
+  // The saved record for this test has domain scores but no per-item answers
+  // (e.g. entered before item answers were stored), so toggles can't be shown.
+  bool _scoresOnly = false;
+
+  int get _testNumber => int.tryParse(_selectedAssessment.split(' ').last) ?? 1;
+
+  /// Fills the toggles (and level) from the newest saved record for the
+  /// selected test, or clears them when that test has not been saved yet.
+  void _prefillForTest() {
+    _toggles.clear();
+    _scoresOnly = false;
+    final record = newestRecordForTest(_milestoneRecords, _testNumber);
+    if (record == null) return;
+    final items = jsonColumnMap(jsonColumnMap(record['scores_detail'])['items']);
+    items.forEach((key, value) => _toggles[key] = value == true);
+    final level = (record['level'] ?? '').toString();
+    _selectedLevel = level == 'Comprehensive'
+        ? 4
+        : (int.tryParse(level.replaceAll(RegExp(r'[^0-9]'), '')) ?? 1);
+    _scoresOnly = items.isEmpty &&
+        record.entries.any((e) =>
+            e.key.endsWith('_score') &&
+            e.key != 'max_score' &&
+            (double.tryParse(e.value?.toString() ?? '') ?? 0) > 0);
+  }
 
   // Each task card is one milestone; its toggle-key prefix says which domain
   // score column it counts towards.
@@ -66,9 +92,10 @@ class _MilestoneAssessmentPageState extends State<MilestoneAssessmentPage> {
     final scores = _domainScores();
     final ok = await MilestoneAssessmentQueries.save({
       'student_id': studentId,
-      'test_number': int.tryParse(_selectedAssessment.split(' ').last) ?? 1,
+      'test_number': _testNumber,
       'level': _selectedLevel <= 3 ? 'Level $_selectedLevel' : 'Comprehensive',
-      'assessment_date': DateTime.now().toIso8601String().substring(0, 10),
+      'assessment_date': assessmentDateFor(
+          newestRecordForTest(_milestoneRecords, _testNumber)),
       'total_score': _totalScore,
       ...scores,
       'scores_detail': {
@@ -123,6 +150,7 @@ class _MilestoneAssessmentPageState extends State<MilestoneAssessmentPage> {
       if (mounted) {
         setState(() {
           _milestoneRecords = res;
+          _prefillForTest();
         });
       }
     } catch (_) {}
@@ -183,6 +211,8 @@ class _MilestoneAssessmentPageState extends State<MilestoneAssessmentPage> {
             _selectedStudentId = studentId ?? _resolveStudentId(student);
             _activeTab = 0;
             _toggles.clear();
+            _milestoneRecords = [];
+            _selectedAssessment = 'Assessment 1';
             _selectedLevel = 1;
             _activeMilestoneGraphLevel = 1;
             _loadMilestoneData();
@@ -356,6 +386,15 @@ class _MilestoneAssessmentPageState extends State<MilestoneAssessmentPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              if (_scoresOnly) ...[
+                const Text(
+                  'This test was saved as domain scores only, so its item answers '
+                  'can\'t be shown. Saving it again replaces those scores with the '
+                  'items marked below.',
+                  style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                ),
+                const SizedBox(height: 16),
+              ],
               if (_selectedLevel == 1) ..._buildLevel1Tasks(),
               if (_selectedLevel == 2) ..._buildLevel2Tasks(),
               if (_selectedLevel == 3) ..._buildLevel3Tasks(),
@@ -431,7 +470,11 @@ class _MilestoneAssessmentPageState extends State<MilestoneAssessmentPage> {
             );
           }).toList(),
           onChanged: (val) {
-            if (val != null) setState(() => _selectedAssessment = val);
+            if (val == null) return;
+            setState(() {
+              _selectedAssessment = val;
+              _prefillForTest();
+            });
           },
         ),
       ),

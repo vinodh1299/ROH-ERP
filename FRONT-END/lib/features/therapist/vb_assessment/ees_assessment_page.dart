@@ -4,6 +4,7 @@ import '../../../core/layout/responsive.dart';
 import '../../../core/services/db_queries.dart';
 import '../widgets/student_card_grid.dart';
 import '../widgets/student_assessment_banner.dart';
+import 'assessment_records.dart';
 
 class EesAssessmentPage extends StatefulWidget {
   const EesAssessmentPage({super.key});
@@ -42,22 +43,43 @@ class _EesAssessmentPageState extends State<EesAssessmentPage> {
     final studentId = _selectedStudentId;
     if (studentId == null) return;
     final res = await EesaAssessmentQueries.fetchForStudent('$studentId');
-    if (mounted) setState(() => _eesaRecords = res);
+    if (!mounted) return;
+    setState(() {
+      _eesaRecords = res;
+      _prefillForTest();
+    });
+  }
+
+  // The saved record for this test has group scores but no item responses,
+  // so the Yes/Half/No pills can't be restored.
+  bool _scoresOnly = false;
+
+  /// Restores the Yes/Half/No responses from the newest saved record for the
+  /// selected test, or clears them when that test has not been saved yet.
+  void _prefillForTest() {
+    _responses.clear();
+    _scoresOnly = false;
+    final record = newestRecordForTest(_eesaRecords, _testNumber);
+    if (record == null) return;
+    final responses = jsonColumnMap(record['responses']);
+    final codes = {for (final e in _responseNames.entries) e.value: e.key};
+    for (final group in [
+      ('g1', 'group1', _group1Items),
+      ('g2', 'group2', _group2Items),
+    ]) {
+      jsonColumnMap(responses[group.$2]).forEach((word, answer) {
+        final index = group.$3.indexOf(word);
+        final code = codes[answer.toString()];
+        if (index >= 0 && code != null) _responses['${group.$1}_$index'] = code;
+      });
+    }
+    _scoresOnly = _responses.isEmpty &&
+        (double.tryParse(record['total_score']?.toString() ?? '') ?? 0) > 0;
   }
 
   /// Group 1 score of the latest saved record for [testNum], if any.
   double? _savedGroup1Score(int testNum) {
-    Map<String, dynamic>? latest;
-    for (final r in _eesaRecords) {
-      if ((int.tryParse(r['test_number']?.toString() ?? '') ?? 1) != testNum) {
-        continue;
-      }
-      final id = int.tryParse(r['id']?.toString() ?? '') ?? 0;
-      if (latest == null ||
-          id > (int.tryParse(latest['id']?.toString() ?? '') ?? 0)) {
-        latest = r;
-      }
-    }
+    final latest = newestRecordForTest(_eesaRecords, testNum);
     if (latest == null) return null;
     return double.tryParse(latest['group1_score']?.toString() ?? '');
   }
@@ -86,7 +108,8 @@ class _EesAssessmentPageState extends State<EesAssessmentPage> {
     final ok = await EesaAssessmentQueries.save({
       'student_id': studentId,
       'test_number': _testNumber,
-      'assessment_date': DateTime.now().toIso8601String().substring(0, 10),
+      'assessment_date':
+          assessmentDateFor(newestRecordForTest(_eesaRecords, _testNumber)),
       'group1_score': g1,
       'group2_score': g2,
       'total_score': g1 + g2,
@@ -109,7 +132,6 @@ class _EesAssessmentPageState extends State<EesAssessmentPage> {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('EES Assessment Saved Successfully!')),
     );
-    setState(() => _responses.clear());
     await _loadEesaData();
   }
 
@@ -265,6 +287,15 @@ class _EesAssessmentPageState extends State<EesAssessmentPage> {
           const SizedBox(height: 16),
 
           // Group 1 Card
+          if (_scoresOnly) ...[
+            const Text(
+              'This test was saved as group scores only, so its item responses '
+              'can\'t be shown. Saving it again replaces those scores with the '
+              'responses marked below.',
+              style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 12),
+          ],
           _buildGroup1Card(),
           const SizedBox(height: 16),
 
@@ -651,7 +682,11 @@ class _EesAssessmentPageState extends State<EesAssessmentPage> {
               ),
           ],
           onChanged: (val) {
-            if (val != null) setState(() => _testNumber = val);
+            if (val == null) return;
+            setState(() {
+              _testNumber = val;
+              _prefillForTest();
+            });
           },
         ),
       ),

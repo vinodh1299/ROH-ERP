@@ -202,6 +202,29 @@ async function writableStudentId(auth, input, res) {
   return studentId;
 }
 
+// One record per student + test number: updates the newest existing row (older duplicates
+// from before upserts are left alone) or inserts a new one. Returns { id, updated }.
+async function upsertTestRecord(table, studentId, testNumber, fields) {
+  const [existing] = await pool.query(
+    `SELECT id FROM ${table} WHERE student_id = ? AND test_number = ? ORDER BY id DESC LIMIT 1`,
+    [studentId, testNumber]
+  );
+  const columns = Object.keys(fields);
+  const values = columns.map(c => fields[c]);
+  if (existing.length) {
+    await pool.query(
+      `UPDATE ${table} SET ${columns.map(c => `${c} = ?`).join(', ')} WHERE id = ?`,
+      [...values, existing[0].id]
+    );
+    return { id: existing[0].id, updated: true };
+  }
+  const [result] = await pool.query(
+    `INSERT INTO ${table} (student_id, test_number, ${columns.join(', ')}) VALUES (?, ?, ${columns.map(() => '?').join(', ')})`,
+    [studentId, testNumber, ...values]
+  );
+  return { id: result.insertId, updated: false };
+}
+
 // JSON columns may arrive as an object or as an already-encoded string.
 function jsonColumn(value) {
   if (value === undefined || value === null || value === '') return '{}';
@@ -1007,41 +1030,61 @@ app.all(['/api.php', '/api', '/api/api.php', '/api/v1'], async (req, res) => {
         const studentId = await writableStudentId(auth, input, res);
         if (!studentId) return;
 
-        const [result] = await pool.query(
-          `INSERT INTO iep_reports (student_id, therapist_id, title, cycle_term, status, manding_score, tacting_score, listener_score, echoic_score, lrffc_score, goals_summary) 
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [
-            studentId,
-            auth.sub,
-            (input.title || 'IEP Treatment Plan').trim(),
-            (input.cycle_term || 'Q3 2026 Treatment Plan').toString().trim().slice(0, 80),
-            // Only a director/admin may create an IEP in a non-pending state; therapists' plans need sign-off.
-            auth.role === 'therapist' ? 'Pending Approval' : (input.status || 'Pending Approval'),
-            parseInt(input.manding_score || 0),
-            parseInt(input.tacting_score || 0),
-            parseInt(input.listener_score || 0),
-            parseInt(input.echoic_score || 0),
-            parseInt(input.lrffc_score || 0),
-            input.goals_summary || '',
-          ]
-        );
+        const fields = {
+          title: (input.title || 'IEP Treatment Plan').trim(),
+          cycle_term: (input.cycle_term || 'Q3 2026 Treatment Plan').toString().trim().slice(0, 80),
+          // Only a director/admin may set a non-pending state; therapists' plans need sign-off.
+          status: auth.role === 'therapist' ? 'Pending Approval' : (input.status || 'Pending Approval'),
+          manding_score: parseInt(input.manding_score || 0),
+          tacting_score: parseInt(input.tacting_score || 0),
+          listener_score: parseInt(input.listener_score || 0),
+          echoic_score: parseInt(input.echoic_score || 0),
+          lrffc_score: parseInt(input.lrffc_score || 0),
+          goals_summary: input.goals_summary || '',
+        };
 
-        const newId = result.insertId;
-        await auditLog(auth.sub, auth.role, 'SAVE_IEP', 'iep_reports', newId, ip, ua, `Created IEP: ${input.title || ''}`);
-        
-        // Notify every active director that an IEP report is pending sign-off
-        const [directors] = await pool.query("SELECT id FROM users WHERE role = 'director' AND status = 'Active'");
-        for (const director of directors) {
-          await createNotification(
-            director.id,
-            'IEP_SUBMITTED',
-            'New IEP Pending Approval',
-            `Therapist ${auth.name || 'Staff'} submitted an IEP (${input.title || 'Plan'}) requiring Director sign-off.`,
-            { iep_id: newId, student_id: studentId }
+        // With an id, edit that report instead of creating another one. A therapist can only
+        // edit a plan that is not yet signed off (pending or returned for revision).
+        const iepId = parseInt(input.id || 0);
+        let previousStatus = null;
+        if (iepId) {
+          const [rows] = await pool.query('SELECT student_id, status FROM iep_reports WHERE id = ? LIMIT 1', [iepId]);
+          if (!rows.length || rows[0].student_id !== studentId) return res.status(404).json({ error: 'IEP report not found for this student' });
+          previousStatus = rows[0].status;
+          if (auth.role === 'therapist' && !['Pending Approval', 'Returned for Revision'].includes(previousStatus)) {
+            return res.status(409).json({ error: `This IEP is ${previousStatus}; save a new plan instead of editing it` });
+          }
+          await pool.query(
+            `UPDATE iep_reports SET ${Object.keys(fields).map(c => `${c} = ?`).join(', ')} WHERE id = ?`,
+            [...Object.values(fields), iepId]
           );
+          await auditLog(auth.sub, auth.role, 'UPDATE_IEP', 'iep_reports', iepId, ip, ua, `Updated IEP: ${fields.title}`);
+        } else {
+          const [result] = await pool.query(
+            `INSERT INTO iep_reports (student_id, therapist_id, ${Object.keys(fields).join(', ')})
+             VALUES (?, ?, ${Object.keys(fields).map(() => '?').join(', ')})`,
+            [studentId, auth.sub, ...Object.values(fields)]
+          );
+          await auditLog(auth.sub, auth.role, 'SAVE_IEP', 'iep_reports', result.insertId, ip, ua, `Created IEP: ${fields.title}`);
+          input.id = result.insertId;
+        }
+        const savedId = parseInt(input.id);
+
+        // Notify every active director when a plan newly needs sign-off (not on edits of a plan already pending).
+        if (fields.status === 'Pending Approval' && previousStatus !== 'Pending Approval') {
+          const [directors] = await pool.query("SELECT id FROM users WHERE role = 'director' AND status = 'Active'");
+          for (const director of directors) {
+            await createNotification(
+              director.id,
+              'IEP_SUBMITTED',
+              'New IEP Pending Approval',
+              `Therapist ${auth.name || 'Staff'} submitted an IEP (${fields.title}) requiring Director sign-off.`,
+              { iep_id: savedId, student_id: studentId }
+            );
+          }
         }
 
-        return res.json({ success: true, id: newId });
+        return res.json({ success: true, id: savedId, updated: Boolean(iepId) });
       }
 
       case 'sign_off_iep': {
@@ -1145,26 +1188,39 @@ app.all(['/api.php', '/api', '/api/api.php', '/api/v1'], async (req, res) => {
         try {
           await conn.beginTransaction();
           for (const row of rows) {
+            const values = [
+              row.session_date || sessionDate,
+              row.domain || 'Manding',
+              (row.target_skill || 'Vocal Request').toString().slice(0, 255),
+              row.prompt_level || 'Independent',
+              parseInt(row.trials_completed || 0),
+              parseInt(row.trials_successful || 0),
+              typeof row.notes === 'object' && row.notes !== null ? JSON.stringify(row.notes) : (row.notes || ''),
+            ];
+            const rowId = parseInt(row.id || 0);
+            if (rowId) {
+              // Edit of an existing row; it must belong to this student.
+              const [result] = await conn.query(
+                `UPDATE daily_data_sheets SET session_date = ?, domain = ?, target_skill = ?, prompt_level = ?,
+                   trials_completed = ?, trials_successful = ?, notes = ?
+                 WHERE id = ? AND student_id = ?`,
+                [...values, rowId, studentId]
+              );
+              if (!result.affectedRows) throw Object.assign(new Error(`Row ${rowId} not found for this student`), { status: 404 });
+              ids.push(rowId);
+              continue;
+            }
             const [result] = await conn.query(
               `INSERT INTO daily_data_sheets (student_id, therapist_id, session_date, domain, target_skill, prompt_level, trials_completed, trials_successful, notes) 
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-              [
-                studentId,
-                therapistId,
-                row.session_date || sessionDate,
-                row.domain || 'Manding',
-                (row.target_skill || 'Vocal Request').toString().slice(0, 255),
-                row.prompt_level || 'Independent',
-                parseInt(row.trials_completed || 0),
-                parseInt(row.trials_successful || 0),
-                typeof row.notes === 'object' && row.notes !== null ? JSON.stringify(row.notes) : (row.notes || ''),
-              ]
+              [studentId, therapistId, ...values]
             );
             ids.push(result.insertId);
           }
           await conn.commit();
         } catch (err) {
           await conn.rollback();
+          if (err.status === 404) return res.status(404).json({ error: err.message });
           throw err;
         } finally {
           conn.release();
@@ -1204,44 +1260,35 @@ app.all(['/api.php', '/api', '/api/api.php', '/api/v1'], async (req, res) => {
         if (!auth || !['therapist', 'director', 'admin'].includes(auth.role)) return res.status(403).json({ error: 'Forbidden' });
         const studentId = await writableStudentId(auth, input, res);
         if (!studentId) return;
-        const therapistId = auth.sub;
-
-        const [result] = await pool.query(
-          `INSERT INTO milestone_assessments 
-           (student_id, therapist_id, test_number, level, assessment_date, total_score, max_score, 
-            manding_score, tacting_score, listener_score, echoic_score, vocal_score, vp_mts_score, 
-            play_score, social_score, imitation_score, lrffc_score, intraverbal_score, group_score, 
-            linguistic_score, reading_score, writing_score, math_score, scores_detail, therapist_notes) 
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [
-            studentId,
-            therapistId,
-            parseInt(input.test_number || 1),
-            input.level || 'Level 1',
-            input.assessment_date || new Date().toISOString().slice(0, 10),
-            parseFloat(input.total_score || input.score || 0),
-            parseFloat(input.max_score || 170),
-            parseFloat(input.manding_score || 0),
-            parseFloat(input.tacting_score || 0),
-            parseFloat(input.listener_score || 0),
-            parseFloat(input.echoic_score || 0),
-            parseFloat(input.vocal_score || 0),
-            parseFloat(input.vp_mts_score || 0),
-            parseFloat(input.play_score || 0),
-            parseFloat(input.social_score || 0),
-            parseFloat(input.imitation_score || 0),
-            parseFloat(input.lrffc_score || 0),
-            parseFloat(input.intraverbal_score || 0),
-            parseFloat(input.group_score || 0),
-            parseFloat(input.linguistic_score || 0),
-            parseFloat(input.reading_score || 0),
-            parseFloat(input.writing_score || 0),
-            parseFloat(input.math_score || 0),
-            jsonColumn(input.scores_detail || input.milestones_data || {}),
-            input.therapist_notes || null,
-          ]
-        );
-        return res.json({ success: true, id: result.insertId });
+        const testNumber = Math.min(4, Math.max(1, parseInt(input.test_number || 1) || 1));
+        const num = key => parseFloat(input[key] || 0);
+        const saved = await upsertTestRecord('milestone_assessments', studentId, testNumber, {
+          therapist_id: auth.sub,
+          level: input.level || 'Level 1',
+          assessment_date: input.assessment_date || new Date().toISOString().slice(0, 10),
+          total_score: parseFloat(input.total_score || input.score || 0),
+          max_score: parseFloat(input.max_score || 170),
+          manding_score: num('manding_score'),
+          tacting_score: num('tacting_score'),
+          listener_score: num('listener_score'),
+          echoic_score: num('echoic_score'),
+          vocal_score: num('vocal_score'),
+          vp_mts_score: num('vp_mts_score'),
+          play_score: num('play_score'),
+          social_score: num('social_score'),
+          imitation_score: num('imitation_score'),
+          lrffc_score: num('lrffc_score'),
+          intraverbal_score: num('intraverbal_score'),
+          group_score: num('group_score'),
+          linguistic_score: num('linguistic_score'),
+          reading_score: num('reading_score'),
+          writing_score: num('writing_score'),
+          math_score: num('math_score'),
+          scores_detail: jsonColumn(input.scores_detail || input.milestones_data || {}),
+          // Keep existing notes on update unless the client sends new ones.
+          ...(input.therapist_notes !== undefined ? { therapist_notes: input.therapist_notes || null } : {}),
+        });
+        return res.json({ success: true, ...saved });
       }
 
       // 6B. VB-MAPP BARRIERS
@@ -1270,24 +1317,17 @@ app.all(['/api.php', '/api', '/api/api.php', '/api/v1'], async (req, res) => {
         if (!auth || !['therapist', 'director', 'admin'].includes(auth.role)) return res.status(403).json({ error: 'Forbidden' });
         const studentId = await writableStudentId(auth, input, res);
         if (!studentId) return;
-        const therapistId = auth.sub;
-
-        const [result] = await pool.query(
-          `INSERT INTO barriers_assessments 
-           (student_id, therapist_id, test_number, assessment_date, total_score, max_score, barrier_scores, therapist_notes) 
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-          [
-            studentId,
-            therapistId,
-            parseInt(input.test_number || 1),
-            input.assessment_date || new Date().toISOString().slice(0, 10),
-            parseFloat(input.total_score || 0),
-            parseFloat(input.max_score || 96),
-            jsonColumn(input.barrier_scores || {}),
-            input.therapist_notes || null,
-          ]
-        );
-        return res.json({ success: true, id: result.insertId });
+        const testNumber = Math.min(4, Math.max(1, parseInt(input.test_number || 1) || 1));
+        const saved = await upsertTestRecord('barriers_assessments', studentId, testNumber, {
+          therapist_id: auth.sub,
+          assessment_date: input.assessment_date || new Date().toISOString().slice(0, 10),
+          total_score: parseFloat(input.total_score || 0),
+          max_score: parseFloat(input.max_score || 96),
+          barrier_scores: jsonColumn(input.barrier_scores || {}),
+          // Keep existing notes on update unless the client sends new ones.
+          ...(input.therapist_notes !== undefined ? { therapist_notes: input.therapist_notes || null } : {}),
+        });
+        return res.json({ success: true, ...saved });
       }
 
       // 6C. VB-MAPP TRANSITIONS
@@ -1316,24 +1356,17 @@ app.all(['/api.php', '/api', '/api/api.php', '/api/v1'], async (req, res) => {
         if (!auth || !['therapist', 'director', 'admin'].includes(auth.role)) return res.status(403).json({ error: 'Forbidden' });
         const studentId = await writableStudentId(auth, input, res);
         if (!studentId) return;
-        const therapistId = auth.sub;
-
-        const [result] = await pool.query(
-          `INSERT INTO transition_assessments 
-           (student_id, therapist_id, test_number, assessment_date, total_score, max_score, area_scores, therapist_notes) 
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-          [
-            studentId,
-            therapistId,
-            parseInt(input.test_number || 1),
-            input.assessment_date || new Date().toISOString().slice(0, 10),
-            parseFloat(input.total_score || 0),
-            parseFloat(input.max_score || 90),
-            jsonColumn(input.area_scores || {}),
-            input.therapist_notes || null,
-          ]
-        );
-        return res.json({ success: true, id: result.insertId });
+        const testNumber = Math.min(4, Math.max(1, parseInt(input.test_number || 1) || 1));
+        const saved = await upsertTestRecord('transition_assessments', studentId, testNumber, {
+          therapist_id: auth.sub,
+          assessment_date: input.assessment_date || new Date().toISOString().slice(0, 10),
+          total_score: parseFloat(input.total_score || 0),
+          max_score: parseFloat(input.max_score || 90),
+          area_scores: jsonColumn(input.area_scores || {}),
+          // Keep existing notes on update unless the client sends new ones.
+          ...(input.therapist_notes !== undefined ? { therapist_notes: input.therapist_notes || null } : {}),
+        });
+        return res.json({ success: true, ...saved });
       }
 
       // 6D. VB-MAPP EESA
@@ -1362,25 +1395,18 @@ app.all(['/api.php', '/api', '/api/api.php', '/api/v1'], async (req, res) => {
         if (!auth || !['therapist', 'director', 'admin'].includes(auth.role)) return res.status(403).json({ error: 'Forbidden' });
         const studentId = await writableStudentId(auth, input, res);
         if (!studentId) return;
-        const therapistId = auth.sub;
-
-        const [result] = await pool.query(
-          `INSERT INTO eesa_assessments 
-           (student_id, therapist_id, test_number, assessment_date, group1_score, group2_score, total_score, responses, therapist_notes) 
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [
-            studentId,
-            therapistId,
-            parseInt(input.test_number || 1),
-            input.assessment_date || new Date().toISOString().slice(0, 10),
-            parseFloat(input.group1_score || 0),
-            parseFloat(input.group2_score || 0),
-            parseFloat(input.total_score || 0),
-            jsonColumn(input.responses || {}),
-            input.therapist_notes || null,
-          ]
-        );
-        return res.json({ success: true, id: result.insertId });
+        const testNumber = Math.min(4, Math.max(1, parseInt(input.test_number || 1) || 1));
+        const saved = await upsertTestRecord('eesa_assessments', studentId, testNumber, {
+          therapist_id: auth.sub,
+          assessment_date: input.assessment_date || new Date().toISOString().slice(0, 10),
+          group1_score: parseFloat(input.group1_score || 0),
+          group2_score: parseFloat(input.group2_score || 0),
+          total_score: parseFloat(input.total_score || 0),
+          responses: jsonColumn(input.responses || {}),
+          // Keep existing notes on update unless the client sends new ones.
+          ...(input.therapist_notes !== undefined ? { therapist_notes: input.therapist_notes || null } : {}),
+        });
+        return res.json({ success: true, ...saved });
       }
 
       // 6E. PREFERENCE (REINFORCER) ASSESSMENTS

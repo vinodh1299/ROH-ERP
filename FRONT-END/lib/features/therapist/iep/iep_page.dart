@@ -18,6 +18,10 @@ class _IepPageState extends State<IepPage> {
   bool _saving = false;
   String? _savedStatus; // status of the latest saved IEP, if any
   String? _savedTitle;
+  // Id of the loaded IEP when saving should edit it: it is still awaiting
+  // sign-off and its goals were written by this page. Otherwise a save
+  // creates a new plan.
+  int? _editableIepId;
   // Latest IEP's goals when they were not written by this page (free text).
   String? _previousSummary;
 
@@ -100,6 +104,11 @@ class _IepPageState extends State<IepPage> {
           _mandingGoals.isEmpty && _tactingGoals.isEmpty && summary.isNotEmpty
               ? summary
               : null;
+      final editable = ['Pending Approval', 'Returned for Revision']
+          .contains(_savedStatus);
+      _editableIepId = editable && _previousSummary == null
+          ? int.tryParse(latest?['id']?.toString() ?? '')
+          : null;
     });
   }
 
@@ -133,6 +142,7 @@ class _IepPageState extends State<IepPage> {
 
     final now = DateTime.now();
     final ok = await IepQueries.save({
+      if (_editableIepId != null) 'id': _editableIepId,
       'student_id': studentId,
       'title': '${_selectedStudent ?? 'Student'} IEP Treatment Plan',
       'cycle_term': 'Q${(now.month - 1) ~/ 3 + 1} ${now.year} Treatment Plan',
@@ -334,6 +344,7 @@ class _IepPageState extends State<IepPage> {
             _savedStatus = null;
             _savedTitle = null;
             _previousSummary = null;
+            _editableIepId = null;
             _mandingGoals.clear();
             _tactingGoals.clear();
           });
@@ -383,7 +394,8 @@ class _IepPageState extends State<IepPage> {
               if (_savedStatus != null) ...[
                 Expanded(
                   child: Text(
-                    'Last saved IEP: ${_savedTitle ?? 'IEP'} ($_savedStatus)',
+                    'Last saved IEP: ${_savedTitle ?? 'IEP'} ($_savedStatus)'
+                    '${_editableIepId != null ? ' · Save updates this plan' : ' · Save creates a new plan for sign-off'}',
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                         fontSize: 12, color: AppColors.textSecondary),
