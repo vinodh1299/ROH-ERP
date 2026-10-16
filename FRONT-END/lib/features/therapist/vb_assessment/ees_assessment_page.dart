@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:roh_erp/core/constants/app_colors.dart';
+import '../../../core/layout/responsive.dart';
 import '../widgets/student_card_grid.dart';
 import '../widgets/student_assessment_banner.dart';
 
@@ -17,11 +18,26 @@ class _EesAssessmentPageState extends State<EesAssessmentPage> {
   final Map<String, int> _responses = {};
 
   final List<String> _group1Items = [
-    'ah', 'ee', 'oo', 'oh',
-    'ay', 'm', 'b', 'p',
-    'w', 'h', 'mama', 'bye',
-    'uh-oh', 'baby', 'pup', 'moo',
-    'neigh', 'night', 'hi', 'me',
+    'ah',
+    'ee',
+    'oo',
+    'oh',
+    'ay',
+    'm',
+    'b',
+    'p',
+    'w',
+    'h',
+    'mama',
+    'bye',
+    'uh-oh',
+    'baby',
+    'pup',
+    'moo',
+    'neigh',
+    'night',
+    'hi',
+    'me',
     'cookie',
     'bubble',
     'open',
@@ -30,10 +46,22 @@ class _EesAssessmentPageState extends State<EesAssessmentPage> {
   ];
 
   final List<String> _group2Items = [
-    'no-no', 'dada', 'kitty', 'ball',
-    'go', 'eat', 'shoe', 'car',
-    'up', 'hot', 'two', 'key',
-    'see', 'light', 'cup', 'boat',
+    'no-no',
+    'dada',
+    'kitty',
+    'ball',
+    'go',
+    'eat',
+    'shoe',
+    'car',
+    'up',
+    'hot',
+    'two',
+    'key',
+    'see',
+    'light',
+    'cup',
+    'boat',
   ];
 
   @override
@@ -63,13 +91,17 @@ class _EesAssessmentPageState extends State<EesAssessmentPage> {
                 tooltip: 'Back to students',
               ),
               const SizedBox(width: 8),
-              Text(
-                '$_selectedStudent VB MAPP EES Assessment',
-                style: const TextStyle(
-                  fontFamily: 'Poppins',
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.primary,
+              Expanded(
+                child: Text(
+                  '$_selectedStudent VB MAPP EES Assessment',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontFamily: 'Poppins',
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.primary,
+                  ),
                 ),
               ),
             ],
@@ -100,14 +132,29 @@ class _EesAssessmentPageState extends State<EesAssessmentPage> {
                 const SizedBox(height: 4),
                 RichText(
                   text: const TextSpan(
-                    style: TextStyle(fontSize: 13, color: AppColors.textPrimary, fontFamily: 'Poppins'),
+                    style: TextStyle(
+                        fontSize: 13,
+                        color: AppColors.textPrimary,
+                        fontFamily: 'Poppins'),
                     children: [
-                      TextSpan(text: 'Yes', style: TextStyle(fontWeight: FontWeight.bold)),
-                      TextSpan(text: ' - Correct sounds and correct number of syllables - 1 point    '),
-                      TextSpan(text: 'No', style: TextStyle(fontWeight: FontWeight.bold)),
-                      TextSpan(text: ' - No response, incorrect vowels, or missing syllables - 0 point\n'),
-                      TextSpan(text: 'Half', style: TextStyle(fontWeight: FontWeight.bold)),
-                      TextSpan(text: ' - Recognizable response, but incorrect or missing consonants or extra syllables - 1/2 point'),
+                      TextSpan(
+                          text: 'Yes',
+                          style: TextStyle(fontWeight: FontWeight.bold)),
+                      TextSpan(
+                          text:
+                              ' - Correct sounds and correct number of syllables - 1 point    '),
+                      TextSpan(
+                          text: 'No',
+                          style: TextStyle(fontWeight: FontWeight.bold)),
+                      TextSpan(
+                          text:
+                              ' - No response, incorrect vowels, or missing syllables - 0 point\n'),
+                      TextSpan(
+                          text: 'Half',
+                          style: TextStyle(fontWeight: FontWeight.bold)),
+                      TextSpan(
+                          text:
+                              ' - Recognizable response, but incorrect or missing consonants or extra syllables - 1/2 point'),
                     ],
                   ),
                 ),
@@ -132,25 +179,34 @@ class _EesAssessmentPageState extends State<EesAssessmentPage> {
                 onPressed: () => setState(() => _selectedStudent = null),
                 style: OutlinedButton.styleFrom(
                   side: const BorderSide(color: AppColors.primary),
-                  padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8)),
                 ),
-                child: const Text('Cancel', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold)),
+                child: const Text('Cancel',
+                    style: TextStyle(
+                        color: AppColors.primary, fontWeight: FontWeight.bold)),
               ),
               const SizedBox(width: 16),
               ElevatedButton(
                 onPressed: () {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('EES Assessment Saved Successfully!')),
+                    const SnackBar(
+                        content: Text('EES Assessment Saved Successfully!')),
                   );
                   setState(() => _selectedStudent = null);
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
-                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8)),
                 ),
-                child: const Text('Save', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                child: const Text('Save',
+                    style: TextStyle(
+                        color: Colors.white, fontWeight: FontWeight.bold)),
               ),
             ],
           ),
@@ -172,86 +228,51 @@ class _EesAssessmentPageState extends State<EesAssessmentPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Title + target description
-          const Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Group - 1 Simple and reduplicated syllables',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  fontFamily: 'Poppins',
-                  color: AppColors.textPrimary,
-                ),
-              ),
-              Text(
-                'Targets: vowels, diphthongs, consonants p, b, m, n, h, w\nProbe: 1',
-                textAlign: TextAlign.right,
-                style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
-              ),
-            ],
+          _buildGroupHeader(
+            'Group - 1 Simple and reduplicated syllables',
+            'Targets: vowels, diphthongs, consonants p, b, m, n, h, w\nProbe: 1',
           ),
           const SizedBox(height: 16),
 
           // First 20 items in 4 columns
-          LayoutBuilder(
-            builder: (context, constraints) {
-              return Wrap(
-                spacing: 16,
-                runSpacing: 12,
-                children: [
-                  for (int i = 0; i < 20; i++)
-                    SizedBox(
-                      width: (constraints.maxWidth - 48) / 4,
-                      child: _buildSyllableItem('g1_$i', _group1Items[i]),
-                    ),
-                ],
-              );
-            },
-          ),
+          _buildSyllableGrid([
+            for (int i = 0; i < 20; i++)
+              _buildSyllableItem('g1_$i', _group1Items[i]),
+          ]),
           const SizedBox(height: 16),
 
-          // Bottom section: 5 items on left + Subtotal & Assessment Score on right
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // 5 vertical items
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+          // Bottom section: 5 items on left + Subtotal & Assessment Score on right.
+          // Narrow: items flow in the grid, the score column stacks below.
+          LayoutBuilder(
+            builder: (context, constraints) {
+              const subTotal = Column(
                 children: [
-                  for (int i = 20; i < 25; i++) ...[
-                    SizedBox(
-                      width: 200,
-                      child: _buildSyllableItem('g1_$i', _group1Items[i]),
-                    ),
-                    const SizedBox(height: 10),
-                  ],
+                  Text(
+                    'Sub Total',
+                    style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary),
+                  ),
+                  Text(
+                    'Group - 1',
+                    style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary),
+                  ),
                 ],
-              ),
-              const Spacer(),
-              // Sub total text
-              const Padding(
-                padding: EdgeInsets.only(top: 24, right: 32),
-                child: Column(
-                  children: [
-                    Text(
-                      'Sub Total',
-                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
-                    ),
-                    Text(
-                      'Group - 1',
-                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
-                    ),
-                  ],
-                ),
-              ),
+              );
               // Assessment score table
-              Column(
+              final scoreTable = Column(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   const Text(
                     'Assessment Score',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textPrimary),
+                    style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                        color: AppColors.textPrimary),
                   ),
                   const SizedBox(height: 10),
                   _buildScoreRow('1ST'),
@@ -262,10 +283,126 @@ class _EesAssessmentPageState extends State<EesAssessmentPage> {
                   const SizedBox(height: 6),
                   _buildScoreRow('4TH'),
                 ],
-              ),
-            ],
+              );
+              if (constraints.maxWidth < 600) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildSyllableGrid([
+                      for (int i = 20; i < 25; i++)
+                        _buildSyllableItem('g1_$i', _group1Items[i]),
+                    ]),
+                    const SizedBox(height: 20),
+                    const Divider(height: 1),
+                    const SizedBox(height: 16),
+                    Wrap(
+                      spacing: 24,
+                      runSpacing: 16,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [subTotal, scoreTable],
+                    ),
+                  ],
+                );
+              }
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // 5 vertical items
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      for (int i = 20; i < 25; i++) ...[
+                        SizedBox(
+                          width: 200,
+                          child: _buildSyllableItem('g1_$i', _group1Items[i]),
+                        ),
+                        const SizedBox(height: 10),
+                      ],
+                    ],
+                  ),
+                  const Spacer(),
+                  // Sub total text
+                  const Padding(
+                    padding: EdgeInsets.only(top: 24, right: 32),
+                    child: subTotal,
+                  ),
+                  scoreTable,
+                ],
+              );
+            },
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildGroupHeader(String title, String targets) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final titleWidget = Text(
+          title,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            fontFamily: 'Poppins',
+            color: AppColors.textPrimary,
+          ),
+        );
+        if (constraints.maxWidth < 600) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              titleWidget,
+              const SizedBox(height: 4),
+              Text(
+                targets,
+                style: const TextStyle(
+                    fontSize: 11, color: AppColors.textSecondary),
+              ),
+            ],
+          );
+        }
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Flexible(child: titleWidget),
+            const SizedBox(width: 16),
+            Text(
+              targets,
+              textAlign: TextAlign.right,
+              style:
+                  const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  /// Lays syllable items out in as many columns as fit (max 4, as on desktop).
+  /// Each item keeps a readable minimum width; if even one column is too
+  /// narrow the grid scrolls sideways instead of squeezing the pills.
+  Widget _buildSyllableGrid(List<Widget> items) {
+    const spacing = 16.0;
+    const minItemWidth = 170.0;
+    return ScrollableMinWidth(
+      minWidth: minItemWidth,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final cols =
+              ((constraints.maxWidth + spacing) / (minItemWidth + spacing))
+                  .floor()
+                  .clamp(1, 4);
+          final itemWidth =
+              (constraints.maxWidth - spacing * (cols - 1)) / cols;
+          return Wrap(
+            spacing: spacing,
+            runSpacing: 12,
+            children: [
+              for (final item in items) SizedBox(width: itemWidth, child: item),
+            ],
+          );
+        },
       ),
     );
   }
@@ -281,48 +418,23 @@ class _EesAssessmentPageState extends State<EesAssessmentPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Group - 2 Simple and reduplicated syllables',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  fontFamily: 'Poppins',
-                  color: AppColors.textPrimary,
-                ),
-              ),
-              Text(
-                'Targets: vowels, diphthongs, consonants p, b, m, n, h, w\nProbe: 2',
-                textAlign: TextAlign.right,
-                style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
-              ),
-            ],
+          _buildGroupHeader(
+            'Group - 2 Simple and reduplicated syllables',
+            'Targets: vowels, diphthongs, consonants p, b, m, n, h, w\nProbe: 2',
           ),
           const SizedBox(height: 16),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              return Wrap(
-                spacing: 16,
-                runSpacing: 12,
-                children: [
-                  for (int i = 0; i < _group2Items.length; i++)
-                    SizedBox(
-                      width: (constraints.maxWidth - 48) / 4,
-                      child: _buildSyllableItem('g2_$i', _group2Items[i]),
-                    ),
-                ],
-              );
-            },
-          ),
+          _buildSyllableGrid([
+            for (int i = 0; i < _group2Items.length; i++)
+              _buildSyllableItem('g2_$i', _group2Items[i]),
+          ]),
         ],
       ),
     );
   }
 
   Widget _buildSyllableItem(String key, String word) {
-    final currentVal = _responses[key] ?? 0; // Starts unselected (0) until therapist administers probe
+    final currentVal = _responses[key] ??
+        0; // Starts unselected (0) until therapist administers probe
 
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -331,7 +443,10 @@ class _EesAssessmentPageState extends State<EesAssessmentPage> {
           width: 40,
           child: Text(
             word,
-            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: AppColors.textPrimary),
+            style: const TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+                color: AppColors.textPrimary),
           ),
         ),
         const SizedBox(width: 6),
@@ -376,10 +491,13 @@ class _EesAssessmentPageState extends State<EesAssessmentPage> {
     bool isFirst = false,
     bool isLast = false,
   }) {
+    final compact = Breakpoints.isCompact(context);
     return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        padding: EdgeInsets.symmetric(
+            horizontal: compact ? 10 : 8, vertical: compact ? 8 : 4),
         decoration: BoxDecoration(
           color: isSelected ? AppColors.primary : Colors.transparent,
           borderRadius: BorderRadius.horizontal(
@@ -413,7 +531,8 @@ class _EesAssessmentPageState extends State<EesAssessmentPage> {
           alignment: Alignment.center,
           child: Text(
             label,
-            style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+            style: const TextStyle(
+                color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
           ),
         ),
         const SizedBox(width: 8),
@@ -428,7 +547,8 @@ class _EesAssessmentPageState extends State<EesAssessmentPage> {
           alignment: Alignment.center,
           child: const TextField(
             textAlign: TextAlign.center,
-            decoration: InputDecoration(border: InputBorder.none, contentPadding: EdgeInsets.zero),
+            decoration: InputDecoration(
+                border: InputBorder.none, contentPadding: EdgeInsets.zero),
             style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
           ),
         ),

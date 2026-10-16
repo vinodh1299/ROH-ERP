@@ -965,7 +965,7 @@ app.all(['/api.php', '/api', '/api/api.php', '/api/v1'], async (req, res) => {
         const scope = studentScopeSql('i.student_id', await accessibleStudentIds(auth));
 
         const [rows] = await pool.query(
-          `SELECT i.*, CONCAT(s.first_name, ' ', s.last_name) AS student_name, u.name AS therapist_name, du.name AS director_signer_name
+          `SELECT i.*, CONCAT(s.first_name, ' ', s.last_name) AS student_name, s.dob AS student_dob, u.name AS therapist_name, du.name AS director_signer_name
            FROM iep_reports i
            LEFT JOIN students s ON i.student_id = s.id
            LEFT JOIN users u ON i.therapist_id = u.id

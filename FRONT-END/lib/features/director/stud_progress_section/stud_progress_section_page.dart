@@ -1,6 +1,7 @@
 // lib/features/director/stud_progress_section/stud_progress_section_page.dart
 import 'package:flutter/material.dart';
 import 'package:roh_erp/core/constants/app_colors.dart';
+import 'package:roh_erp/core/layout/responsive.dart';
 import 'package:roh_erp/core/services/api_service.dart';
 
 class StagnationAlert {
@@ -29,11 +30,13 @@ class StudProgressSectionPage extends StatefulWidget {
   const StudProgressSectionPage({super.key});
 
   @override
-  State<StudProgressSectionPage> createState() => _StudProgressSectionPageState();
+  State<StudProgressSectionPage> createState() =>
+      _StudProgressSectionPageState();
 }
 
 class _StudProgressSectionPageState extends State<StudProgressSectionPage> {
-  int _selectedViewTab = 0; // 0: Overview & Domains, 1: VB-MAPP Cohort Heatmap, 2: Stagnation Alerts
+  int _selectedViewTab =
+      0; // 0: Overview & Domains, 1: VB-MAPP Cohort Heatmap, 2: Stagnation Alerts
   int _totalStudents = 0;
   final List<StagnationAlert> _alerts = [];
   bool _isLoading = true;
@@ -79,26 +82,38 @@ class _StudProgressSectionPageState extends State<StudProgressSectionPage> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Assigned Clinician: ${alert.therapistName}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+            Text('Assigned Clinician: ${alert.therapistName}',
+                style:
+                    const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
             const SizedBox(height: 6),
-            Text('Stagnant Target: ${alert.targetDescription}', style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+            Text('Stagnant Target: ${alert.targetDescription}',
+                style: const TextStyle(
+                    fontSize: 12, color: AppColors.textSecondary)),
             const SizedBox(height: 14),
             Container(
               padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(color: const Color(0xFFFFF3E0), borderRadius: BorderRadius.circular(8)),
+              decoration: BoxDecoration(
+                  color: const Color(0xFFFFF3E0),
+                  borderRadius: BorderRadius.circular(8)),
               child: Text(
                 'Alert: Target has not progressed for ${alert.daysStagnant} days (${alert.trend}). A protocol modification or prompt hierarchy shift is recommended.',
-                style: const TextStyle(fontSize: 12, color: Color(0xFFB76E00), fontWeight: FontWeight.w500),
+                style: const TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFFB76E00),
+                    fontWeight: FontWeight.w500),
               ),
             ),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Cancel')),
+          TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Cancel')),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primary,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8)),
             ),
             onPressed: () {
               setState(() {
@@ -107,12 +122,14 @@ class _StudProgressSectionPageState extends State<StudProgressSectionPage> {
               Navigator.of(ctx).pop();
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text('Clinical protocol review meeting scheduled with ${alert.therapistName}!'),
+                  content: Text(
+                      'Clinical protocol review meeting scheduled with ${alert.therapistName}!'),
                   backgroundColor: AppColors.statusActive,
                 ),
               );
             },
-            child: const Text('Confirm Review Meeting', style: TextStyle(color: Colors.white)),
+            child: const Text('Confirm Review Meeting',
+                style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -124,7 +141,7 @@ class _StudProgressSectionPageState extends State<StudProgressSectionPage> {
     final unresolvedCount = _alerts.where((a) => !a.reviewScheduled).length;
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24.0),
+      padding: Breakpoints.pagePadding(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -137,27 +154,40 @@ class _StudProgressSectionPageState extends State<StudProgressSectionPage> {
                 children: const [
                   Text(
                     'Center-Wide Macro Student Progress & Clinical Analytics',
-                    style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 20),
+                    style: TextStyle(
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 20),
                   ),
                   SizedBox(height: 4),
                   Text(
                     'Aggregate developmental milestones, domain mastery velocities, and stagnation alerts across all enrolled students.',
-                    style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                    style:
+                        TextStyle(color: AppColors.textSecondary, fontSize: 13),
                   ),
                 ],
               );
 
               final exportBtn = OutlinedButton.icon(
-                icon: const Icon(Icons.file_download_outlined, color: AppColors.primary, size: 16),
-                label: const Text('Export Clinical Report', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold, fontSize: 12)),
+                icon: const Icon(Icons.file_download_outlined,
+                    color: AppColors.primary, size: 16),
+                label: const Text('Export Clinical Report',
+                    style: TextStyle(
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12)),
                 style: OutlinedButton.styleFrom(
                   side: const BorderSide(color: AppColors.primary),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8)),
                 ),
                 onPressed: () {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Exporting center-wide clinical progress report...')),
+                    const SnackBar(
+                        content: Text(
+                            'Exporting center-wide clinical progress report...')),
                   );
                 },
               );
@@ -193,14 +223,38 @@ class _StudProgressSectionPageState extends State<StudProgressSectionPage> {
                 crossAxisCount: crossAxisCount,
                 crossAxisSpacing: 14,
                 mainAxisSpacing: 14,
-                childAspectRatio: crossAxisCount == 1 ? 3.6 : (crossAxisCount == 2 ? 2.5 : 1.7),
+                childAspectRatio: crossAxisCount == 1
+                    ? 3.6
+                    : (crossAxisCount == 2 ? 2.5 : 1.7),
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 children: [
-                  _buildProgressKpiItem('Mastery Velocity', _totalStudents > 0 ? '0 Targets' : '0 Targets', 'No targets mastered yet', Icons.trending_up, Colors.green),
-                  _buildProgressKpiItem('Avg Acquisition Speed', '0.0 Days', 'per discrete skill target', Icons.speed_outlined, Colors.purple),
-                  _buildProgressKpiItem('VB-MAPP Milestone Rate', '0.0%', 'Center-wide average', Icons.military_tech_outlined, Colors.blue),
-                  _buildProgressKpiItem('Stagnation Alerts', '$unresolvedCount Flags', unresolvedCount > 0 ? 'Targets >21d flat' : 'No stagnant targets', Icons.warning_amber_rounded, Colors.orange),
+                  _buildProgressKpiItem(
+                      'Mastery Velocity',
+                      _totalStudents > 0 ? '0 Targets' : '0 Targets',
+                      'No targets mastered yet',
+                      Icons.trending_up,
+                      Colors.green),
+                  _buildProgressKpiItem(
+                      'Avg Acquisition Speed',
+                      '0.0 Days',
+                      'per discrete skill target',
+                      Icons.speed_outlined,
+                      Colors.purple),
+                  _buildProgressKpiItem(
+                      'VB-MAPP Milestone Rate',
+                      '0.0%',
+                      'Center-wide average',
+                      Icons.military_tech_outlined,
+                      Colors.blue),
+                  _buildProgressKpiItem(
+                      'Stagnation Alerts',
+                      '$unresolvedCount Flags',
+                      unresolvedCount > 0
+                          ? 'Targets >21d flat'
+                          : 'No stagnant targets',
+                      Icons.warning_amber_rounded,
+                      Colors.orange),
                 ],
               );
             },
@@ -208,17 +262,16 @@ class _StudProgressSectionPageState extends State<StudProgressSectionPage> {
           const SizedBox(height: 24),
 
           // View Switcher Tabs (Scrollable on small screens)
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                _buildViewTab(0, 'Domain Mastery Trends', Icons.bar_chart),
-                const SizedBox(width: 10),
-                _buildViewTab(1, 'VB-MAPP Cohort Heatmap', Icons.grid_view),
-                const SizedBox(width: 10),
-                _buildViewTab(2, 'Stagnation Alerts ($unresolvedCount)', Icons.notification_important_outlined),
-              ],
-            ),
+          // Wraps onto extra lines on narrow screens.
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              _buildViewTab(0, 'Domain Mastery Trends', Icons.bar_chart),
+              _buildViewTab(1, 'VB-MAPP Cohort Heatmap', Icons.grid_view),
+              _buildViewTab(2, 'Stagnation Alerts ($unresolvedCount)',
+                  Icons.notification_important_outlined),
+            ],
           ),
           const SizedBox(height: 18),
 
@@ -231,7 +284,8 @@ class _StudProgressSectionPageState extends State<StudProgressSectionPage> {
     );
   }
 
-  Widget _buildProgressKpiItem(String label, String value, String subtext, IconData icon, Color color) {
+  Widget _buildProgressKpiItem(
+      String label, String value, String subtext, IconData icon, Color color) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -239,7 +293,10 @@ class _StudProgressSectionPageState extends State<StudProgressSectionPage> {
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppColors.divider),
         boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 6, offset: const Offset(0, 2)),
+          BoxShadow(
+              color: Colors.black.withValues(alpha: 0.02),
+              blurRadius: 6,
+              offset: const Offset(0, 2)),
         ],
       ),
       child: Row(
@@ -260,21 +317,28 @@ class _StudProgressSectionPageState extends State<StudProgressSectionPage> {
               children: [
                 Text(
                   label,
-                  style: const TextStyle(fontSize: 12, color: AppColors.textSecondary, fontWeight: FontWeight.w500),
+                  style: const TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textSecondary,
+                      fontWeight: FontWeight.w500),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 4),
                 Text(
                   value,
-                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                  style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 2),
                 Text(
                   subtext,
-                  style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w600),
+                  style: TextStyle(
+                      fontSize: 11, color: color, fontWeight: FontWeight.w600),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -297,15 +361,23 @@ class _StudProgressSectionPageState extends State<StudProgressSectionPage> {
         decoration: BoxDecoration(
           color: isSelected ? AppColors.primary : Colors.white,
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: isSelected ? AppColors.primary : AppColors.divider),
+          border: Border.all(
+              color: isSelected ? AppColors.primary : AppColors.divider),
           boxShadow: isSelected
-              ? [BoxShadow(color: AppColors.primary.withValues(alpha: 0.25), blurRadius: 6, offset: const Offset(0, 2))]
+              ? [
+                  BoxShadow(
+                      color: AppColors.primary.withValues(alpha: 0.25),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2))
+                ]
               : null,
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 16, color: isSelected ? Colors.white : AppColors.textSecondary),
+            Icon(icon,
+                size: 16,
+                color: isSelected ? Colors.white : AppColors.textSecondary),
             const SizedBox(width: 8),
             Text(
               label,
@@ -325,7 +397,7 @@ class _StudProgressSectionPageState extends State<StudProgressSectionPage> {
   Widget _buildDomainMasterySection() {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(32),
+      padding: EdgeInsets.all(Breakpoints.isCompact(context) ? 20 : 32),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -341,20 +413,25 @@ class _StudProgressSectionPageState extends State<StudProgressSectionPage> {
               color: AppColors.primary.withValues(alpha: 0.08),
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.insights_outlined, size: 48, color: AppColors.primary),
+            child: const Icon(Icons.insights_outlined,
+                size: 48, color: AppColors.primary),
           ),
           const SizedBox(height: 16),
           const Text(
             'No Clinical Domain Data Available',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+            style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: AppColors.textPrimary),
           ),
           const SizedBox(height: 8),
-          const SizedBox(
-            width: 500,
-            child: Text(
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 500),
+            child: const Text(
               'Domain mastery velocity and target percentages will automatically calculate and display here once therapists log discrete trial data sheets for students.',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 13, color: AppColors.textSecondary, height: 1.5),
+              style: TextStyle(
+                  fontSize: 13, color: AppColors.textSecondary, height: 1.5),
             ),
           ),
         ],
@@ -366,7 +443,7 @@ class _StudProgressSectionPageState extends State<StudProgressSectionPage> {
   Widget _buildVbMappCohortHeatmapSection() {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(32),
+      padding: EdgeInsets.all(Breakpoints.isCompact(context) ? 20 : 32),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -382,20 +459,25 @@ class _StudProgressSectionPageState extends State<StudProgressSectionPage> {
               color: AppColors.primary.withValues(alpha: 0.08),
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.grid_view_outlined, size: 48, color: AppColors.primary),
+            child: const Icon(Icons.grid_view_outlined,
+                size: 48, color: AppColors.primary),
           ),
           const SizedBox(height: 16),
           const Text(
             'No Cohort Assessment Heatmap Data',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+            style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: AppColors.textPrimary),
           ),
           const SizedBox(height: 8),
-          const SizedBox(
-            width: 500,
-            child: Text(
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 500),
+            child: const Text(
               'Center-wide VB-MAPP milestone cohort heatmaps will render here once milestone scoring forms are completed by clinical staff.',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 13, color: AppColors.textSecondary, height: 1.5),
+              style: TextStyle(
+                  fontSize: 13, color: AppColors.textSecondary, height: 1.5),
             ),
           ),
         ],
@@ -422,14 +504,22 @@ class _StudProgressSectionPageState extends State<StudProgressSectionPage> {
             ),
             child: Row(
               children: [
-                const Icon(Icons.warning_amber_rounded, color: Color(0xFFC2410C), size: 24),
+                const Icon(Icons.warning_amber_rounded,
+                    color: Color(0xFFC2410C), size: 24),
                 const SizedBox(width: 12),
                 const Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Clinical Stagnation & Regression Sentinel', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF7C2D12))),
-                      Text('Flagged when a student has zero mastery acquisition over 21 consecutive days or registers >15% prompt dependency regression.', style: TextStyle(fontSize: 12, color: Color(0xFF9A3412))),
+                      Text('Clinical Stagnation & Regression Sentinel',
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 15,
+                              color: Color(0xFF7C2D12))),
+                      Text(
+                          'Flagged when a student has zero mastery acquisition over 21 consecutive days or registers >15% prompt dependency regression.',
+                          style: TextStyle(
+                              fontSize: 12, color: Color(0xFF9A3412))),
                     ],
                   ),
                 ),
@@ -440,7 +530,8 @@ class _StudProgressSectionPageState extends State<StudProgressSectionPage> {
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             itemCount: _alerts.length,
-            separatorBuilder: (_, __) => const Divider(height: 1, color: AppColors.divider),
+            separatorBuilder: (_, __) =>
+                const Divider(height: 1, color: AppColors.divider),
             itemBuilder: (ctx, i) {
               final a = _alerts[i];
               return Padding(
@@ -459,12 +550,18 @@ class _StudProgressSectionPageState extends State<StudProgressSectionPage> {
                               Container(
                                 padding: const EdgeInsets.all(8),
                                 decoration: BoxDecoration(
-                                  color: a.reviewScheduled ? AppColors.statusActiveBg : AppColors.statusPendingBg,
+                                  color: a.reviewScheduled
+                                      ? AppColors.statusActiveBg
+                                      : AppColors.statusPendingBg,
                                   shape: BoxShape.circle,
                                 ),
                                 child: Icon(
-                                  a.reviewScheduled ? Icons.check_circle_outline : Icons.flag_outlined,
-                                  color: a.reviewScheduled ? AppColors.statusActive : AppColors.statusPending,
+                                  a.reviewScheduled
+                                      ? Icons.check_circle_outline
+                                      : Icons.flag_outlined,
+                                  color: a.reviewScheduled
+                                      ? AppColors.statusActive
+                                      : AppColors.statusPending,
                                   size: 18,
                                 ),
                               ),
@@ -473,18 +570,31 @@ class _StudProgressSectionPageState extends State<StudProgressSectionPage> {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text(a.studentName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.textPrimary)),
-                                    Text('Therapist: ${a.therapistName}', style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                                    Text(a.studentName,
+                                        style: const TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 14,
+                                            color: AppColors.textPrimary)),
+                                    Text('Therapist: ${a.therapistName}',
+                                        style: const TextStyle(
+                                            fontSize: 12,
+                                            color: AppColors.textSecondary)),
                                   ],
                                 ),
                               ),
+                              const SizedBox(width: 8),
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 8, vertical: 4),
                                 decoration: BoxDecoration(
                                   color: AppColors.statusDeactivatedBg,
                                   borderRadius: BorderRadius.circular(6),
                                 ),
-                                child: Text('${a.daysStagnant}d Stagnant', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: AppColors.statusDeactivated)),
+                                child: Text('${a.daysStagnant}d Stagnant',
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 11,
+                                        color: AppColors.statusDeactivated)),
                               ),
                             ],
                           ),
@@ -500,14 +610,28 @@ class _StudProgressSectionPageState extends State<StudProgressSectionPage> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                  decoration: BoxDecoration(color: AppColors.primary.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(4)),
-                                  child: Text(a.domain, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.primary)),
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 8, vertical: 2),
+                                  decoration: BoxDecoration(
+                                      color: AppColors.primary
+                                          .withValues(alpha: 0.1),
+                                      borderRadius: BorderRadius.circular(4)),
+                                  child: Text(a.domain,
+                                      style: const TextStyle(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.bold,
+                                          color: AppColors.primary)),
                                 ),
                                 const SizedBox(height: 4),
-                                Text(a.targetDescription, style: const TextStyle(fontSize: 12, color: AppColors.textPrimary)),
+                                Text(a.targetDescription,
+                                    style: const TextStyle(
+                                        fontSize: 12,
+                                        color: AppColors.textPrimary)),
                                 const SizedBox(height: 4),
-                                Text(a.trend, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                                Text(a.trend,
+                                    style: const TextStyle(
+                                        fontSize: 11,
+                                        color: AppColors.textSecondary)),
                               ],
                             ),
                           ),
@@ -516,16 +640,27 @@ class _StudProgressSectionPageState extends State<StudProgressSectionPage> {
                             width: double.infinity,
                             child: ElevatedButton(
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: a.reviewScheduled ? Colors.grey.shade200 : AppColors.primary,
-                                foregroundColor: a.reviewScheduled ? AppColors.textSecondary : Colors.white,
+                                backgroundColor: a.reviewScheduled
+                                    ? Colors.grey.shade200
+                                    : AppColors.primary,
+                                foregroundColor: a.reviewScheduled
+                                    ? AppColors.textSecondary
+                                    : Colors.white,
                                 elevation: 0,
-                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 14, vertical: 10),
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8)),
                               ),
-                              onPressed: a.reviewScheduled ? null : () => _scheduleReview(a),
+                              onPressed: a.reviewScheduled
+                                  ? null
+                                  : () => _scheduleReview(a),
                               child: Text(
-                                a.reviewScheduled ? 'Review Set' : 'Schedule Review',
-                                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                                a.reviewScheduled
+                                    ? 'Review Set'
+                                    : 'Schedule Review',
+                                style: const TextStyle(
+                                    fontSize: 12, fontWeight: FontWeight.bold),
                               ),
                             ),
                           ),
@@ -539,12 +674,18 @@ class _StudProgressSectionPageState extends State<StudProgressSectionPage> {
                         Container(
                           padding: const EdgeInsets.all(10),
                           decoration: BoxDecoration(
-                            color: a.reviewScheduled ? AppColors.statusActiveBg : AppColors.statusPendingBg,
+                            color: a.reviewScheduled
+                                ? AppColors.statusActiveBg
+                                : AppColors.statusPendingBg,
                             shape: BoxShape.circle,
                           ),
                           child: Icon(
-                            a.reviewScheduled ? Icons.check_circle_outline : Icons.flag_outlined,
-                            color: a.reviewScheduled ? AppColors.statusActive : AppColors.statusPending,
+                            a.reviewScheduled
+                                ? Icons.check_circle_outline
+                                : Icons.flag_outlined,
+                            color: a.reviewScheduled
+                                ? AppColors.statusActive
+                                : AppColors.statusPending,
                             size: 20,
                           ),
                         ),
@@ -554,8 +695,15 @@ class _StudProgressSectionPageState extends State<StudProgressSectionPage> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(a.studentName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.textPrimary)),
-                              Text('Therapist: ${a.therapistName}', style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                              Text(a.studentName,
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14,
+                                      color: AppColors.textPrimary)),
+                              Text('Therapist: ${a.therapistName}',
+                                  style: const TextStyle(
+                                      fontSize: 12,
+                                      color: AppColors.textSecondary)),
                             ],
                           ),
                         ),
@@ -565,12 +713,23 @@ class _StudProgressSectionPageState extends State<StudProgressSectionPage> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                decoration: BoxDecoration(color: AppColors.primary.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(4)),
-                                child: Text(a.domain, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.primary)),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 8, vertical: 2),
+                                decoration: BoxDecoration(
+                                    color: AppColors.primary
+                                        .withValues(alpha: 0.1),
+                                    borderRadius: BorderRadius.circular(4)),
+                                child: Text(a.domain,
+                                    style: const TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                        color: AppColors.primary)),
                               ),
                               const SizedBox(height: 4),
-                              Text(a.targetDescription, style: const TextStyle(fontSize: 12, color: AppColors.textPrimary)),
+                              Text(a.targetDescription,
+                                  style: const TextStyle(
+                                      fontSize: 12,
+                                      color: AppColors.textPrimary)),
                             ],
                           ),
                         ),
@@ -579,23 +738,41 @@ class _StudProgressSectionPageState extends State<StudProgressSectionPage> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text('${a.daysStagnant} Days Inactive', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.statusDeactivated)),
-                              Text(a.trend, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                              Text('${a.daysStagnant} Days Inactive',
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 12,
+                                      color: AppColors.statusDeactivated)),
+                              Text(a.trend,
+                                  style: const TextStyle(
+                                      fontSize: 11,
+                                      color: AppColors.textSecondary)),
                             ],
                           ),
                         ),
                         ElevatedButton(
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: a.reviewScheduled ? Colors.grey.shade200 : AppColors.primary,
-                            foregroundColor: a.reviewScheduled ? AppColors.textSecondary : Colors.white,
+                            backgroundColor: a.reviewScheduled
+                                ? Colors.grey.shade200
+                                : AppColors.primary,
+                            foregroundColor: a.reviewScheduled
+                                ? AppColors.textSecondary
+                                : Colors.white,
                             elevation: 0,
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 14, vertical: 10),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8)),
                           ),
-                          onPressed: a.reviewScheduled ? null : () => _scheduleReview(a),
+                          onPressed: a.reviewScheduled
+                              ? null
+                              : () => _scheduleReview(a),
                           child: Text(
-                            a.reviewScheduled ? 'Review Set' : 'Schedule Review',
-                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                            a.reviewScheduled
+                                ? 'Review Set'
+                                : 'Schedule Review',
+                            style: const TextStyle(
+                                fontSize: 11, fontWeight: FontWeight.bold),
                           ),
                         ),
                       ],
@@ -610,4 +787,3 @@ class _StudProgressSectionPageState extends State<StudProgressSectionPage> {
     );
   }
 }
-

@@ -6,6 +6,16 @@ import 'api_service.dart';
 import 'notification_service.dart';
 
 class ScheduleService extends ChangeNotifier {
+  /// Whole years since [dob] (e.g. "2019-11-21"); 0 when missing or unreadable.
+  static int _ageFromDob(dynamic dob) {
+    final d = DateTime.tryParse((dob ?? '').toString());
+    if (d == null) return 0;
+    final now = DateTime.now();
+    var age = now.year - d.year;
+    if (now.month < d.month || (now.month == d.month && now.day < d.day)) age--;
+    return age < 0 ? 0 : age;
+  }
+
   static final ScheduleService _instance = ScheduleService._internal();
   factory ScheduleService() => _instance;
 
@@ -39,7 +49,7 @@ class ScheduleService extends ChangeNotifier {
               therapistName: item['therapist_name'] ?? 'Therapist',
               studentId: (item['student_id'] ?? '').toString(),
               studentName: item['student_name'] ?? 'Student',
-              studentAge: 15,
+              studentAge: _ageFromDob(item['student_dob']),
               programTitle: item['program_title'] ?? 'ABA Intervention',
               room: item['room'] ?? 'Sensory Room A',
               date: sDate,

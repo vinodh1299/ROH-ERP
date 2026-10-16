@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:roh_erp/core/constants/app_colors.dart';
+import 'package:roh_erp/core/layout/responsive.dart';
 import 'package:roh_erp/core/services/schedule_service.dart';
 import 'package:roh_erp/features/auth/auth_service.dart';
 
@@ -22,10 +23,13 @@ class _ProfilePageState extends State<ProfilePage> {
     final auth = context.watch<AuthService>();
     final user = auth.currentUser;
     final parentName = user?.name.isNotEmpty == true ? user!.name : 'User';
-    final parentEmail = user?.email.isNotEmpty == true ? user!.email : 'Not provided';
+    final parentEmail =
+        user?.email.isNotEmpty == true ? user!.email : 'Not provided';
 
+    final isPhone = Breakpoints.isCompact(context);
+    final cardPadding = EdgeInsets.all(isPhone ? 16 : 24);
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24.0),
+      padding: Breakpoints.pagePadding(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -48,7 +52,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
           // ── Parent Guardian Card ──
           Container(
-            padding: const EdgeInsets.all(24),
+            padding: cardPadding,
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(16),
@@ -65,16 +69,23 @@ class _ProfilePageState extends State<ProfilePage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 CircleAvatar(
-                  radius: 36,
-                  backgroundColor: AppColors.primaryLight.withValues(alpha: 0.15),
-                  child: const Icon(Icons.person, size: 40, color: AppColors.primary),
+                  radius: isPhone ? 28 : 36,
+                  backgroundColor:
+                      AppColors.primaryLight.withValues(alpha: 0.15),
+                  child: Icon(Icons.person,
+                      size: isPhone ? 30 : 40, color: AppColors.primary),
                 ),
-                const SizedBox(width: 20),
+                SizedBox(width: isPhone ? 14 : 20),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
+                      // Name + "Primary Guardian" chip; the chip wraps under
+                      // the name when there isn't room beside it.
+                      Wrap(
+                        spacing: 10,
+                        runSpacing: 6,
+                        crossAxisAlignment: WrapCrossAlignment.center,
                         children: [
                           Text(
                             parentName,
@@ -84,11 +95,12 @@ class _ProfilePageState extends State<ProfilePage> {
                               color: AppColors.textPrimary,
                             ),
                           ),
-                          const SizedBox(width: 10),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 3),
                             decoration: BoxDecoration(
-                              color: AppColors.primaryLight.withValues(alpha: 0.15),
+                              color: AppColors.primaryLight
+                                  .withValues(alpha: 0.15),
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: const Text(
@@ -105,12 +117,14 @@ class _ProfilePageState extends State<ProfilePage> {
                       const SizedBox(height: 8),
                       Text(
                         'Email: $parentEmail',
-                        style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                        style: const TextStyle(
+                            fontSize: 13, color: AppColors.textSecondary),
                       ),
                       const SizedBox(height: 4),
                       const Text(
                         'Contact your center administrator to update profile details.',
-                        style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                        style: TextStyle(
+                            fontSize: 13, color: AppColors.textSecondary),
                       ),
                     ],
                   ),
@@ -122,7 +136,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
           // ── Enrolled Child Overview Card ──
           Container(
-            padding: const EdgeInsets.all(24),
+            padding: cardPadding,
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(16),
@@ -142,9 +156,14 @@ class _ProfilePageState extends State<ProfilePage> {
                   children: [
                     Icon(Icons.child_care, color: AppColors.primary, size: 22),
                     SizedBox(width: 8),
-                    Text(
-                      'Enrolled Child Information',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                    Expanded(
+                      child: Text(
+                        'Enrolled Child Information',
+                        style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textPrimary),
+                      ),
                     ),
                   ],
                 ),
@@ -155,27 +174,42 @@ class _ProfilePageState extends State<ProfilePage> {
                     child: Center(
                       child: Column(
                         children: [
-                          Icon(Icons.child_care_outlined, size: 40, color: Colors.grey.shade400),
+                          Icon(Icons.child_care_outlined,
+                              size: 40, color: Colors.grey.shade400),
                           const SizedBox(height: 10),
                           const Text(
                             'No Enrolled Child Linked Yet',
-                            style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                            style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.textPrimary),
                           ),
                           const SizedBox(height: 6),
                           const Text(
                             'Once your child is enrolled by the Center Director, their clinical profile, assigned BCBA, and health protocols will appear here.',
                             textAlign: TextAlign.center,
-                            style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                            style: TextStyle(
+                                fontSize: 12, color: AppColors.textSecondary),
                           ),
                         ],
                       ),
                     ),
                   )
                 else ...[
-                  _buildInfoRow('Child Name', ScheduleService.centerStudents.first['name'] as String),
-                  _buildInfoRow('Age', '${ScheduleService.centerStudents.first['age']} years'),
-                  _buildInfoRow('Active Program', (ScheduleService.centerStudents.first['programs'] as String?) ?? 'Comprehensive Behavioral Program'),
-                  _buildInfoRow('Assigned Clinical BCBA', ScheduleService.centerTherapists.isNotEmpty ? ScheduleService.centerTherapists.first['name']! : 'Pending Assignment'),
+                  _buildInfoRow('Child Name',
+                      ScheduleService.centerStudents.first['name'] as String),
+                  _buildInfoRow('Age',
+                      '${ScheduleService.centerStudents.first['age']} years'),
+                  _buildInfoRow(
+                      'Active Program',
+                      (ScheduleService.centerStudents.first['programs']
+                              as String?) ??
+                          'Comprehensive Behavioral Program'),
+                  _buildInfoRow(
+                      'Assigned Clinical BCBA',
+                      ScheduleService.centerTherapists.isNotEmpty
+                          ? ScheduleService.centerTherapists.first['name']!
+                          : 'Pending Assignment'),
                 ],
               ],
             ),
@@ -184,7 +218,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
           // ── Communication & Notification Preferences ──
           Container(
-            padding: const EdgeInsets.all(24),
+            padding: cardPadding,
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(16),
@@ -202,19 +236,30 @@ class _ProfilePageState extends State<ProfilePage> {
               children: [
                 const Row(
                   children: [
-                    Icon(Icons.notifications_active_outlined, color: AppColors.primary, size: 22),
+                    Icon(Icons.notifications_active_outlined,
+                        color: AppColors.primary, size: 22),
                     SizedBox(width: 8),
-                    Text(
-                      'Center Alerts & Notification Preferences',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                    Expanded(
+                      child: Text(
+                        'Center Alerts & Notification Preferences',
+                        style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textPrimary),
+                      ),
                     ),
                   ],
                 ),
                 const Divider(height: 24, color: AppColors.divider),
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
-                  title: const Text('Session Completion Alerts', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-                  subtitle: const Text('Receive notifications when therapist concludes daily session.', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                  title: const Text('Session Completion Alerts',
+                      style:
+                          TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                  subtitle: const Text(
+                      'Receive notifications when therapist concludes daily session.',
+                      style: TextStyle(
+                          fontSize: 12, color: AppColors.textSecondary)),
                   value: _sessionAlerts,
                   activeColor: AppColors.primary,
                   onChanged: (val) => setState(() => _sessionAlerts = val),
@@ -222,8 +267,13 @@ class _ProfilePageState extends State<ProfilePage> {
                 const Divider(height: 16, color: AppColors.divider),
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
-                  title: const Text('IEP Approval & Clinical Milestone Updates', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-                  subtitle: const Text('Instant notification when Clinical Director authorizes quarterly IEP.', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                  title: const Text('IEP Approval & Clinical Milestone Updates',
+                      style:
+                          TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                  subtitle: const Text(
+                      'Instant notification when Clinical Director authorizes quarterly IEP.',
+                      style: TextStyle(
+                          fontSize: 12, color: AppColors.textSecondary)),
                   value: _iepUpdates,
                   activeColor: AppColors.primary,
                   onChanged: (val) => setState(() => _iepUpdates = val),
@@ -231,8 +281,13 @@ class _ProfilePageState extends State<ProfilePage> {
                 const Divider(height: 16, color: AppColors.divider),
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
-                  title: const Text('Email Digest & Progress Reports', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-                  subtitle: const Text('Weekly summary of skills mastered sent to parent email.', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                  title: const Text('Email Digest & Progress Reports',
+                      style:
+                          TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                  subtitle: const Text(
+                      'Weekly summary of skills mastered sent to parent email.',
+                      style: TextStyle(
+                          fontSize: 12, color: AppColors.textSecondary)),
                   value: _emailNotifs,
                   activeColor: AppColors.primary,
                   onChanged: (val) => setState(() => _emailNotifs = val),
@@ -252,16 +307,23 @@ class _ProfilePageState extends State<ProfilePage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            width: 200,
+            // Narrower label column on phones.
+            width: Breakpoints.isCompact(context) ? 130 : 200,
             child: Text(
               label,
-              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: AppColors.textSecondary),
+              style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                  color: AppColors.textSecondary),
             ),
           ),
           Expanded(
             child: Text(
               value,
-              style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13, color: AppColors.textPrimary),
+              style: const TextStyle(
+                  fontWeight: FontWeight.w500,
+                  fontSize: 13,
+                  color: AppColors.textPrimary),
             ),
           ),
         ],

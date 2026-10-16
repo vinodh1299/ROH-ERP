@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:roh_erp/core/constants/app_colors.dart';
 import 'package:roh_erp/core/services/api_service.dart';
+import 'package:roh_erp/core/layout/responsive.dart';
 
 class SettingsSectionPage extends StatefulWidget {
   const SettingsSectionPage({super.key});
@@ -17,8 +18,10 @@ class _SettingsSectionPageState extends State<SettingsSectionPage> {
   String _stagnationDays = '21';
   String _supervisionRatio = '5.0%';
   bool _dualSignOffCrisis = true;
-  final TextEditingController _nameController = TextEditingController(text: 'Clinical Director');
-  final TextEditingController _titleController = TextEditingController(text: 'BCBA, Clinical Director');
+  final TextEditingController _nameController =
+      TextEditingController(text: 'Clinical Director');
+  final TextEditingController _titleController =
+      TextEditingController(text: 'BCBA, Clinical Director');
   final TextEditingController _certController = TextEditingController(text: '');
 
   @override
@@ -37,7 +40,8 @@ class _SettingsSectionPageState extends State<SettingsSectionPage> {
         'require_two_therapists': _requireTwoTherapists ? 1 : 0,
         'reassessment_frequency': _reassessmentFreq,
         'stagnation_alert_days': int.tryParse(_stagnationDays) ?? 21,
-        'supervision_ratio_target': double.tryParse(_supervisionRatio.replaceAll('%', '')) ?? 5.0,
+        'supervision_ratio_target':
+            double.tryParse(_supervisionRatio.replaceAll('%', '')) ?? 5.0,
         'director_signature_name': _nameController.text,
         'director_title': _titleController.text,
         'director_bacb_cert': _certController.text,
@@ -47,7 +51,8 @@ class _SettingsSectionPageState extends State<SettingsSectionPage> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('Clinical Governance & Center Settings updated successfully!'),
+        content:
+            Text('Clinical Governance & Center Settings updated successfully!'),
         backgroundColor: AppColors.statusActive,
       ),
     );
@@ -56,53 +61,63 @@ class _SettingsSectionPageState extends State<SettingsSectionPage> {
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+      padding: Breakpoints.pagePadding(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // ── Header Row ──────────────────────────────────────────────────
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Clinical Governance & Executive Settings',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
-                  ),
-                  SizedBox(height: 4),
-                  Text(
-                    'Configure center-wide ABA mastery criteria, BACB supervision quotas, and digital authorization signatures.',
-                    style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
-                  ),
-                ],
-              ),
-              ElevatedButton.icon(
-                icon: const Icon(Icons.check, color: Colors.white, size: 18),
-                label: const Text('Save Settings', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          _ResponsiveHeader(
+            title: const Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Clinical Governance & Executive Settings',
+                  style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary),
                 ),
-                onPressed: _saveSettings,
+                SizedBox(height: 4),
+                Text(
+                  'Configure center-wide ABA mastery criteria, BACB supervision quotas, and digital authorization signatures.',
+                  style:
+                      TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                ),
+              ],
+            ),
+            action: ElevatedButton.icon(
+              icon: const Icon(Icons.check, color: Colors.white, size: 18),
+              label: const Text('Save Settings',
+                  style: TextStyle(
+                      color: Colors.white, fontWeight: FontWeight.bold)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8)),
               ),
-            ],
+              onPressed: _saveSettings,
+            ),
           ),
           const SizedBox(height: 24),
 
           // ── Section 1: Clinical Governance & ABA Treatment Rules ────────
           _buildSettingsCard(
             title: 'Clinical Governance & ABA Treatment Rules',
-            subtitle: 'Core operational criteria for target mastery, skill acquisition, and milestone reassessments.',
+            subtitle:
+                'Core operational criteria for target mastery, skill acquisition, and milestone reassessments.',
             icon: Icons.gavel_outlined,
             children: [
               _buildDropdownSetting(
                 'Target Mastery Standard',
                 'Performance required before a discrete skill target moves from acquisition to maintenance.',
                 _masteryCriteria,
-                ['80% across 3 consecutive sessions', '90% across 2 consecutive sessions', '100% across 2 sessions'],
+                [
+                  '80% across 3 consecutive sessions',
+                  '90% across 2 consecutive sessions',
+                  '100% across 2 sessions'
+                ],
                 (val) => setState(() => _masteryCriteria = val!),
               ),
               const Divider(height: 24, color: AppColors.divider),
@@ -135,7 +150,8 @@ class _SettingsSectionPageState extends State<SettingsSectionPage> {
           // ── Section 2: BACB Supervision Standards ───────────────────────
           _buildSettingsCard(
             title: 'BACB Supervision Standards & Accreditation',
-            subtitle: 'Supervision compliance thresholds mandated by the Behavior Analyst Certification Board.',
+            subtitle:
+                'Supervision compliance thresholds mandated by the Behavior Analyst Certification Board.',
             icon: Icons.verified_user_outlined,
             children: [
               _buildDropdownSetting(
@@ -159,57 +175,89 @@ class _SettingsSectionPageState extends State<SettingsSectionPage> {
           // ── Section 3: Director Digital Signature Stamp ──────────────────
           _buildSettingsCard(
             title: 'Director Digital Signature & Authorization Stamp',
-            subtitle: 'Configured credentials affixed to approved IEP reports and treatment plans.',
+            subtitle:
+                'Configured credentials affixed to approved IEP reports and treatment plans.',
             icon: Icons.draw_outlined,
             children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    flex: 3,
-                    child: Column(
-                      children: [
-                        _buildInputField('Clinical Director Full Name', _nameController),
-                        const SizedBox(height: 12),
-                        _buildInputField('Clinical Title & Credentials', _titleController),
-                        const SizedBox(height: 12),
-                        _buildInputField('Board Certification Number', _certController),
-                      ],
-                    ),
+              LayoutBuilder(builder: (context, constraints) {
+                final fields = Column(
+                  children: [
+                    _buildInputField(
+                        'Clinical Director Full Name', _nameController),
+                    const SizedBox(height: 12),
+                    _buildInputField(
+                        'Clinical Title & Credentials', _titleController),
+                    const SizedBox(height: 12),
+                    _buildInputField(
+                        'Board Certification Number', _certController),
+                  ],
+                );
+                final stamp = Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFBF8FE),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                        color: AppColors.primary.withValues(alpha: 0.3)),
                   ),
-                  const SizedBox(width: 24),
-                  Expanded(
-                    flex: 2,
-                    child: Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFBF8FE),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.verified,
+                          color: AppColors.primary, size: 36),
+                      const SizedBox(height: 10),
+                      const Text('Digital Signature Stamp',
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                              color: AppColors.textPrimary)),
+                      const SizedBox(height: 6),
+                      Text(_nameController.text,
+                          style: const TextStyle(
+                              fontFamily: 'serif',
+                              fontStyle: FontStyle.italic,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.primary)),
+                      const SizedBox(height: 4),
+                      Text(_titleController.text,
+                          style: const TextStyle(
+                              fontSize: 11, color: AppColors.textSecondary)),
+                      Text(_certController.text,
+                          style: const TextStyle(
+                              fontSize: 10, color: AppColors.textHint)),
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                            color: AppColors.statusActiveBg,
+                            borderRadius: BorderRadius.circular(8)),
+                        child: const Text('Signature Active & Verified',
+                            style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.statusActive)),
                       ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          const Icon(Icons.verified, color: AppColors.primary, size: 36),
-                          const SizedBox(height: 10),
-                          const Text('Digital Signature Stamp', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textPrimary)),
-                          const SizedBox(height: 6),
-                          Text(_nameController.text, style: const TextStyle(fontFamily: 'serif', fontStyle: FontStyle.italic, fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.primary)),
-                          const SizedBox(height: 4),
-                          Text(_titleController.text, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
-                          Text(_certController.text, style: const TextStyle(fontSize: 10, color: AppColors.textHint)),
-                          const SizedBox(height: 12),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                            decoration: BoxDecoration(color: AppColors.statusActiveBg, borderRadius: BorderRadius.circular(8)),
-                            child: const Text('Signature Active & Verified', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.statusActive)),
-                          ),
-                        ],
-                      ),
-                    ),
+                    ],
                   ),
-                ],
-              ),
+                );
+                // Narrow: stack the stamp preview under the input fields.
+                if (constraints.maxWidth < _stackBelow) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [fields, const SizedBox(height: 16), stamp],
+                  );
+                }
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(flex: 3, child: fields),
+                    const SizedBox(width: 24),
+                    Expanded(flex: 2, child: stamp),
+                  ],
+                );
+              }),
             ],
           ),
           const SizedBox(height: 20),
@@ -217,16 +265,21 @@ class _SettingsSectionPageState extends State<SettingsSectionPage> {
           // ── Section 4: Center Capacity & Working Hours ──────────────────
           _buildSettingsCard(
             title: 'Center Operational Defaults & Capacity',
-            subtitle: 'Staff limits, emergency contacts, and daily operating windows.',
+            subtitle:
+                'Staff limits, emergency contacts, and daily operating windows.',
             icon: Icons.business_outlined,
             children: [
-              _buildStaticRow('Maximum Center Caseload Capacity', '30 Students'),
+              _buildStaticRow(
+                  'Maximum Center Caseload Capacity', '30 Students'),
               const Divider(height: 20, color: AppColors.divider),
-              _buildStaticRow('Maximum Student Ratio per Clinician', '6 Cases maximum per therapist'),
+              _buildStaticRow('Maximum Student Ratio per Clinician',
+                  '6 Cases maximum per therapist'),
               const Divider(height: 20, color: AppColors.divider),
-              _buildStaticRow('Center Operating Hours', '08:00 AM - 06:00 PM (Monday - Saturday)'),
+              _buildStaticRow('Center Operating Hours',
+                  '08:00 AM - 06:00 PM (Monday - Saturday)'),
               const Divider(height: 20, color: AppColors.divider),
-              _buildStaticRow('Emergency Clinical Escalation Line', 'Not configured'),
+              _buildStaticRow(
+                  'Emergency Clinical Escalation Line', 'Not configured'),
             ],
           ),
         ],
@@ -241,7 +294,7 @@ class _SettingsSectionPageState extends State<SettingsSectionPage> {
     required List<Widget> children,
   }) {
     return Container(
-      padding: const EdgeInsets.all(22),
+      padding: EdgeInsets.all(Breakpoints.isCompact(context) ? 16 : 22),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -254,16 +307,26 @@ class _SettingsSectionPageState extends State<SettingsSectionPage> {
             children: [
               Container(
                 padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(color: AppColors.primary.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
+                decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8)),
                 child: Icon(icon, color: AppColors.primary, size: 20),
               ),
               const SizedBox(width: 12),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: AppColors.textPrimary)),
-                  Text(subtitle, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-                ],
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title,
+                        style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 15,
+                            color: AppColors.textPrimary)),
+                    Text(subtitle,
+                        style: const TextStyle(
+                            fontSize: 12, color: AppColors.textSecondary)),
+                  ],
+                ),
               ),
             ],
           ),
@@ -274,91 +337,120 @@ class _SettingsSectionPageState extends State<SettingsSectionPage> {
     );
   }
 
-  Widget _buildDropdownSetting(String label, String help, String current, List<String> options, ValueChanged<String?> onChanged) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  /// Below this content width a setting's control is stacked under its
+  /// label/description instead of sitting to the right.
+  static const double _stackBelow = 560;
+
+  Widget _settingLabel(String label, String help) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(label, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: AppColors.textPrimary)),
-              const SizedBox(height: 2),
-              Text(help, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
-            ],
-          ),
-        ),
-        const SizedBox(width: 20),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          decoration: BoxDecoration(
-            border: Border.all(color: AppColors.divider),
-            borderRadius: BorderRadius.circular(8),
-            color: const Color(0xFFFAF8FC),
-          ),
-          child: DropdownButton<String>(
-            value: current,
-            underline: const SizedBox(),
-            items: options.map((o) => DropdownMenuItem(value: o, child: Text(o, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)))).toList(),
-            onChanged: onChanged,
-          ),
-        ),
+        Text(label,
+            style: const TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+                color: AppColors.textPrimary)),
+        const SizedBox(height: 2),
+        Text(help,
+            style:
+                const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
       ],
     );
   }
 
-  Widget _buildSwitchSetting(String label, String help, bool val, ValueChanged<bool> onChanged) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Expanded(
-          child: Column(
+  /// Label + description on the left and [control] on the right; stacks the
+  /// control below the text when the row is narrower than [_stackBelow].
+  Widget _settingRow(
+      String label, String help, Widget Function(bool stacked) control,
+      {double gap = 20}) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < _stackBelow) {
+          return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(label, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: AppColors.textPrimary)),
-              const SizedBox(height: 2),
-              Text(help, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+              _settingLabel(label, help),
+              const SizedBox(height: 10),
+              control(true),
             ],
-          ),
+          );
+        }
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(child: _settingLabel(label, help)),
+            SizedBox(width: gap),
+            control(false),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildDropdownSetting(String label, String help, String current,
+      List<String> options, ValueChanged<String?> onChanged) {
+    return _settingRow(
+      label,
+      help,
+      (stacked) => Container(
+        width: stacked ? double.infinity : null,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(
+          border: Border.all(color: AppColors.divider),
+          borderRadius: BorderRadius.circular(8),
+          color: const Color(0xFFFAF8FC),
         ),
-        Switch(
-          value: val,
-          activeColor: AppColors.primary,
+        child: DropdownButton<String>(
+          value: current,
+          isExpanded: stacked,
+          underline: const SizedBox(),
+          items: options
+              .map((o) => DropdownMenuItem(
+                    value: o,
+                    child: Text(o,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            fontSize: 12, fontWeight: FontWeight.w600)),
+                  ))
+              .toList(),
           onChanged: onChanged,
         ),
-      ],
+      ),
     );
   }
 
-  Widget _buildTextSetting(String label, String help, String val, String suffix, ValueChanged<String> onChanged) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(label, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: AppColors.textPrimary)),
-              const SizedBox(height: 2),
-              Text(help, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
-            ],
+  Widget _buildSwitchSetting(
+      String label, String help, bool val, ValueChanged<bool> onChanged) {
+    return _settingRow(
+      label,
+      help,
+      (_) => Switch(
+        value: val,
+        activeColor: AppColors.primary,
+        onChanged: onChanged,
+      ),
+      gap: 0,
+    );
+  }
+
+  Widget _buildTextSetting(String label, String help, String val, String suffix,
+      ValueChanged<String> onChanged) {
+    return _settingRow(
+      label,
+      help,
+      (_) => SizedBox(
+        width: 120,
+        child: TextFormField(
+          initialValue: val,
+          onChanged: onChanged,
+          keyboardType: TextInputType.number,
+          decoration: InputDecoration(
+            suffixText: suffix,
+            isDense: true,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
           ),
         ),
-        const SizedBox(width: 20),
-        SizedBox(
-          width: 120,
-          child: TextFormField(
-            initialValue: val,
-            onChanged: onChanged,
-            keyboardType: TextInputType.number,
-            decoration: InputDecoration(
-              suffixText: suffix,
-              isDense: true,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-            ),
-          ),
-        ),
-      ],
+      ),
     );
   }
 
@@ -366,14 +458,22 @@ class _SettingsSectionPageState extends State<SettingsSectionPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12, color: AppColors.textPrimary)),
+        Text(label,
+            style: const TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 12,
+                color: AppColors.textPrimary)),
         const SizedBox(height: 6),
         TextField(
           controller: controller,
           decoration: InputDecoration(
             isDense: true,
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: AppColors.divider)),
-            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: AppColors.primary)),
+            border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: const BorderSide(color: AppColors.divider)),
+            focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: const BorderSide(color: AppColors.primary)),
           ),
         ),
       ],
@@ -381,13 +481,64 @@ class _SettingsSectionPageState extends State<SettingsSectionPage> {
   }
 
   Widget _buildStaticRow(String label, String value) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(label, style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
-        Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-      ],
+    const labelStyle = TextStyle(fontSize: 13, color: AppColors.textSecondary);
+    const valueStyle = TextStyle(
+        fontSize: 13,
+        fontWeight: FontWeight.bold,
+        color: AppColors.textPrimary);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < _stackBelow) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: labelStyle),
+              const SizedBox(height: 4),
+              Text(value, style: valueStyle),
+            ],
+          );
+        }
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Flexible(child: Text(label, style: labelStyle)),
+            const SizedBox(width: 16),
+            Flexible(
+                child:
+                    Text(value, textAlign: TextAlign.right, style: valueStyle)),
+          ],
+        );
+      },
     );
   }
 }
 
+/// Page header: title block on the left and action button(s) on the right;
+/// stacks the actions under the title when there is not enough width.
+class _ResponsiveHeader extends StatelessWidget {
+  final Widget title;
+  final Widget action;
+  const _ResponsiveHeader({required this.title, required this.action});
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 760) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [title, const SizedBox(height: 12), action],
+          );
+        }
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(child: title),
+            const SizedBox(width: 16),
+            action,
+          ],
+        );
+      },
+    );
+  }
+}

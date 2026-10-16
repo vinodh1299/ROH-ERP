@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:roh_erp/core/constants/app_colors.dart';
+import 'package:roh_erp/core/layout/responsive.dart';
 
 import 'package:roh_erp/core/constants/app_images.dart';
 
@@ -9,15 +10,19 @@ class AdminStudProgressPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.all(24.0),
+      padding: Breakpoints.pagePadding(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Students Progress', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 18)),
+          const Text('Students Progress',
+              style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18)),
           const SizedBox(height: 24),
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.all(36),
+            padding: EdgeInsets.all(Breakpoints.isCompact(context) ? 20 : 36),
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(16),
@@ -33,20 +38,27 @@ class AdminStudProgressPage extends StatelessWidget {
                     color: AppColors.primary.withValues(alpha: 0.08),
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(Icons.bar_chart_outlined, size: 48, color: AppColors.primary),
+                  child: const Icon(Icons.bar_chart_outlined,
+                      size: 48, color: AppColors.primary),
                 ),
                 const SizedBox(height: 16),
                 const Text(
                   'No Student Progress Data Available',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                  style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary),
                 ),
                 const SizedBox(height: 8),
-                const SizedBox(
-                  width: 500,
-                  child: Text(
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 500),
+                  child: const Text(
                     'Center-wide student progress metrics and milestone acquisition rates will display here once therapists log clinical data sheets.',
                     textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 13, color: AppColors.textSecondary, height: 1.5),
+                    style: TextStyle(
+                        fontSize: 13,
+                        color: AppColors.textSecondary,
+                        height: 1.5),
                   ),
                 ),
               ],

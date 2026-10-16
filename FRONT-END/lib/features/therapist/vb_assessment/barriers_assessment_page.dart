@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:roh_erp/core/constants/app_colors.dart';
+import '../../../core/layout/responsive.dart';
 import '../../../core/services/db_queries.dart';
 import '../widgets/student_card_grid.dart';
 import '../widgets/student_assessment_banner.dart';
@@ -32,7 +33,8 @@ class _BarriersAssessmentPageState extends State<BarriersAssessmentPage> {
   Future<void> _loadBarriersData() async {
     if (_selectedStudentId == null) return;
     try {
-      final res = await BarriersAssessmentQueries.fetchForStudent(_selectedStudentId.toString());
+      final res = await BarriersAssessmentQueries.fetchForStudent(
+          _selectedStudentId.toString());
       if (mounted) {
         setState(() {
           _barrierRecords = res;
@@ -62,38 +64,46 @@ class _BarriersAssessmentPageState extends State<BarriersAssessmentPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header Row
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
+          // Header Row — title wraps to 2 lines; the legend moves below the
+          // title when the content area is narrow.
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final narrow = constraints.maxWidth < 760;
+              final titleRow = Row(
                 children: [
                   IconButton(
-                    icon: const Icon(Icons.arrow_back, color: AppColors.primary),
+                    icon:
+                        const Icon(Icons.arrow_back, color: AppColors.primary),
                     onPressed: () => setState(() => _selectedStudent = null),
                     tooltip: 'Back to students',
                   ),
                   const SizedBox(width: 8),
-                  Text(
-                    '$_selectedStudent VB MAPP Barriers Assessment',
-                    style: const TextStyle(
-                      fontFamily: 'Poppins',
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.primary,
+                  Expanded(
+                    child: Text(
+                      '$_selectedStudent VB MAPP Barriers Assessment',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontFamily: 'Poppins',
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.primary,
+                      ),
                     ),
                   ),
                 ],
-              ),
+              );
               // Legend table
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              final legend = Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   border: Border.all(color: AppColors.divider),
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: const Column(
+                  mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _LegendRow('0', 'No problem'),
@@ -103,8 +113,21 @@ class _BarriersAssessmentPageState extends State<BarriersAssessmentPage> {
                     _LegendRow('4', 'Severe problem'),
                   ],
                 ),
-              ),
-            ],
+              );
+              if (narrow) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [titleRow, const SizedBox(height: 12), legend],
+                );
+              }
+              return Row(
+                children: [
+                  Expanded(child: titleRow),
+                  const SizedBox(width: 16),
+                  legend,
+                ],
+              );
+            },
           ),
           const SizedBox(height: 16),
 
@@ -191,25 +214,34 @@ class _BarriersAssessmentPageState extends State<BarriersAssessmentPage> {
               onPressed: () => setState(() => _selectedStudent = null),
               style: OutlinedButton.styleFrom(
                 side: const BorderSide(color: AppColors.primary),
-                padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8)),
               ),
-              child: const Text('Cancel', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold)),
+              child: const Text('Cancel',
+                  style: TextStyle(
+                      color: AppColors.primary, fontWeight: FontWeight.bold)),
             ),
             const SizedBox(width: 16),
             ElevatedButton(
               onPressed: () {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Barriers Assessment Saved Successfully!')),
+                  const SnackBar(
+                      content: Text('Barriers Assessment Saved Successfully!')),
                 );
                 setState(() => _activeTab = 1);
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
-                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8)),
               ),
-              child: const Text('Save', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              child: const Text('Save',
+                  style: TextStyle(
+                      color: Colors.white, fontWeight: FontWeight.bold)),
             ),
           ],
         ),
@@ -225,56 +257,87 @@ class _BarriersAssessmentPageState extends State<BarriersAssessmentPage> {
         color: const Color(0xFFE5E7EB).withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(12),
       ),
-      padding: const EdgeInsets.all(20),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            flex: 4,
-            child: Column(
+      padding: EdgeInsets.all(Breakpoints.isCompact(context) ? 12 : 20),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final options = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  fontFamily: 'Poppins',
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 12),
+              _buildScoreOption('0',
+                  'Does not demonstrate any significant negative behaviors'),
+              _buildScoreOption('1',
+                  'Engages in some minor negative behaviors weekly, but recovery is quick'),
+              _buildScoreOption('2',
+                  'Emits a variety of minor negative behaviors daily (e.g., crying, verbal refusal)'),
+              _buildScoreOption('3',
+                  'Emits more severe negative behavior daily (e.g., tantrums, throwing things)'),
+              _buildScoreOption('4',
+                  'Often emits severe negative behavior that is a danger to himself or others'),
+            ],
+          );
+          const scoreTitle = Text(
+            'Assessment Score',
+            style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                color: AppColors.textPrimary),
+          );
+          // Narrow: score boxes go below the options and flow in a row.
+          if (constraints.maxWidth < 560) {
+            return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    fontFamily: 'Poppins',
-                    color: AppColors.textPrimary,
-                  ),
-                ),
+                options,
                 const SizedBox(height: 12),
-                _buildScoreOption('0', 'Does not demonstrate any significant negative behaviors'),
-                _buildScoreOption('1', 'Engages in some minor negative behaviors weekly, but recovery is quick'),
-                _buildScoreOption('2', 'Emits a variety of minor negative behaviors daily (e.g., crying, verbal refusal)'),
-                _buildScoreOption('3', 'Emits more severe negative behavior daily (e.g., tantrums, throwing things)'),
-                _buildScoreOption('4', 'Often emits severe negative behavior that is a danger to himself or others'),
-              ],
-            ),
-          ),
-          const SizedBox(width: 24),
-          // Assessment score boxes
-          Expanded(
-            flex: 1,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                const Text(
-                  'Assessment Score',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textPrimary),
+                scoreTitle,
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 16,
+                  runSpacing: 8,
+                  children: [
+                    for (final l in const ['1ST', '2ND', '3RD', '4TH'])
+                      _buildScoreInputRow(l),
+                  ],
                 ),
-                const SizedBox(height: 12),
-                _buildScoreInputRow('1ST'),
-                const SizedBox(height: 8),
-                _buildScoreInputRow('2ND'),
-                const SizedBox(height: 8),
-                _buildScoreInputRow('3RD'),
-                const SizedBox(height: 8),
-                _buildScoreInputRow('4TH'),
               ],
-            ),
-          ),
-        ],
+            );
+          }
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(flex: 4, child: options),
+              const SizedBox(width: 24),
+              // Assessment score boxes
+              Expanded(
+                flex: 1,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    scoreTitle,
+                    const SizedBox(height: 12),
+                    _buildScoreInputRow('1ST'),
+                    const SizedBox(height: 8),
+                    _buildScoreInputRow('2ND'),
+                    const SizedBox(height: 8),
+                    _buildScoreInputRow('3RD'),
+                    const SizedBox(height: 8),
+                    _buildScoreInputRow('4TH'),
+                  ],
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -295,7 +358,10 @@ class _BarriersAssessmentPageState extends State<BarriersAssessmentPage> {
             alignment: Alignment.center,
             child: Text(
               score,
-              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+              style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12),
             ),
           ),
           const SizedBox(width: 10),
@@ -309,7 +375,8 @@ class _BarriersAssessmentPageState extends State<BarriersAssessmentPage> {
               ),
               child: Text(
                 text,
-                style: const TextStyle(fontSize: 12, color: AppColors.textPrimary),
+                style:
+                    const TextStyle(fontSize: 12, color: AppColors.textPrimary),
               ),
             ),
           ),
@@ -320,6 +387,7 @@ class _BarriersAssessmentPageState extends State<BarriersAssessmentPage> {
 
   Widget _buildScoreInputRow(String label) {
     return Row(
+      mainAxisSize: MainAxisSize.min,
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         Container(
@@ -332,7 +400,8 @@ class _BarriersAssessmentPageState extends State<BarriersAssessmentPage> {
           alignment: Alignment.center,
           child: Text(
             label,
-            style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+            style: const TextStyle(
+                color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
           ),
         ),
         const SizedBox(width: 8),
@@ -347,7 +416,8 @@ class _BarriersAssessmentPageState extends State<BarriersAssessmentPage> {
           alignment: Alignment.center,
           child: const TextField(
             textAlign: TextAlign.center,
-            decoration: InputDecoration(border: InputBorder.none, contentPadding: EdgeInsets.zero),
+            decoration: InputDecoration(
+                border: InputBorder.none, contentPadding: EdgeInsets.zero),
             style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
           ),
         ),
@@ -389,6 +459,7 @@ class _BarriersAssessmentPageState extends State<BarriersAssessmentPage> {
             if (constraints.maxWidth < 1300) crossAxisCount = 4;
             if (constraints.maxWidth < 900) crossAxisCount = 3;
             if (constraints.maxWidth < 600) crossAxisCount = 2;
+            if (constraints.maxWidth < 300) crossAxisCount = 1;
 
             return GridView.builder(
               shrinkWrap: true,
@@ -401,7 +472,8 @@ class _BarriersAssessmentPageState extends State<BarriersAssessmentPage> {
                 childAspectRatio: 0.8,
               ),
               itemBuilder: (context, index) {
-                return _buildBarrierChartCard(chartTitles[index], index, chartTitles);
+                return _buildBarrierChartCard(
+                    chartTitles[index], index, chartTitles);
               },
             );
           },
@@ -411,7 +483,8 @@ class _BarriersAssessmentPageState extends State<BarriersAssessmentPage> {
     );
   }
 
-  Widget _buildBarrierChartCard(String title, int chartIndex, List<String> chartTitles) {
+  Widget _buildBarrierChartCard(
+      String title, int chartIndex, List<String> chartTitles) {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -443,7 +516,8 @@ class _BarriersAssessmentPageState extends State<BarriersAssessmentPage> {
   }
 
   Widget _buildBarrierGrid(int chartIndex, List<String> chartTitles) {
-    final title = chartIndex < chartTitles.length ? chartTitles[chartIndex] : '';
+    final title =
+        chartIndex < chartTitles.length ? chartTitles[chartIndex] : '';
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -461,7 +535,8 @@ class _BarriersAssessmentPageState extends State<BarriersAssessmentPage> {
                 Color cellColor = Colors.transparent;
 
                 for (final r in _barrierRecords) {
-                  final tNum = int.tryParse(r['test_number']?.toString() ?? '1') ?? 1;
+                  final tNum =
+                      int.tryParse(r['test_number']?.toString() ?? '1') ?? 1;
                   if (tNum == testNum) {
                     Map<String, dynamic> bMap = {};
                     try {
@@ -473,12 +548,15 @@ class _BarriersAssessmentPageState extends State<BarriersAssessmentPage> {
                       }
                     } catch (_) {}
 
-                    final score = int.tryParse(bMap[title]?.toString() ?? '0') ?? 0;
+                    final score =
+                        int.tryParse(bMap[title]?.toString() ?? '0') ?? 0;
                     if (score >= rating && rating > 0) {
                       if (testNum == 1) {
-                        cellColor = const Color(0xFFFBBF24); // Yellow (1st Test)
+                        cellColor =
+                            const Color(0xFFFBBF24); // Yellow (1st Test)
                       } else if (testNum == 2) {
-                        cellColor = const Color(0xFFF97316); // Orange (2nd Test)
+                        cellColor =
+                            const Color(0xFFF97316); // Orange (2nd Test)
                       } else if (testNum == 3) {
                         cellColor = const Color(0xFF10B981); // Green (3rd Test)
                       } else if (testNum == 4) {
@@ -493,7 +571,8 @@ class _BarriersAssessmentPageState extends State<BarriersAssessmentPage> {
                   height: cellHeight,
                   decoration: BoxDecoration(
                     color: cellColor,
-                    border: Border.all(color: const Color(0xFFE5D5F5), width: 0.8),
+                    border:
+                        Border.all(color: const Color(0xFFE5D5F5), width: 0.8),
                   ),
                 );
               }),
@@ -519,12 +598,16 @@ class _LegendRow extends StatelessWidget {
         children: [
           Text(
             score,
-            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+            style: const TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+                color: AppColors.textPrimary),
           ),
           const SizedBox(width: 8),
           Text(
             label,
-            style: const TextStyle(fontSize: 10, color: AppColors.textSecondary),
+            style:
+                const TextStyle(fontSize: 10, color: AppColors.textSecondary),
           ),
         ],
       ),

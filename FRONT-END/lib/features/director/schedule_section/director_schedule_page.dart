@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:roh_erp/core/constants/app_colors.dart';
+import 'package:roh_erp/core/layout/responsive.dart';
 import 'package:roh_erp/core/models/schedule_model.dart';
 import 'package:roh_erp/core/services/schedule_service.dart';
 import '../dashboard/widgets/schedule_therapist_session_dialog.dart';
@@ -51,16 +52,17 @@ class _DirectorSchedulePageState extends State<DirectorSchedulePage>
   Widget build(BuildContext context) {
     final scheduleService = context.watch<ScheduleService>();
     final allSessions = scheduleService.getAllSessionsForDate(_selectedDate);
-    final directorAppointments = scheduleService.getDirectorAppointments(date: _selectedDate);
+    final directorAppointments =
+        scheduleService.getDirectorAppointments(date: _selectedDate);
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+      padding: Breakpoints.pagePadding(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Executive Schedule Header Banner
           Container(
-            padding: const EdgeInsets.all(24),
+            padding: EdgeInsets.all(Breakpoints.isCompact(context) ? 18 : 24),
             decoration: BoxDecoration(
               color: AppColors.primary,
               borderRadius: BorderRadius.circular(16),
@@ -79,14 +81,18 @@ class _DirectorSchedulePageState extends State<DirectorSchedulePage>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
                         color: Colors.white.withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: const Text(
                         'BCBA-D Clinical Master Schedule',
-                        style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold),
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -121,8 +127,10 @@ class _DirectorSchedulePageState extends State<DirectorSchedulePage>
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.white,
                     elevation: 2,
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 20, vertical: 14),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10)),
                   ),
                 );
 
@@ -181,7 +189,8 @@ class _DirectorSchedulePageState extends State<DirectorSchedulePage>
                     children: [
                       const Icon(Icons.calendar_month, size: 18),
                       const SizedBox(width: 8),
-                      Text("Director's Calendar (${directorAppointments.length})"),
+                      Text(
+                          "Director's Calendar (${directorAppointments.length})"),
                     ],
                   ),
                 ),
@@ -199,27 +208,36 @@ class _DirectorSchedulePageState extends State<DirectorSchedulePage>
                 runSpacing: 8,
                 children: [
                   _buildDateQuickBtn('Today', DateTime.now()),
-                  _buildDateQuickBtn('Tomorrow', DateTime.now().add(const Duration(days: 1))),
+                  _buildDateQuickBtn(
+                      'Tomorrow', DateTime.now().add(const Duration(days: 1))),
                   ElevatedButton.icon(
                     onPressed: () async {
                       final picked = await showDatePicker(
                         context: context,
                         initialDate: _selectedDate,
-                        firstDate: DateTime.now().subtract(const Duration(days: 30)),
+                        firstDate:
+                            DateTime.now().subtract(const Duration(days: 30)),
                         lastDate: DateTime.now().add(const Duration(days: 90)),
                       );
-                      if (picked != null) setState(() => _selectedDate = picked);
+                      if (picked != null)
+                        setState(() => _selectedDate = picked);
                     },
-                    icon: const Icon(Icons.calendar_month, size: 16, color: AppColors.primary),
+                    icon: const Icon(Icons.calendar_month,
+                        size: 16, color: AppColors.primary),
                     label: Text(
                       DateFormat('dd MMM yyyy (EEE)').format(_selectedDate),
-                      style: const TextStyle(color: AppColors.primary, fontSize: 13, fontWeight: FontWeight.bold),
+                      style: const TextStyle(
+                          color: AppColors.primary,
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold),
                     ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primaryLight,
                       elevation: 0,
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 10),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8)),
                     ),
                   ),
                 ],
@@ -227,7 +245,10 @@ class _DirectorSchedulePageState extends State<DirectorSchedulePage>
 
               final showingLabel = Text(
                 'Showing ${DateFormat('EEEE, MMMM d, yyyy').format(_selectedDate)}',
-                style: const TextStyle(fontWeight: FontWeight.w600, color: AppColors.textSecondary, fontSize: 12),
+                style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textSecondary,
+                    fontSize: 12),
               );
 
               if (isNarrow) {
@@ -259,7 +280,8 @@ class _DirectorSchedulePageState extends State<DirectorSchedulePage>
               if (_tabController.index == 0) {
                 return _buildAllTherapistsTab(allSessions, scheduleService);
               } else {
-                return _buildDirectorCalendarTab(directorAppointments, scheduleService);
+                return _buildDirectorCalendarTab(
+                    directorAppointments, scheduleService);
               }
             },
           ),
@@ -282,7 +304,8 @@ class _DirectorSchedulePageState extends State<DirectorSchedulePage>
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(8),
-          side: BorderSide(color: isSelected ? AppColors.primary : AppColors.divider),
+          side: BorderSide(
+              color: isSelected ? AppColors.primary : AppColors.divider),
         ),
       ),
       child: Text(
@@ -296,7 +319,8 @@ class _DirectorSchedulePageState extends State<DirectorSchedulePage>
   }
 
   // ── Tab 1: All Therapists Master Timetable ─────────────────────────────────
-  Widget _buildAllTherapistsTab(List<TherapySession> allSessions, ScheduleService service) {
+  Widget _buildAllTherapistsTab(
+      List<TherapySession> allSessions, ScheduleService service) {
     if (ScheduleService.centerTherapists.isEmpty) {
       return Container(
         width: double.infinity,
@@ -312,7 +336,10 @@ class _DirectorSchedulePageState extends State<DirectorSchedulePage>
             const SizedBox(height: 16),
             const Text(
               'No Clinicians Registered',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+              style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary),
             ),
             const SizedBox(height: 8),
             const Text(
@@ -350,7 +377,8 @@ class _DirectorSchedulePageState extends State<DirectorSchedulePage>
           separatorBuilder: (ctx, i) => const SizedBox(height: 16),
           itemBuilder: (ctx, i) {
             final therapist = ScheduleService.centerTherapists[i];
-            if (_therapistFilter != 'All' && therapist['id'] != _therapistFilter) {
+            if (_therapistFilter != 'All' &&
+                therapist['id'] != _therapistFilter) {
               return const SizedBox.shrink();
             }
 
@@ -359,7 +387,8 @@ class _DirectorSchedulePageState extends State<DirectorSchedulePage>
                 .toList()
               ..sort((a, b) => a.startTime.compareTo(b.startTime));
 
-            return _buildTherapistRosterCard(therapist, therapistSessions, service);
+            return _buildTherapistRosterCard(
+                therapist, therapistSessions, service);
           },
         ),
       ],
@@ -446,7 +475,9 @@ class _DirectorSchedulePageState extends State<DirectorSchedulePage>
                     backgroundColor: AppColors.primaryLight,
                     child: Text(
                       therapist['name']!.substring(0, 1),
-                      style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold),
+                      style: const TextStyle(
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.bold),
                     ),
                   ),
                   const SizedBox(width: 14),
@@ -463,7 +494,8 @@ class _DirectorSchedulePageState extends State<DirectorSchedulePage>
                       ),
                       Text(
                         therapist['designation']!,
-                        style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                        style: const TextStyle(
+                            fontSize: 12, color: AppColors.textSecondary),
                       ),
                     ],
                   ),
@@ -476,9 +508,12 @@ class _DirectorSchedulePageState extends State<DirectorSchedulePage>
                 crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                     decoration: BoxDecoration(
-                      color: hasActiveSession ? const Color(0xFFE8F5E9) : const Color(0xFFF3F4F6),
+                      color: hasActiveSession
+                          ? const Color(0xFFE8F5E9)
+                          : const Color(0xFFF3F4F6),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Row(
@@ -487,7 +522,9 @@ class _DirectorSchedulePageState extends State<DirectorSchedulePage>
                         Icon(
                           Icons.circle,
                           size: 8,
-                          color: hasActiveSession ? const Color(0xFF2E7D32) : Colors.grey,
+                          color: hasActiveSession
+                              ? const Color(0xFF2E7D32)
+                              : Colors.grey,
                         ),
                         const SizedBox(width: 6),
                         Text(
@@ -497,7 +534,9 @@ class _DirectorSchedulePageState extends State<DirectorSchedulePage>
                           style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.bold,
-                            color: hasActiveSession ? const Color(0xFF2E7D32) : Colors.grey.shade700,
+                            color: hasActiveSession
+                                ? const Color(0xFF2E7D32)
+                                : Colors.grey.shade700,
                           ),
                         ),
                       ],
@@ -505,12 +544,17 @@ class _DirectorSchedulePageState extends State<DirectorSchedulePage>
                   ),
                   OutlinedButton.icon(
                     onPressed: () => _openScheduleDialog(therapist['id']),
-                    icon: const Icon(Icons.add, size: 14, color: AppColors.primary),
-                    label: const Text('+ Assign Session', style: TextStyle(color: AppColors.primary, fontSize: 12)),
+                    icon: const Icon(Icons.add,
+                        size: 14, color: AppColors.primary),
+                    label: const Text('+ Assign Session',
+                        style:
+                            TextStyle(color: AppColors.primary, fontSize: 12)),
                     style: OutlinedButton.styleFrom(
                       side: const BorderSide(color: AppColors.primary),
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 8),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8)),
                     ),
                   ),
                 ],
@@ -564,10 +608,13 @@ class _DirectorSchedulePageState extends State<DirectorSchedulePage>
                   width: 280,
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: isLive ? const Color(0xFFF1F8E9) : const Color(0xFFFAFAFA),
+                    color: isLive
+                        ? const Color(0xFFF1F8E9)
+                        : const Color(0xFFFAFAFA),
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(
-                      color: isLive ? const Color(0xFF4CAF50) : AppColors.divider,
+                      color:
+                          isLive ? const Color(0xFF4CAF50) : AppColors.divider,
                       width: isLive ? 1.5 : 1,
                     ),
                   ),
@@ -576,14 +623,20 @@ class _DirectorSchedulePageState extends State<DirectorSchedulePage>
                     children: [
                       Row(
                         children: [
-                          Icon(Icons.access_time, size: 12, color: isLive ? Colors.green.shade800 : AppColors.primary),
+                          Icon(Icons.access_time,
+                              size: 12,
+                              color: isLive
+                                  ? Colors.green.shade800
+                                  : AppColors.primary),
                           const SizedBox(width: 4),
                           Text(
                             '${session.startTime} - ${session.endTime}',
                             style: TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.bold,
-                              color: isLive ? Colors.green.shade800 : AppColors.primary,
+                              color: isLive
+                                  ? Colors.green.shade800
+                                  : AppColors.primary,
                             ),
                           ),
                           const Spacer(),
@@ -592,7 +645,11 @@ class _DirectorSchedulePageState extends State<DirectorSchedulePage>
                             style: TextStyle(
                               fontSize: 10,
                               fontWeight: FontWeight.bold,
-                              color: isLive ? Colors.green.shade800 : isDone ? Colors.grey : AppColors.primary,
+                              color: isLive
+                                  ? Colors.green.shade800
+                                  : isDone
+                                      ? Colors.grey
+                                      : AppColors.primary,
                             ),
                           ),
                         ],
@@ -600,16 +657,19 @@ class _DirectorSchedulePageState extends State<DirectorSchedulePage>
                       const SizedBox(height: 6),
                       Text(
                         session.studentName,
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                        style: const TextStyle(
+                            fontWeight: FontWeight.bold, fontSize: 13),
                       ),
                       Text(
                         'Room: ${session.room}',
-                        style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                        style: const TextStyle(
+                            fontSize: 11, color: AppColors.textSecondary),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         session.programTitle,
-                        style: const TextStyle(fontSize: 11, color: AppColors.textPrimary),
+                        style: const TextStyle(
+                            fontSize: 11, color: AppColors.textPrimary),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -624,7 +684,8 @@ class _DirectorSchedulePageState extends State<DirectorSchedulePage>
   }
 
   // ── Tab 2: Director Executive Calendar ────────────────────────────────────
-  Widget _buildDirectorCalendarTab(List<DirectorAppointment> appointments, ScheduleService service) {
+  Widget _buildDirectorCalendarTab(
+      List<DirectorAppointment> appointments, ScheduleService service) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -643,7 +704,10 @@ class _DirectorSchedulePageState extends State<DirectorSchedulePage>
               Expanded(
                 child: Text(
                   'These clinical appointments and parent diagnostic intakes are scheduled by the Admin office for the Director. Any updates here reflect center-wide.',
-                  style: TextStyle(fontSize: 13, color: AppColors.primary, fontWeight: FontWeight.w500),
+                  style: TextStyle(
+                      fontSize: 13,
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.w500),
                 ),
               ),
             ],
@@ -662,7 +726,8 @@ class _DirectorSchedulePageState extends State<DirectorSchedulePage>
             ),
             child: const Column(
               children: [
-                Icon(Icons.event_available, size: 48, color: AppColors.textHint),
+                Icon(Icons.event_available,
+                    size: 48, color: AppColors.textHint),
                 SizedBox(height: 12),
                 Text(
                   'No executive appointments scheduled for this date.',
@@ -671,7 +736,8 @@ class _DirectorSchedulePageState extends State<DirectorSchedulePage>
                 SizedBox(height: 4),
                 Text(
                   'Admin coordinates and books all parent diagnostic intakes and clinical case reviews.',
-                  style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                  style:
+                      TextStyle(color: AppColors.textSecondary, fontSize: 12),
                 ),
               ],
             ),
@@ -691,7 +757,8 @@ class _DirectorSchedulePageState extends State<DirectorSchedulePage>
     );
   }
 
-  Widget _buildAppointmentCard(DirectorAppointment appt, ScheduleService service) {
+  Widget _buildAppointmentCard(
+      DirectorAppointment appt, ScheduleService service) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final isNarrow = constraints.maxWidth < 650;
@@ -708,7 +775,8 @@ class _DirectorSchedulePageState extends State<DirectorSchedulePage>
             children: [
               Row(
                 children: [
-                  const Icon(Icons.access_time, size: 14, color: AppColors.primary),
+                  const Icon(Icons.access_time,
+                      size: 14, color: AppColors.primary),
                   const SizedBox(width: 4),
                   Text(
                     appt.startTime,
@@ -723,7 +791,8 @@ class _DirectorSchedulePageState extends State<DirectorSchedulePage>
               const SizedBox(height: 2),
               Text(
                 'to ${appt.endTime}',
-                style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                style: const TextStyle(
+                    fontSize: 12, color: AppColors.textSecondary),
               ),
               const SizedBox(height: 8),
               Container(
@@ -762,7 +831,8 @@ class _DirectorSchedulePageState extends State<DirectorSchedulePage>
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
                     color: const Color(0xFFE0F2FE),
                     borderRadius: BorderRadius.circular(6),
@@ -770,7 +840,8 @@ class _DirectorSchedulePageState extends State<DirectorSchedulePage>
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.verified, size: 12, color: Color(0xFF0369A1)),
+                      const Icon(Icons.verified,
+                          size: 12, color: Color(0xFF0369A1)),
                       const SizedBox(width: 4),
                       Text(
                         'Scheduled by ${appt.scheduledBy}',
@@ -793,11 +864,15 @@ class _DirectorSchedulePageState extends State<DirectorSchedulePage>
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.person, size: 16, color: AppColors.primary),
+                    const Icon(Icons.person,
+                        size: 16, color: AppColors.primary),
                     const SizedBox(width: 6),
-                    Text(
-                      '${appt.attendeeName} (${appt.attendeeRole})',
-                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                    Flexible(
+                      child: Text(
+                        '${appt.attendeeName} (${appt.attendeeRole})',
+                        style: const TextStyle(
+                            fontSize: 13, fontWeight: FontWeight.w600),
+                      ),
                     ),
                   ],
                 ),
@@ -805,9 +880,12 @@ class _DirectorSchedulePageState extends State<DirectorSchedulePage>
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.phone, size: 14, color: AppColors.textSecondary),
+                      const Icon(Icons.phone,
+                          size: 14, color: AppColors.textSecondary),
                       const SizedBox(width: 4),
-                      Text(appt.attendeePhone, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                      Text(appt.attendeePhone,
+                          style: const TextStyle(
+                              fontSize: 12, color: AppColors.textSecondary)),
                     ],
                   ),
               ],
@@ -815,9 +893,13 @@ class _DirectorSchedulePageState extends State<DirectorSchedulePage>
             const SizedBox(height: 6),
             Row(
               children: [
-                const Icon(Icons.location_on_outlined, size: 14, color: AppColors.textSecondary),
+                const Icon(Icons.location_on_outlined,
+                    size: 14, color: AppColors.textSecondary),
                 const SizedBox(width: 4),
-                Text(appt.location, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                Flexible(
+                    child: Text(appt.location,
+                        style: const TextStyle(
+                            fontSize: 12, color: AppColors.textSecondary))),
               ],
             ),
             if (appt.notes.isNotEmpty) ...[
@@ -832,7 +914,8 @@ class _DirectorSchedulePageState extends State<DirectorSchedulePage>
                 ),
                 child: Text(
                   'Notes: ${appt.notes}',
-                  style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                  style: const TextStyle(
+                      fontSize: 12, color: AppColors.textSecondary),
                 ),
               ),
             ],

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:roh_erp/core/constants/app_colors.dart';
+import 'package:roh_erp/core/layout/responsive.dart';
 import 'package:roh_erp/core/constants/app_images.dart';
 import 'package:roh_erp/core/services/api_service.dart';
 import 'admin_therapist_add_dialog.dart';
@@ -58,13 +59,17 @@ class _AdminTherapistsPageState extends State<AdminTherapistsPage> {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.all(24.0),
+      padding: Breakpoints.pagePadding(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Text('Our Therapists', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 18)),
+              const Text('Our Therapists',
+                  style: TextStyle(
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18)),
               const Spacer(),
               ElevatedButton(
                 onPressed: () async {
@@ -77,8 +82,10 @@ class _AdminTherapistsPageState extends State<AdminTherapistsPage> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
                   foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(24)),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                 ),
                 child: const Text('Add'),
               ),
@@ -93,17 +100,24 @@ class _AdminTherapistsPageState extends State<AdminTherapistsPage> {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Icon(Icons.error_outline, color: AppColors.statusDeactivated, size: 40),
+                            const Icon(Icons.error_outline,
+                                color: AppColors.statusDeactivated, size: 40),
                             const SizedBox(height: 12),
-                            Text(_error!, style: const TextStyle(color: AppColors.textSecondary)),
+                            Text(_error!,
+                                style: const TextStyle(
+                                    color: AppColors.textSecondary)),
                             const SizedBox(height: 16),
-                            ElevatedButton(onPressed: _loadTherapists, child: const Text('Retry')),
+                            ElevatedButton(
+                                onPressed: _loadTherapists,
+                                child: const Text('Retry')),
                           ],
                         ),
                       )
                     : _therapists.isEmpty
                         ? const Center(
-                            child: Text('No therapists registered in database.', style: TextStyle(color: AppColors.textSecondary)),
+                            child: Text('No therapists registered in database.',
+                                style:
+                                    TextStyle(color: AppColors.textSecondary)),
                           )
                         : LayoutBuilder(
                             builder: (context, constraints) {
@@ -117,25 +131,36 @@ class _AdminTherapistsPageState extends State<AdminTherapistsPage> {
                               }
 
                               return GridView.builder(
-                                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                                gridDelegate:
+                                    SliverGridDelegateWithFixedCrossAxisCount(
                                   crossAxisCount: crossAxisCount,
                                   crossAxisSpacing: 20,
-                                  mainAxisSpacing: 20,
-                                  childAspectRatio: constraints.maxWidth < 500 ? 1.3 : 0.88,
+                                  mainAxisSpacing:
+                                      constraints.maxWidth < 500 ? 14 : 20,
+                                  // Single-column phone tiles: shorter, less empty space.
+                                  childAspectRatio:
+                                      constraints.maxWidth < 500 ? 1.9 : 0.88,
                                 ),
                                 itemCount: _therapists.length,
                                 itemBuilder: (context, index) {
                                   final therapist = _therapists[index];
                                   final name = therapist['name'] ?? 'Therapist';
                                   final email = therapist['email'] ?? '';
-                                  final designation = therapist['designation'] ?? 'Behavior Therapist';
-                                  final userId = therapist['id'] is int ? therapist['id'] : int.tryParse(therapist['id'].toString()) ?? 0;
+                                  final designation =
+                                      therapist['designation'] ??
+                                          'Behavior Therapist';
+                                  final userId = therapist['id'] is int
+                                      ? therapist['id']
+                                      : int.tryParse(
+                                              therapist['id'].toString()) ??
+                                          0;
 
                                   return Container(
                                     decoration: BoxDecoration(
                                       color: Colors.white,
                                       borderRadius: BorderRadius.circular(16),
-                                      border: Border.all(color: AppColors.border),
+                                      border:
+                                          Border.all(color: AppColors.border),
                                       boxShadow: const [
                                         BoxShadow(
                                           color: Color(0x0A000000),
@@ -150,7 +175,9 @@ class _AdminTherapistsPageState extends State<AdminTherapistsPage> {
                                           top: 8,
                                           right: 8,
                                           child: PopupMenuButton<String>(
-                                            icon: const Icon(Icons.more_horiz, color: AppColors.textPrimary, size: 20),
+                                            icon: const Icon(Icons.more_horiz,
+                                                color: AppColors.textPrimary,
+                                                size: 20),
                                             tooltip: 'Therapist Options',
                                             onSelected: (val) {
                                               if (val == 'reset') {
@@ -168,9 +195,13 @@ class _AdminTherapistsPageState extends State<AdminTherapistsPage> {
                                                 value: 'reset',
                                                 child: Row(
                                                   children: [
-                                                    Icon(Icons.lock_reset, size: 18, color: AppColors.primary),
+                                                    Icon(Icons.lock_reset,
+                                                        size: 18,
+                                                        color:
+                                                            AppColors.primary),
                                                     SizedBox(width: 8),
-                                                    Text('Request Password Reset'),
+                                                    Text(
+                                                        'Request Password Reset'),
                                                   ],
                                                 ),
                                               ),
@@ -179,23 +210,35 @@ class _AdminTherapistsPageState extends State<AdminTherapistsPage> {
                                         ),
                                         Center(
                                           child: Column(
-                                            mainAxisAlignment: MainAxisAlignment.center,
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.center,
                                             children: [
-                                               CircleAvatar(
-                                                 radius: 36,
-                                                 backgroundColor: AppColors.primary.withValues(alpha: 0.15),
-                                                 child: const Icon(Icons.person, size: 40, color: AppColors.primary),
-                                               ),
+                                              CircleAvatar(
+                                                radius: 36,
+                                                backgroundColor: AppColors
+                                                    .primary
+                                                    .withValues(alpha: 0.15),
+                                                child: const Icon(Icons.person,
+                                                    size: 40,
+                                                    color: AppColors.primary),
+                                              ),
                                               const SizedBox(height: 14),
                                               Text(
                                                 name,
-                                                style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 15),
+                                                style: const TextStyle(
+                                                    color:
+                                                        AppColors.textPrimary,
+                                                    fontWeight: FontWeight.bold,
+                                                    fontSize: 15),
                                                 textAlign: TextAlign.center,
                                               ),
                                               const SizedBox(height: 4),
                                               Text(
                                                 designation,
-                                                style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                                                style: const TextStyle(
+                                                    color:
+                                                        AppColors.textSecondary,
+                                                    fontSize: 13),
                                                 textAlign: TextAlign.center,
                                               ),
                                             ],

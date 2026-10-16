@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:roh_erp/core/constants/app_colors.dart';
 import 'package:roh_erp/core/constants/app_constants.dart';
 import 'package:roh_erp/core/constants/app_images.dart';
+import '../../core/layout/responsive.dart';
 import '../../core/widgets/custom_mobile_bottom_bar.dart';
 import '../../core/widgets/animated_top_bar_title.dart';
 import '../../core/widgets/two_step_logout_dialog.dart';
@@ -63,11 +64,13 @@ class _AdminShellState extends State<AdminShell> {
 
   @override
   Widget build(BuildContext context) {
-    final width = MediaQuery.of(context).size.width;
-    final isMobile = width < 768;
+    final screen = Breakpoints.of(context);
+    final isMobile = screen == ScreenSize.compact;
+    // Tablet (600–1023): collapse the sidebar to a compact icon rail.
+    final isRail = screen == ScreenSize.medium;
 
     final sidebarWidget = Container(
-      width: 220,
+      width: isRail ? 76 : 220,
       decoration: const BoxDecoration(
         color: Colors.white,
         border: Border(right: BorderSide(color: AppColors.divider, width: 1)),
@@ -82,19 +85,28 @@ class _AdminShellState extends State<AdminShell> {
             },
             borderRadius: BorderRadius.circular(8),
             child: Container(
-              height: 84,
-              alignment: Alignment.centerLeft,
-              padding: const EdgeInsets.only(left: 24),
-              child: AppImages.rohLogo(height: 38),
+              height: isRail ? 72 : 84,
+              alignment: isRail ? Alignment.center : Alignment.centerLeft,
+              padding: isRail
+                  ? const EdgeInsets.symmetric(horizontal: 10)
+                  : const EdgeInsets.only(left: 24),
+              child: AppImages.rohLogo(height: isRail ? 30 : 38),
             ),
           ),
-          _buildNavItem(0, 'Dashboard', Icons.home, isDrawer: isMobile),
-          _buildNavItem(1, 'Director Calendar', Icons.event_available_outlined, isDrawer: isMobile),
-          _buildNavItem(2, 'Therapist', Icons.volunteer_activism_outlined, isDrawer: isMobile),
-          _buildNavItem(3, 'Students', Icons.person_outline, isDrawer: isMobile),
-          _buildNavItem(4, 'Stud Progress', Icons.bar_chart, isDrawer: isMobile),
-          _buildNavItem(5, 'IEP Reports', Icons.credit_card_outlined, isDrawer: isMobile),
-          _buildNavItem(6, 'Settings', Icons.settings_outlined, isDrawer: isMobile),
+          _buildNavItem(0, 'Dashboard', Icons.home,
+              isDrawer: isMobile, rail: isRail),
+          _buildNavItem(1, 'Director Calendar', Icons.event_available_outlined,
+              isDrawer: isMobile, rail: isRail),
+          _buildNavItem(2, 'Therapist', Icons.volunteer_activism_outlined,
+              isDrawer: isMobile, rail: isRail),
+          _buildNavItem(3, 'Students', Icons.person_outline,
+              isDrawer: isMobile, rail: isRail),
+          _buildNavItem(4, 'Stud Progress', Icons.bar_chart,
+              isDrawer: isMobile, rail: isRail),
+          _buildNavItem(5, 'IEP Reports', Icons.credit_card_outlined,
+              isDrawer: isMobile, rail: isRail),
+          _buildNavItem(6, 'Settings', Icons.settings_outlined,
+              isDrawer: isMobile, rail: isRail),
         ],
       ),
     );
@@ -130,7 +142,8 @@ class _AdminShellState extends State<AdminShell> {
               child: Stack(
                 clipBehavior: Clip.none,
                 children: [
-                  const Icon(Icons.notifications_outlined, color: AppColors.primary, size: 20),
+                  const Icon(Icons.notifications_outlined,
+                      color: AppColors.primary, size: 20),
                   ListenableBuilder(
                     listenable: NotificationService(),
                     builder: (context, _) {
@@ -141,11 +154,16 @@ class _AdminShellState extends State<AdminShell> {
                         right: -4,
                         child: Container(
                           padding: const EdgeInsets.all(3),
-                          decoration: const BoxDecoration(color: Color(0xFFEF4444), shape: BoxShape.circle),
-                          constraints: const BoxConstraints(minWidth: 14, minHeight: 14),
+                          decoration: const BoxDecoration(
+                              color: Color(0xFFEF4444), shape: BoxShape.circle),
+                          constraints:
+                              const BoxConstraints(minWidth: 14, minHeight: 14),
                           child: Text(
                             '$count',
-                            style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 9,
+                                fontWeight: FontWeight.bold),
                             textAlign: TextAlign.center,
                           ),
                         ),
@@ -166,7 +184,8 @@ class _AdminShellState extends State<AdminShell> {
                 if (shouldLogout == true && context.mounted) {
                   await context.read<AuthService>().logout();
                   if (context.mounted) {
-                    Navigator.of(context).pushReplacementNamed(AppConstants.routeLogin);
+                    Navigator.of(context)
+                        .pushReplacementNamed(AppConstants.routeLogin);
                   }
                 }
               } else {
@@ -176,13 +195,16 @@ class _AdminShellState extends State<AdminShell> {
             itemBuilder: (context) => [
               const PopupMenuItem(
                 enabled: false,
-                child: Text('Switch Portal', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                child: Text('Switch Portal',
+                    style:
+                        TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
               ),
               const PopupMenuItem(
                 value: AppConstants.routeAdmin,
                 child: Row(
                   children: [
-                    Icon(Icons.admin_panel_settings, size: 18, color: AppColors.primary),
+                    Icon(Icons.admin_panel_settings,
+                        size: 18, color: AppColors.primary),
                     SizedBox(width: 8),
                     Text('Admin Panel'),
                   ],
@@ -192,7 +214,8 @@ class _AdminShellState extends State<AdminShell> {
                 value: AppConstants.routeTherapist,
                 child: Row(
                   children: [
-                    Icon(Icons.medical_services, size: 18, color: AppColors.primary),
+                    Icon(Icons.medical_services,
+                        size: 18, color: AppColors.primary),
                     SizedBox(width: 8),
                     Text('Therapist Panel'),
                   ],
@@ -202,7 +225,8 @@ class _AdminShellState extends State<AdminShell> {
                 value: AppConstants.routeParent,
                 child: Row(
                   children: [
-                    Icon(Icons.family_restroom, size: 18, color: AppColors.primary),
+                    Icon(Icons.family_restroom,
+                        size: 18, color: AppColors.primary),
                     SizedBox(width: 8),
                     Text('Parent Panel'),
                   ],
@@ -305,8 +329,36 @@ class _AdminShellState extends State<AdminShell> {
     );
   }
 
-  Widget _buildNavItem(int index, String title, IconData icon, {bool isDrawer = false}) {
+  Widget _buildNavItem(int index, String title, IconData icon,
+      {bool isDrawer = false, bool rail = false}) {
     final isSelected = _selectedIndex == index;
+    if (rail) {
+      return Tooltip(
+        message: title,
+        waitDuration: const Duration(milliseconds: 300),
+        child: InkWell(
+          onTap: () => setState(() => _selectedIndex = index),
+          child: Container(
+            height: 52,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color:
+                  isSelected ? AppColors.sidebarSelectedBg : Colors.transparent,
+              border: Border(
+                left: BorderSide(
+                  color: isSelected ? AppColors.primary : Colors.transparent,
+                  width: 4,
+                ),
+              ),
+            ),
+            child: Icon(
+              icon,
+              color: isSelected ? AppColors.primary : AppColors.textHint,
+            ),
+          ),
+        ),
+      );
+    }
     return InkWell(
       onTap: () {
         setState(() => _selectedIndex = index);

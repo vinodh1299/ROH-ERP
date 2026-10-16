@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:roh_erp/core/constants/app_colors.dart';
+import 'package:roh_erp/core/layout/responsive.dart';
 import 'package:roh_erp/core/models/schedule_model.dart';
 import 'package:roh_erp/core/services/schedule_service.dart';
 import 'package:roh_erp/features/auth/auth_service.dart';
@@ -47,7 +48,9 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
     final allStudentSessions = _childName.isNotEmpty
         ? scheduleService.getSessionsForStudent(_childName)
         : <TherapySession>[];
-    final completedSessionsCount = allStudentSessions.where((s) => s.status == SessionStatus.completed).length;
+    final completedSessionsCount = allStudentSessions
+        .where((s) => s.status == SessionStatus.completed)
+        .length;
 
     // Director appointments for parent / student
     final parentAppointments = _childName.isNotEmpty
@@ -55,7 +58,7 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
         : <DirectorAppointment>[];
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24.0),
+      padding: Breakpoints.pagePadding(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -84,11 +87,13 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   // Director Appointments & Booking Card
-                  _buildDirectorAppointmentsCard(parentAppointments, parentName),
+                  _buildDirectorAppointmentsCard(
+                      parentAppointments, parentName),
                   const SizedBox(height: 24),
 
                   // Child's Clinical KPI Summary
-                  _buildClinicalKpiCard(allStudentSessions.length, completedSessionsCount),
+                  _buildClinicalKpiCard(
+                      allStudentSessions.length, completedSessionsCount),
                 ],
               );
 
@@ -120,7 +125,15 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
   // ── 1. Child Info & Greeting Banner ───
   Widget _buildChildHeaderBanner(String parentName) {
     final now = DateTime.now();
-    const dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    const dayNames = [
+      'Monday',
+      'Tuesday',
+      'Wednesday',
+      'Thursday',
+      'Friday',
+      'Saturday',
+      'Sunday'
+    ];
     final dateStr =
         '${now.day.toString().padLeft(2, '0')}-${now.month.toString().padLeft(2, '0')}-${now.year} ${dayNames[now.weekday - 1]}';
 
@@ -149,14 +162,18 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
                         color: Colors.white.withValues(alpha: 0.18),
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: const Text(
                         'Parent Monitoring & Clinical Tracking Station',
-                        style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold),
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -189,7 +206,8 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
                   children: [
                     ElevatedButton.icon(
                       onPressed: () => _openAppointmentDialog(parentName),
-                      icon: const Icon(Icons.event_available, color: AppColors.primary, size: 18),
+                      icon: const Icon(Icons.event_available,
+                          color: AppColors.primary, size: 18),
                       label: const Text(
                         '+ Request Meeting with Director',
                         style: TextStyle(
@@ -201,8 +219,10 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.white,
                         elevation: 0,
-                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 18, vertical: 14),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10)),
                       ),
                     ),
                     ElevatedButton.icon(
@@ -211,7 +231,8 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
                           widget.onNavigateTab!(3);
                         }
                       },
-                      icon: const Icon(Icons.show_chart, color: Colors.white, size: 18),
+                      icon: const Icon(Icons.show_chart,
+                          color: Colors.white, size: 18),
                       label: const Text(
                         'View Real-Time Graphs',
                         style: TextStyle(
@@ -223,8 +244,10 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.primaryDark,
                         elevation: 0,
-                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 18, vertical: 14),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10)),
                       ),
                     ),
                   ],
@@ -283,7 +306,10 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
                 ),
                 const Text(
                   'Center Status: Open & Active',
-                  style: TextStyle(color: Color(0xFFE8F5E9), fontSize: 12, fontWeight: FontWeight.bold),
+                  style: TextStyle(
+                      color: Color(0xFFE8F5E9),
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold),
                 ),
               ],
             ),
@@ -314,7 +340,8 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
                   color: AppColors.primaryLight,
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.schedule, size: 18, color: AppColors.primary),
+                child: const Icon(Icons.schedule,
+                    size: 18, color: AppColors.primary),
               ),
               const SizedBox(width: 10),
               Expanded(
@@ -332,13 +359,15 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
                     ),
                     Text(
                       "Real-time schedule for $_childName",
-                      style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                      style: const TextStyle(
+                          fontSize: 12, color: AppColors.textSecondary),
                     ),
                   ],
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
                   color: AppColors.primaryLight,
                   borderRadius: BorderRadius.circular(12),
@@ -362,8 +391,10 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
             runSpacing: 8,
             children: [
               _buildDateFilterBtn('Today', DateTime.now()),
-              _buildDateFilterBtn('Tomorrow', DateTime.now().add(const Duration(days: 1))),
-              _buildDateFilterBtn('In 2 Days', DateTime.now().add(const Duration(days: 2))),
+              _buildDateFilterBtn(
+                  'Tomorrow', DateTime.now().add(const Duration(days: 1))),
+              _buildDateFilterBtn(
+                  'In 2 Days', DateTime.now().add(const Duration(days: 2))),
             ],
           ),
           const SizedBox(height: 16),
@@ -377,16 +408,19 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
               alignment: Alignment.center,
               child: Column(
                 children: [
-                  const Icon(Icons.event_busy, size: 36, color: AppColors.textHint),
+                  const Icon(Icons.event_busy,
+                      size: 36, color: AppColors.textHint),
                   const SizedBox(height: 10),
                   Text(
                     'No scheduled therapy sessions for ${DateFormat('dd MMM').format(_selectedDate)}',
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                    style: const TextStyle(
+                        fontWeight: FontWeight.bold, fontSize: 13),
                   ),
                   const SizedBox(height: 4),
                   const Text(
                     'Sessions are assigned by the Clinical Director based on weekly IEP allocations.',
-                    style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                    style:
+                        TextStyle(fontSize: 11, color: AppColors.textSecondary),
                     textAlign: TextAlign.center,
                   ),
                 ],
@@ -448,7 +482,8 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
                   color: AppColors.primaryLight,
                   borderRadius: BorderRadius.circular(6),
@@ -501,22 +536,26 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.badge_outlined, size: 15, color: AppColors.primary),
+                  const Icon(Icons.badge_outlined,
+                      size: 15, color: AppColors.primary),
                   const SizedBox(width: 4),
                   Text(
                     'Therapist: ${session.therapistName}',
-                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                    style: const TextStyle(
+                        fontSize: 12, fontWeight: FontWeight.w600),
                   ),
                 ],
               ),
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.room_outlined, size: 15, color: AppColors.textSecondary),
+                  const Icon(Icons.room_outlined,
+                      size: 15, color: AppColors.textSecondary),
                   const SizedBox(width: 4),
                   Text(
                     session.room,
-                    style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                    style: const TextStyle(
+                        fontSize: 12, color: AppColors.textSecondary),
                   ),
                 ],
               ),
@@ -534,7 +573,8 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
               ),
               child: Text(
                 'Clinical Protocol: ${session.notes}',
-                style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                style: const TextStyle(
+                    fontSize: 11, color: AppColors.textSecondary),
               ),
             ),
           ],
@@ -545,7 +585,8 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
 
   // ── 3. Home Carryover & Clinical Takeaway Card ───
   Widget _buildHomeCarryoverCard(List<TherapySession> sessions) {
-    final sessionsWithDirectives = sessions.where((s) => s.notes.isNotEmpty).toList();
+    final sessionsWithDirectives =
+        sessions.where((s) => s.notes.isNotEmpty).toList();
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -565,7 +606,8 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
                   color: Color(0xFFE8F5E9),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.lightbulb_outline, size: 18, color: Color(0xFF2E7D32)),
+                child: const Icon(Icons.lightbulb_outline,
+                    size: 18, color: Color(0xFF2E7D32)),
               ),
               const SizedBox(width: 10),
               const Expanded(
@@ -583,7 +625,8 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
                     ),
                     Text(
                       "Specific directives from supervising therapists for evening practice",
-                      style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                      style: TextStyle(
+                          fontSize: 12, color: AppColors.textSecondary),
                     ),
                   ],
                 ),
@@ -593,39 +636,43 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
           const SizedBox(height: 16),
           const Divider(height: 1, color: AppColors.divider),
           const SizedBox(height: 16),
-
           if (sessionsWithDirectives.isEmpty)
             Container(
               padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
               alignment: Alignment.center,
               child: Column(
                 children: [
-                  Icon(Icons.assignment_outlined, size: 40, color: Colors.grey.shade400),
+                  Icon(Icons.assignment_outlined,
+                      size: 40, color: Colors.grey.shade400),
                   const SizedBox(height: 10),
                   const Text(
                     'No Home Carryover Directives Yet',
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                    style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary),
                   ),
                   const SizedBox(height: 6),
                   const Text(
                     'When therapists complete clinical sessions with practice notes, home carryover directives will appear here.',
                     textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                    style:
+                        TextStyle(fontSize: 12, color: AppColors.textSecondary),
                   ),
                 ],
               ),
             )
           else
             ...sessionsWithDirectives.take(3).map((s) => Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: _buildTakeawayItem(
-                icon: Icons.record_voice_over_outlined,
-                tag: s.programTitle.toUpperCase(),
-                title: 'Clinical Practice Directive',
-                instruction: s.notes,
-                therapist: s.therapistName,
-              ),
-            )),
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: _buildTakeawayItem(
+                    icon: Icons.record_voice_over_outlined,
+                    tag: s.programTitle.toUpperCase(),
+                    title: 'Clinical Practice Directive',
+                    instruction: s.notes,
+                    therapist: s.therapistName,
+                  ),
+                )),
         ],
       ),
     );
@@ -667,10 +714,17 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
                   ),
                 ),
               ),
+              const SizedBox(width: 8),
               const Spacer(),
-              Text(
-                therapist,
-                style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+              Flexible(
+                flex: 3,
+                child: Text(
+                  therapist,
+                  textAlign: TextAlign.right,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                      fontSize: 11, color: AppColors.textSecondary),
+                ),
               ),
             ],
           ),
@@ -686,7 +740,8 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
           const SizedBox(height: 4),
           Text(
             instruction,
-            style: const TextStyle(fontSize: 12, color: Color(0xFF374151), height: 1.4),
+            style: const TextStyle(
+                fontSize: 12, color: Color(0xFF374151), height: 1.4),
           ),
         ],
       ),
@@ -694,7 +749,8 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
   }
 
   // ── 4. Director Consultations & Booking Card ───
-  Widget _buildDirectorAppointmentsCard(List<DirectorAppointment> appointments, String parentName) {
+  Widget _buildDirectorAppointmentsCard(
+      List<DirectorAppointment> appointments, String parentName) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -713,7 +769,8 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
                   color: AppColors.primaryLight,
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.event_note, size: 18, color: AppColors.primary),
+                child: const Icon(Icons.event_note,
+                    size: 18, color: AppColors.primary),
               ),
               const SizedBox(width: 10),
               const Expanded(
@@ -731,7 +788,8 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
                     ),
                     Text(
                       'Conferences & Evaluations with Dr. Sterling',
-                      style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                      style: TextStyle(
+                          fontSize: 12, color: AppColors.textSecondary),
                     ),
                   ],
                 ),
@@ -739,12 +797,16 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
               OutlinedButton.icon(
                 onPressed: () => _openAppointmentDialog(parentName),
                 icon: const Icon(Icons.add, size: 14, color: AppColors.primary),
-                label: const Text('Book', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                label: const Text('Book',
+                    style:
+                        TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppColors.primary,
                   side: const BorderSide(color: AppColors.primary),
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8)),
                 ),
               ),
             ],
@@ -752,14 +814,14 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
           const SizedBox(height: 16),
           const Divider(height: 1, color: AppColors.divider),
           const SizedBox(height: 16),
-
           if (appointments.isEmpty)
             Container(
               padding: const EdgeInsets.all(24),
               alignment: Alignment.center,
               child: Column(
                 children: [
-                  const Icon(Icons.calendar_today_outlined, size: 32, color: AppColors.textHint),
+                  const Icon(Icons.calendar_today_outlined,
+                      size: 32, color: AppColors.textHint),
                   const SizedBox(height: 8),
                   const Text(
                     'No Upcoming Director Meetings',
@@ -768,7 +830,8 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
                   const SizedBox(height: 4),
                   const Text(
                     'Click "Book" to schedule your 6-month IEP conference or diagnostic review.',
-                    style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                    style:
+                        TextStyle(fontSize: 11, color: AppColors.textSecondary),
                     textAlign: TextAlign.center,
                   ),
                 ],
@@ -795,7 +858,8 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
                       Row(
                         children: [
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 4),
                             decoration: BoxDecoration(
                               color: AppColors.primaryLight,
                               borderRadius: BorderRadius.circular(6),
@@ -811,7 +875,8 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
                           ),
                           const Spacer(),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 3),
                             decoration: BoxDecoration(
                               color: const Color(0xFFE8F5E9),
                               borderRadius: BorderRadius.circular(10),
@@ -830,16 +895,19 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
                       const SizedBox(height: 8),
                       Text(
                         appt.title,
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                        style: const TextStyle(
+                            fontWeight: FontWeight.bold, fontSize: 13),
                       ),
                       const SizedBox(height: 4),
                       Row(
                         children: [
-                          const Icon(Icons.room_outlined, size: 14, color: AppColors.textSecondary),
+                          const Icon(Icons.room_outlined,
+                              size: 14, color: AppColors.textSecondary),
                           const SizedBox(width: 4),
                           Text(
                             appt.location,
-                            style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                            style: const TextStyle(
+                                fontSize: 11, color: AppColors.textSecondary),
                           ),
                         ],
                       ),
@@ -869,22 +937,27 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
             children: [
               const Icon(Icons.bar_chart, size: 18, color: AppColors.primary),
               const SizedBox(width: 8),
-              const Text(
-                "Clinical Progress Summary",
-                style: TextStyle(
-                  fontFamily: 'Poppins',
-                  fontSize: 15,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textPrimary,
+              const Expanded(
+                child: Text(
+                  "Clinical Progress Summary",
+                  style: TextStyle(
+                    fontFamily: 'Poppins',
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
+                  ),
                 ),
               ),
-              const Spacer(),
+              const SizedBox(width: 8),
               if (widget.onNavigateTab != null)
                 InkWell(
                   onTap: () => widget.onNavigateTab!(2), // IEP Goal Data
                   child: const Text(
                     'Full IEP Goals →',
-                    style: TextStyle(fontSize: 11, color: AppColors.primary, fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                        fontSize: 11,
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.bold),
                   ),
                 ),
             ],
@@ -903,7 +976,9 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
               final stat2 = _buildKpiBox(
                 'Total Sessions',
                 '$completedSessions / $totalSessions',
-                totalSessions > 0 ? 'Attendance: 100%' : 'No sessions scheduled',
+                totalSessions > 0
+                    ? 'Attendance: 100%'
+                    : 'No sessions scheduled',
                 AppColors.primary,
               );
 
@@ -931,7 +1006,8 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
     );
   }
 
-  Widget _buildKpiBox(String title, String value, String subtitle, Color color) {
+  Widget _buildKpiBox(
+      String title, String value, String subtitle, Color color) {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -942,14 +1018,23 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: TextStyle(fontSize: 11, color: Colors.grey.shade700, fontWeight: FontWeight.w600)),
+          Text(title,
+              style: TextStyle(
+                  fontSize: 11,
+                  color: Colors.grey.shade700,
+                  fontWeight: FontWeight.w600)),
           const SizedBox(height: 6),
           Text(
             value,
-            style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: color, fontFamily: 'Poppins'),
+            style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: color,
+                fontFamily: 'Poppins'),
           ),
           const SizedBox(height: 2),
-          Text(subtitle, style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+          Text(subtitle,
+              style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
         ],
       ),
     );
@@ -969,7 +1054,8 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(8),
-          side: BorderSide(color: isSelected ? AppColors.primary : AppColors.divider),
+          side: BorderSide(
+              color: isSelected ? AppColors.primary : AppColors.divider),
         ),
       ),
       child: Text(

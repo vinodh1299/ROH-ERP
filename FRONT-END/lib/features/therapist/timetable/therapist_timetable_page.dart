@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:roh_erp/core/constants/app_colors.dart';
+import 'package:roh_erp/core/layout/responsive.dart';
 import 'package:roh_erp/core/models/schedule_model.dart';
+import 'package:roh_erp/core/services/api_service.dart';
 import 'package:roh_erp/core/services/schedule_service.dart';
 import 'package:roh_erp/core/services/web_storage/web_storage.dart';
 import 'package:roh_erp/features/auth/auth_service.dart';
@@ -21,35 +23,91 @@ class _TherapistTimetablePageState extends State<TherapistTimetablePage> {
   DateTime _selectedDate = DateTime.now();
   String _statusFilter = 'All';
 
+  /// Student id -> date of birth, used for the age shown on session cards.
+  /// (Synced sessions don't carry a real age, so it is derived from the DOB.)
+  final Map<String, dynamic> _studentDobs = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _loadStudentDobs();
+  }
+
+  Future<void> _loadStudentDobs() async {
+    try {
+      final res = await ApiService().get('get_students');
+      if (res is List && mounted) {
+        setState(() {
+          for (final st in res) {
+            if (st is Map && st['id'] != null) {
+              _studentDobs[st['id'].toString()] = st['dob'];
+            }
+          }
+        });
+      }
+    } catch (_) {}
+  }
+
+  /// Whole years since the student's DOB, or null if it is unknown.
+  int? _ageForStudent(String studentId) {
+    final raw = _studentDobs[studentId]?.toString().trim() ?? '';
+    if (raw.isEmpty) return null;
+    final parsed = DateTime.tryParse(raw);
+    if (parsed == null) return null;
+    // MySQL DATE columns arrive as UTC midnight ISO strings; read them in
+    // local time so the birthday doesn't shift by a day.
+    final dob = parsed.isUtc ? parsed.toLocal() : parsed;
+    final now = DateTime.now();
+    if (dob.isAfter(now)) return null;
+    var age = now.year - dob.year;
+    if (now.month < dob.month ||
+        (now.month == dob.month && now.day < dob.day)) {
+      age--;
+    }
+    return age;
+  }
+
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthService>();
     final clinicianName = auth.currentUser?.name.isNotEmpty == true
         ? auth.currentUser!.name
-        : (ScheduleService.centerTherapists.isNotEmpty ? ScheduleService.centerTherapists.first['name']! : 'Clinician');
-    final therapistId = (auth.currentUser?.id != null && auth.currentUser!.id > 0)
-        ? auth.currentUser!.id.toString()
-        : (getWebStorage('user_id') ?? '3');
+        : (ScheduleService.centerTherapists.isNotEmpty
+            ? ScheduleService.centerTherapists.first['name']!
+            : 'Clinician');
+    final therapistId =
+        (auth.currentUser?.id != null && auth.currentUser!.id > 0)
+            ? auth.currentUser!.id.toString()
+            : (getWebStorage('user_id') ?? '3');
 
     final scheduleService = context.watch<ScheduleService>();
-    final sessions = scheduleService.getSessionsForTherapist(therapistId, date: _selectedDate);
+    final sessions = scheduleService.getSessionsForTherapist(therapistId,
+        date: _selectedDate);
 
     final filteredSessions = sessions.where((s) {
       if (_statusFilter == 'All') return true;
-      if (_statusFilter == 'In Progress') return s.status == SessionStatus.inProgress;
-      if (_statusFilter == 'Upcoming') return s.status == SessionStatus.upcoming;
-      if (_statusFilter == 'Completed') return s.status == SessionStatus.completed;
+      if (_statusFilter == 'In Progress') {
+        return s.status == SessionStatus.inProgress;
+      }
+      if (_statusFilter == 'Upcoming') {
+        return s.status == SessionStatus.upcoming;
+      }
+      if (_statusFilter == 'Completed') {
+        return s.status == SessionStatus.completed;
+      }
       return true;
     }).toList();
 
+    final isCompact = Breakpoints.isCompact(context);
+
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+      padding: Breakpoints.pagePadding(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Header Banner
           Container(
-            padding: const EdgeInsets.all(24),
+            padding: EdgeInsets.all(isCompact ? 16 : 24),
             decoration: BoxDecoration(
               color: AppColors.primary,
               borderRadius: BorderRadius.circular(16),
@@ -72,25 +130,31 @@ class _TherapistTimetablePageState extends State<TherapistTimetablePage> {
                       runSpacing: 6,
                       children: [
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 4),
                           decoration: BoxDecoration(
                             color: Colors.white.withValues(alpha: 0.2),
                             borderRadius: BorderRadius.circular(20),
                           ),
                           child: Text(
                             '$clinicianName • Daily Clinical Schedule',
-                            style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold),
                           ),
                         ),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 4),
                           decoration: BoxDecoration(
                             color: Colors.black.withValues(alpha: 0.2),
                             borderRadius: BorderRadius.circular(20),
                           ),
                           child: const Text(
                             'Director Scheduled Schedule',
-                            style: TextStyle(color: Colors.white70, fontSize: 11),
+                            style:
+                                TextStyle(color: Colors.white70, fontSize: 11),
                           ),
                         ),
                       ],
@@ -114,7 +178,8 @@ class _TherapistTimetablePageState extends State<TherapistTimetablePage> {
                 );
 
                 final dateBadge = Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(12),
@@ -127,7 +192,9 @@ class _TherapistTimetablePageState extends State<TherapistTimetablePage> {
                     ],
                   ),
                   child: Column(
-                    crossAxisAlignment: isNarrow ? CrossAxisAlignment.start : CrossAxisAlignment.end,
+                    crossAxisAlignment: isNarrow
+                        ? CrossAxisAlignment.start
+                        : CrossAxisAlignment.end,
                     children: [
                       Text(
                         DateFormat('EEEE').format(_selectedDate),
@@ -170,7 +237,7 @@ class _TherapistTimetablePageState extends State<TherapistTimetablePage> {
               },
             ),
           ),
-          const SizedBox(height: 24),
+          SizedBox(height: isCompact ? 16 : 24),
 
           // Date Selector & Filters
           LayoutBuilder(
@@ -181,24 +248,33 @@ class _TherapistTimetablePageState extends State<TherapistTimetablePage> {
                 runSpacing: 8,
                 children: [
                   _buildDateQuickBtn('Today', DateTime.now()),
-                  _buildDateQuickBtn('Tomorrow', DateTime.now().add(const Duration(days: 1))),
+                  _buildDateQuickBtn(
+                      'Tomorrow', DateTime.now().add(const Duration(days: 1))),
                   ElevatedButton.icon(
                     onPressed: () async {
                       final picked = await showDatePicker(
                         context: context,
                         initialDate: _selectedDate,
-                        firstDate: DateTime.now().subtract(const Duration(days: 30)),
+                        firstDate:
+                            DateTime.now().subtract(const Duration(days: 30)),
                         lastDate: DateTime.now().add(const Duration(days: 90)),
                       );
-                      if (picked != null) setState(() => _selectedDate = picked);
+                      if (picked != null) {
+                        setState(() => _selectedDate = picked);
+                      }
                     },
-                    icon: const Icon(Icons.calendar_month, size: 16, color: AppColors.primary),
-                    label: const Text('Pick Date', style: TextStyle(color: AppColors.primary, fontSize: 13)),
+                    icon: const Icon(Icons.calendar_month,
+                        size: 16, color: AppColors.primary),
+                    label: const Text('Pick Date',
+                        style:
+                            TextStyle(color: AppColors.primary, fontSize: 13)),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primaryLight,
                       elevation: 0,
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 10),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8)),
                     ),
                   ),
                 ],
@@ -207,7 +283,8 @@ class _TherapistTimetablePageState extends State<TherapistTimetablePage> {
               final filterChips = Wrap(
                 spacing: 8,
                 runSpacing: 8,
-                children: ['All', 'In Progress', 'Upcoming', 'Completed'].map((filter) {
+                children: ['All', 'In Progress', 'Upcoming', 'Completed']
+                    .map((filter) {
                   final isSelected = _statusFilter == filter;
                   return ChoiceChip(
                     label: Text(filter),
@@ -217,7 +294,8 @@ class _TherapistTimetablePageState extends State<TherapistTimetablePage> {
                     },
                     selectedColor: AppColors.primary,
                     labelStyle: TextStyle(
-                      color: isSelected ? Colors.white : AppColors.textSecondary,
+                      color:
+                          isSelected ? Colors.white : AppColors.textSecondary,
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
                     ),
@@ -225,7 +303,8 @@ class _TherapistTimetablePageState extends State<TherapistTimetablePage> {
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(20),
                       side: BorderSide(
-                        color: isSelected ? AppColors.primary : AppColors.divider,
+                        color:
+                            isSelected ? AppColors.primary : AppColors.divider,
                       ),
                     ),
                   );
@@ -266,7 +345,8 @@ class _TherapistTimetablePageState extends State<TherapistTimetablePage> {
               ),
               child: Column(
                 children: [
-                  const Icon(Icons.event_busy, size: 48, color: AppColors.textHint),
+                  const Icon(Icons.event_busy,
+                      size: 48, color: AppColors.textHint),
                   const SizedBox(height: 12),
                   Text(
                     'No sessions scheduled for ${DateFormat('dd MMM yyyy').format(_selectedDate)}',
@@ -279,7 +359,8 @@ class _TherapistTimetablePageState extends State<TherapistTimetablePage> {
                   const SizedBox(height: 6),
                   const Text(
                     'Sessions are assigned and scheduled daily by the Clinical Director.',
-                    style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                    style:
+                        TextStyle(color: AppColors.textSecondary, fontSize: 13),
                   ),
                 ],
               ),
@@ -314,7 +395,8 @@ class _TherapistTimetablePageState extends State<TherapistTimetablePage> {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(8),
-          side: BorderSide(color: isSelected ? AppColors.primary : AppColors.divider),
+          side: BorderSide(
+              color: isSelected ? AppColors.primary : AppColors.divider),
         ),
       ),
       child: Text(
@@ -327,7 +409,8 @@ class _TherapistTimetablePageState extends State<TherapistTimetablePage> {
     );
   }
 
-  Widget _buildSessionTimelineCard(TherapySession session, ScheduleService service) {
+  Widget _buildSessionTimelineCard(
+      TherapySession session, ScheduleService service) {
     Color statusColor;
     Color statusBg;
     String statusText;
@@ -358,18 +441,40 @@ class _TherapistTimetablePageState extends State<TherapistTimetablePage> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final isNarrow = constraints.maxWidth < 750;
+        final isCompactCard = constraints.maxWidth < 600;
 
-        final timeBox = Container(
-          width: isNarrow ? double.infinity : 140,
-          padding: const EdgeInsets.all(12),
+        final statusChip = Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(
+            color: statusBg,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Text(
+            statusText,
+            style: TextStyle(
+              color: statusColor,
+              fontSize: 10,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        );
+
+        // On phones the time block is a single line (time range + status)
+        // instead of a tall full-width box.
+        final compactTimeBox = Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           decoration: BoxDecoration(
             color: AppColors.scaffold,
             borderRadius: BorderRadius.circular(10),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          child: Wrap(
+            spacing: 10,
+            runSpacing: 6,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(Icons.access_time, size: 14, color: statusColor),
                   const SizedBox(width: 4),
@@ -381,32 +486,56 @@ class _TherapistTimetablePageState extends State<TherapistTimetablePage> {
                       color: statusColor,
                     ),
                   ),
+                  const SizedBox(width: 4),
+                  Text(
+                    'to ${session.endTime}',
+                    style: const TextStyle(
+                        fontSize: 12, color: AppColors.textSecondary),
+                  ),
                 ],
               ),
-              const SizedBox(height: 2),
-              Text(
-                'to ${session.endTime}',
-                style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
-              ),
-              const SizedBox(height: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: statusBg,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  statusText,
-                  style: TextStyle(
-                    color: statusColor,
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
+              statusChip,
             ],
           ),
         );
+
+        final timeBox = isCompactCard
+            ? compactTimeBox
+            : Container(
+                width: isNarrow ? double.infinity : 140,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.scaffold,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.access_time, size: 14, color: statusColor),
+                        const SizedBox(width: 4),
+                        Text(
+                          session.startTime,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                            color: statusColor,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'to ${session.endTime}',
+                      style: const TextStyle(
+                          fontSize: 12, color: AppColors.textSecondary),
+                    ),
+                    const SizedBox(height: 8),
+                    statusChip,
+                  ],
+                ),
+              );
 
         final detailsSection = Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -420,7 +549,9 @@ class _TherapistTimetablePageState extends State<TherapistTimetablePage> {
                   radius: 18,
                   backgroundColor: AppColors.primaryLight,
                   child: Text(
-                    session.studentName.isNotEmpty ? session.studentName[0] : 'S',
+                    session.studentName.isNotEmpty
+                        ? session.studentName[0]
+                        : 'S',
                     style: const TextStyle(
                       color: AppColors.primary,
                       fontWeight: FontWeight.bold,
@@ -440,13 +571,17 @@ class _TherapistTimetablePageState extends State<TherapistTimetablePage> {
                       ),
                     ),
                     Text(
-                      'Age: ${session.studentAge} years • ID: ${session.studentId}',
-                      style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                      _ageForStudent(session.studentId) != null
+                          ? 'Age: ${_ageForStudent(session.studentId)} years • ID: ${session.studentId}'
+                          : 'ID: ${session.studentId}',
+                      style: const TextStyle(
+                          fontSize: 12, color: AppColors.textSecondary),
                     ),
                   ],
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                   decoration: BoxDecoration(
                     color: const Color(0xFFF3E8FF),
                     borderRadius: BorderRadius.circular(8),
@@ -454,7 +589,8 @@ class _TherapistTimetablePageState extends State<TherapistTimetablePage> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.meeting_room, size: 14, color: AppColors.primary),
+                      const Icon(Icons.meeting_room,
+                          size: 14, color: AppColors.primary),
                       const SizedBox(width: 6),
                       Text(
                         session.room,
@@ -481,7 +617,8 @@ class _TherapistTimetablePageState extends State<TherapistTimetablePage> {
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.psychology, size: 18, color: AppColors.primary),
+                  const Icon(Icons.psychology,
+                      size: 18, color: AppColors.primary),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Column(
@@ -509,7 +646,8 @@ class _TherapistTimetablePageState extends State<TherapistTimetablePage> {
                           const SizedBox(height: 4),
                           Text(
                             session.notes,
-                            style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                            style: const TextStyle(
+                                fontSize: 12, color: AppColors.textSecondary),
                           ),
                         ],
                       ],
@@ -529,7 +667,8 @@ class _TherapistTimetablePageState extends State<TherapistTimetablePage> {
               onPressed: () {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text('Opening Daily Data Sheet for ${session.studentName}...'),
+                    content: Text(
+                        'Opening Daily Data Sheet for ${session.studentName}...'),
                     backgroundColor: AppColors.primary,
                   ),
                 );
@@ -537,48 +676,63 @@ class _TherapistTimetablePageState extends State<TherapistTimetablePage> {
                   widget.onNavigateTab!(8);
                 }
               },
-              icon: const Icon(Icons.assignment_turned_in_outlined, size: 16, color: Colors.white),
+              icon: const Icon(Icons.assignment_turned_in_outlined,
+                  size: 16, color: Colors.white),
               label: const Text(
                 'Daily Data Sheet',
-                style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold),
               ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8)),
               ),
             ),
             if (session.status == SessionStatus.upcoming)
               OutlinedButton.icon(
                 onPressed: () {
-                  service.updateSessionStatus(session.id, SessionStatus.inProgress);
+                  service.updateSessionStatus(
+                      session.id, SessionStatus.inProgress);
                 },
-                icon: const Icon(Icons.play_arrow, size: 14, color: Color(0xFF2E7D32)),
-                label: const Text('Start Session', style: TextStyle(color: Color(0xFF2E7D32), fontSize: 12)),
+                icon: const Icon(Icons.play_arrow,
+                    size: 14, color: Color(0xFF2E7D32)),
+                label: const Text('Start Session',
+                    style: TextStyle(color: Color(0xFF2E7D32), fontSize: 12)),
                 style: OutlinedButton.styleFrom(
                   side: const BorderSide(color: Color(0xFF4CAF50)),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8)),
                 ),
               )
             else if (session.status == SessionStatus.inProgress)
               ElevatedButton.icon(
                 onPressed: () {
-                  service.updateSessionStatus(session.id, SessionStatus.completed);
+                  service.updateSessionStatus(
+                      session.id, SessionStatus.completed);
                 },
                 icon: const Icon(Icons.check, size: 14, color: Colors.white),
-                label: const Text('Mark Completed', style: TextStyle(color: Colors.white, fontSize: 12)),
+                label: const Text('Mark Completed',
+                    style: TextStyle(color: Colors.white, fontSize: 12)),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF2E7D32),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8)),
                 ),
               ),
           ],
         );
 
         return Container(
-          padding: const EdgeInsets.all(20),
+          padding: EdgeInsets.all(isCompactCard ? 14 : 20),
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(16),
@@ -601,9 +755,9 @@ class _TherapistTimetablePageState extends State<TherapistTimetablePage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     timeBox,
-                    const SizedBox(height: 16),
+                    SizedBox(height: isCompactCard ? 12 : 16),
                     detailsSection,
-                    const SizedBox(height: 16),
+                    SizedBox(height: isCompactCard ? 12 : 16),
                     actionButtons,
                   ],
                 )

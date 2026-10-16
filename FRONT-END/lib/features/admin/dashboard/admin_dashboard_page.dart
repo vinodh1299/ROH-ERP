@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:roh_erp/core/constants/app_colors.dart';
+import 'package:roh_erp/core/layout/responsive.dart';
 import 'package:roh_erp/core/constants/app_images.dart';
 import 'package:roh_erp/core/models/schedule_model.dart';
 import 'package:roh_erp/core/services/schedule_service.dart';
@@ -65,10 +66,12 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
 
   @override
   Widget build(BuildContext context) {
-    final pendingIeps = _iepReports.where((r) => (r['status'] ?? '').toString().contains('Pending')).toList();
+    final pendingIeps = _iepReports
+        .where((r) => (r['status'] ?? '').toString().contains('Pending'))
+        .toList();
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+      padding: Breakpoints.pagePadding(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -99,19 +102,24 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                           children: [
                             Text(
                               'Hi, ROH Admin !',
-                              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 24),
+                              style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 24),
                             ),
                             SizedBox(height: 8),
                             Text(
                               'Welcome back to the work station',
-                              style: TextStyle(color: Colors.white, fontSize: 14),
+                              style:
+                                  TextStyle(color: Colors.white, fontSize: 14),
                             ),
                           ],
                         ),
                       ),
                       Container(
                         width: double.infinity,
-                        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 24),
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 12, horizontal: 24),
                         decoration: BoxDecoration(
                           color: Colors.black.withValues(alpha: 0.1),
                           borderRadius: const BorderRadius.only(
@@ -122,12 +130,21 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                         child: Builder(
                           builder: (context) {
                             final now = DateTime.now();
-                            const dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+                            const dayNames = [
+                              'Monday',
+                              'Tuesday',
+                              'Wednesday',
+                              'Thursday',
+                              'Friday',
+                              'Saturday',
+                              'Sunday'
+                            ];
                             final dateStr =
                                 '${now.day.toString().padLeft(2, '0')}-${now.month.toString().padLeft(2, '0')}-${now.year} ${dayNames[now.weekday - 1]}';
                             return Text(
                               dateStr,
-                              style: const TextStyle(color: Colors.white, fontSize: 13),
+                              style: const TextStyle(
+                                  color: Colors.white, fontSize: 13),
                             );
                           },
                         ),
@@ -144,19 +161,35 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                   return stackStats
                       ? Column(
                           children: [
-                            _buildStatCard(Icons.group, Colors.pink.shade50, Colors.pink.shade300, 'Students', sCount),
+                            _buildStatCard(Icons.group, Colors.pink.shade50,
+                                Colors.pink.shade300, 'Students', sCount),
                             const SizedBox(height: 12),
-                            _buildStatCard(Icons.medical_services, Colors.teal.shade50, AppColors.accentTeal, 'Staffs', tCount),
+                            _buildStatCard(
+                                Icons.medical_services,
+                                Colors.teal.shade50,
+                                AppColors.accentTeal,
+                                'Staffs',
+                                tCount),
                           ],
                         )
                       : Row(
                           children: [
                             Expanded(
-                              child: _buildStatCard(Icons.group, Colors.pink.shade50, Colors.pink.shade300, 'Students', sCount),
+                              child: _buildStatCard(
+                                  Icons.group,
+                                  Colors.pink.shade50,
+                                  Colors.pink.shade300,
+                                  'Students',
+                                  sCount),
                             ),
                             const SizedBox(width: 16),
                             Expanded(
-                              child: _buildStatCard(Icons.medical_services, Colors.teal.shade50, AppColors.accentTeal, 'Staffs', tCount),
+                              child: _buildStatCard(
+                                  Icons.medical_services,
+                                  Colors.teal.shade50,
+                                  AppColors.accentTeal,
+                                  'Staffs',
+                                  tCount),
                             ),
                           ],
                         );
@@ -175,18 +208,26 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                 children: [
                   const Text(
                     'Pending IEP Reports',
-                    style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 16),
+                    style: TextStyle(
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16),
                   ),
                   const SizedBox(height: 16),
                   if (pendingIeps.isEmpty)
                     const Padding(
                       padding: EdgeInsets.symmetric(vertical: 24.0),
-                      child: Center(child: Text('No pending IEP sign-offs', style: TextStyle(color: AppColors.textSecondary))),
+                      child: Center(
+                          child: Text('No pending IEP sign-offs',
+                              style:
+                                  TextStyle(color: AppColors.textSecondary))),
                     )
                   else
                     ...pendingIeps.take(4).map((iep) {
                       final sName = iep['student_name'] ?? 'Student';
-                      final createdDate = iep['created_at'] != null ? iep['created_at'].toString().split('T')[0] : '—';
+                      final createdDate = iep['created_at'] != null
+                          ? iep['created_at'].toString().split('T')[0]
+                          : '—';
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 12.0),
                         child: Row(
@@ -197,18 +238,30 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(sName, style: const TextStyle(color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w600)),
-                                  Text(createdDate, style: const TextStyle(color: AppColors.primary, fontSize: 12)),
+                                  Text(sName,
+                                      style: const TextStyle(
+                                          color: AppColors.textPrimary,
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w600)),
+                                  Text(createdDate,
+                                      style: const TextStyle(
+                                          color: AppColors.primary,
+                                          fontSize: 12)),
                                 ],
                               ),
                             ),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 4),
                               decoration: BoxDecoration(
                                 color: AppColors.statusPendingBg,
                                 borderRadius: BorderRadius.circular(16),
                               ),
-                              child: const Text('Pending', style: TextStyle(color: AppColors.statusPending, fontSize: 12, fontWeight: FontWeight.w600)),
+                              child: const Text('Pending',
+                                  style: TextStyle(
+                                      color: AppColors.statusPending,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600)),
                             ),
                           ],
                         ),
@@ -240,10 +293,15 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           const SizedBox(height: 20),
 
           // ── Director's Calendar & Scheduling Dispatcher (Admin Portal) ───
-          _AdminDirectorSchedulingDashboardWidget(onNavigateCalendar: widget.onNavigateCalendar),
+          _AdminDirectorSchedulingDashboardWidget(
+              onNavigateCalendar: widget.onNavigateCalendar),
           const SizedBox(height: 24),
 
-          const Text('Recent Activities', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 18)),
+          const Text('Recent Activities',
+              style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18)),
           const SizedBox(height: 16),
           DefaultTabController(
             length: 2,
@@ -278,9 +336,11 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     );
   }
 
-  Widget _buildStatCard(IconData icon, Color bg, Color iconColor, String title, String count) {
+  Widget _buildStatCard(
+      IconData icon, Color bg, Color iconColor, String title, String count) {
     return Container(
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
+      decoration: BoxDecoration(
+          color: Colors.white, borderRadius: BorderRadius.circular(16)),
       padding: const EdgeInsets.all(20),
       child: Row(
         children: [
@@ -290,12 +350,20 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
             child: Icon(icon, color: iconColor),
           ),
           const SizedBox(width: 16),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(title, style: const TextStyle(color: AppColors.primary, fontSize: 14)),
-              Text(count, style: const TextStyle(color: AppColors.textPrimary, fontSize: 28, fontWeight: FontWeight.bold)),
-            ],
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title,
+                    style: const TextStyle(
+                        color: AppColors.primary, fontSize: 14)),
+                Text(count,
+                    style: const TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold)),
+              ],
+            ),
           ),
         ],
       ),
@@ -303,6 +371,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
   }
 
   Widget _buildStudentsTable() {
+    // Phone: one card per student instead of the 7-column table.
+    if (Breakpoints.isCompact(context)) return _buildStudentCards();
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -318,58 +388,134 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   color: AppColors.primaryLight.withValues(alpha: 0.3),
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                  borderRadius:
+                      const BorderRadius.vertical(top: Radius.circular(16)),
                 ),
                 child: const Row(
                   children: [
-                    Expanded(flex: 2, child: Text('Name', style: TextStyle(color: AppColors.tableHeaderText, fontWeight: FontWeight.bold))),
-                    Expanded(flex: 2, child: Text('Email Id', style: TextStyle(color: AppColors.tableHeaderText, fontWeight: FontWeight.bold))),
-                    Expanded(flex: 2, child: Text('Phone', style: TextStyle(color: AppColors.tableHeaderText, fontWeight: FontWeight.bold))),
-                    Expanded(flex: 1, child: Text('Age', style: TextStyle(color: AppColors.tableHeaderText, fontWeight: FontWeight.bold))),
-                    Expanded(flex: 2, child: Text('Created Date', style: TextStyle(color: AppColors.tableHeaderText, fontWeight: FontWeight.bold))),
-                    Expanded(flex: 1, child: Text('Status', style: TextStyle(color: AppColors.tableHeaderText, fontWeight: FontWeight.bold))),
-                    Expanded(flex: 1, child: Text('', style: TextStyle(color: AppColors.tableHeaderText, fontWeight: FontWeight.bold))),
+                    Expanded(
+                        flex: 2,
+                        child: Text('Name',
+                            style: TextStyle(
+                                color: AppColors.tableHeaderText,
+                                fontWeight: FontWeight.bold))),
+                    Expanded(
+                        flex: 2,
+                        child: Text('Email Id',
+                            style: TextStyle(
+                                color: AppColors.tableHeaderText,
+                                fontWeight: FontWeight.bold))),
+                    Expanded(
+                        flex: 2,
+                        child: Text('Phone',
+                            style: TextStyle(
+                                color: AppColors.tableHeaderText,
+                                fontWeight: FontWeight.bold))),
+                    Expanded(
+                        flex: 1,
+                        child: Text('Age',
+                            style: TextStyle(
+                                color: AppColors.tableHeaderText,
+                                fontWeight: FontWeight.bold))),
+                    Expanded(
+                        flex: 2,
+                        child: Text('Created Date',
+                            style: TextStyle(
+                                color: AppColors.tableHeaderText,
+                                fontWeight: FontWeight.bold))),
+                    Expanded(
+                        flex: 1,
+                        child: Text('Status',
+                            style: TextStyle(
+                                color: AppColors.tableHeaderText,
+                                fontWeight: FontWeight.bold))),
+                    Expanded(
+                        flex: 1,
+                        child: Text('',
+                            style: TextStyle(
+                                color: AppColors.tableHeaderText,
+                                fontWeight: FontWeight.bold))),
                   ],
                 ),
               ),
               Expanded(
                 child: _students.isEmpty
-                    ? const Center(child: Text('No student records found in database', style: TextStyle(color: AppColors.textSecondary)))
+                    ? const Center(
+                        child: Text('No student records found in database',
+                            style: TextStyle(color: AppColors.textSecondary)))
                     : ListView.separated(
                         itemCount: _students.length,
-                        separatorBuilder: (context, index) => const Divider(height: 1, color: AppColors.divider),
+                        separatorBuilder: (context, index) =>
+                            const Divider(height: 1, color: AppColors.divider),
                         itemBuilder: (context, index) {
                           final s = _students[index];
-                          final name = s['name'] ?? '${s['first_name']} ${s['last_name']}';
-                          final email = s['email']?.toString().isNotEmpty == true ? s['email'].toString() : 'Not provided';
-                          final phone = s['phone']?.toString().isNotEmpty == true ? s['phone'].toString() : 'Not provided';
+                          final name = s['name'] ??
+                              '${s['first_name']} ${s['last_name']}';
+                          final email =
+                              s['email']?.toString().isNotEmpty == true
+                                  ? s['email'].toString()
+                                  : 'Not provided';
+                          final phone =
+                              s['phone']?.toString().isNotEmpty == true
+                                  ? s['phone'].toString()
+                                  : 'Not provided';
                           final age = _calculateAge(s['dob']);
-                          final createdDate = s['created_at'] != null ? s['created_at'].toString().split('T')[0] : '—';
-                          final isActive = (s['status'] ?? 'Active') == 'Active';
+                          final createdDate = s['created_at'] != null
+                              ? s['created_at'].toString().split('T')[0]
+                              : '—';
+                          final isActive =
+                              (s['status'] ?? 'Active') == 'Active';
 
                           return Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 12),
                             child: Row(
                               children: [
-                                Expanded(flex: 2, child: Text(name, style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w500))),
-                                Expanded(flex: 2, child: Text(email, style: const TextStyle(color: AppColors.textPrimary))),
-                                Expanded(flex: 2, child: Text(phone, style: const TextStyle(color: AppColors.textPrimary))),
-                                Expanded(flex: 1, child: Text('$age', style: const TextStyle(color: AppColors.textPrimary))),
-                                Expanded(flex: 2, child: Text(createdDate, style: const TextStyle(color: AppColors.textPrimary))),
+                                Expanded(
+                                    flex: 2,
+                                    child: Text(name,
+                                        style: const TextStyle(
+                                            color: AppColors.textPrimary,
+                                            fontWeight: FontWeight.w500))),
+                                Expanded(
+                                    flex: 2,
+                                    child: Text(email,
+                                        style: const TextStyle(
+                                            color: AppColors.textPrimary))),
+                                Expanded(
+                                    flex: 2,
+                                    child: Text(phone,
+                                        style: const TextStyle(
+                                            color: AppColors.textPrimary))),
+                                Expanded(
+                                    flex: 1,
+                                    child: Text('$age',
+                                        style: const TextStyle(
+                                            color: AppColors.textPrimary))),
+                                Expanded(
+                                    flex: 2,
+                                    child: Text(createdDate,
+                                        style: const TextStyle(
+                                            color: AppColors.textPrimary))),
                                 Expanded(
                                   flex: 1,
                                   child: Align(
                                     alignment: Alignment.centerLeft,
                                     child: Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 10, vertical: 4),
                                       decoration: BoxDecoration(
-                                        color: isActive ? AppColors.statusActiveBg : AppColors.statusDeactivatedBg,
+                                        color: isActive
+                                            ? AppColors.statusActiveBg
+                                            : AppColors.statusDeactivatedBg,
                                         borderRadius: BorderRadius.circular(12),
                                       ),
                                       child: Text(
                                         isActive ? 'Active' : 'De-Activated',
                                         style: TextStyle(
-                                          color: isActive ? AppColors.statusActive : AppColors.statusDeactivated,
+                                          color: isActive
+                                              ? AppColors.statusActive
+                                              : AppColors.statusDeactivated,
                                           fontSize: 12,
                                           fontWeight: FontWeight.w600,
                                         ),
@@ -383,11 +529,16 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                                     onPressed: () {},
                                     style: OutlinedButton.styleFrom(
                                       foregroundColor: AppColors.primary,
-                                      side: const BorderSide(color: AppColors.primary),
-                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                      side: const BorderSide(
+                                          color: AppColors.primary),
+                                      shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(16)),
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 12, vertical: 6),
                                     ),
-                                    child: const Text('View', style: TextStyle(fontSize: 12)),
+                                    child: const Text('View',
+                                        style: TextStyle(fontSize: 12)),
                                   ),
                                 ),
                               ],
@@ -402,11 +553,17 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
-                    TextButton(onPressed: () {}, child: const Text('Previous', style: TextStyle(color: AppColors.textHint))),
+                    TextButton(
+                        onPressed: () {},
+                        child: const Text('Previous',
+                            style: TextStyle(color: AppColors.textHint))),
                     const SizedBox(width: 8),
                     _buildPageNum(1, true),
                     const SizedBox(width: 8),
-                    TextButton(onPressed: () {}, child: const Text('Next', style: TextStyle(color: AppColors.primary))),
+                    TextButton(
+                        onPressed: () {},
+                        child: const Text('Next',
+                            style: TextStyle(color: AppColors.primary))),
                   ],
                 ),
               )
@@ -418,6 +575,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
   }
 
   Widget _buildIepTable() {
+    // Phone: one card per IEP request instead of the 5-column table.
+    if (Breakpoints.isCompact(context)) return _buildIepCards();
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -433,24 +592,53 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   color: AppColors.primaryLight.withValues(alpha: 0.3),
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                  borderRadius:
+                      const BorderRadius.vertical(top: Radius.circular(16)),
                 ),
                 child: const Row(
                   children: [
-                    Expanded(flex: 2, child: Text('Student', style: TextStyle(color: AppColors.tableHeaderText, fontWeight: FontWeight.bold))),
-                    Expanded(flex: 2, child: Text('Therapist', style: TextStyle(color: AppColors.tableHeaderText, fontWeight: FontWeight.bold))),
-                    Expanded(flex: 2, child: Text('Title', style: TextStyle(color: AppColors.tableHeaderText, fontWeight: FontWeight.bold))),
-                    Expanded(flex: 2, child: Text('Cycle', style: TextStyle(color: AppColors.tableHeaderText, fontWeight: FontWeight.bold))),
-                    Expanded(flex: 1, child: Text('Status', style: TextStyle(color: AppColors.tableHeaderText, fontWeight: FontWeight.bold))),
+                    Expanded(
+                        flex: 2,
+                        child: Text('Student',
+                            style: TextStyle(
+                                color: AppColors.tableHeaderText,
+                                fontWeight: FontWeight.bold))),
+                    Expanded(
+                        flex: 2,
+                        child: Text('Therapist',
+                            style: TextStyle(
+                                color: AppColors.tableHeaderText,
+                                fontWeight: FontWeight.bold))),
+                    Expanded(
+                        flex: 2,
+                        child: Text('Title',
+                            style: TextStyle(
+                                color: AppColors.tableHeaderText,
+                                fontWeight: FontWeight.bold))),
+                    Expanded(
+                        flex: 2,
+                        child: Text('Cycle',
+                            style: TextStyle(
+                                color: AppColors.tableHeaderText,
+                                fontWeight: FontWeight.bold))),
+                    Expanded(
+                        flex: 1,
+                        child: Text('Status',
+                            style: TextStyle(
+                                color: AppColors.tableHeaderText,
+                                fontWeight: FontWeight.bold))),
                   ],
                 ),
               ),
               Expanded(
                 child: _iepReports.isEmpty
-                    ? const Center(child: Text('No IEP records found in database', style: TextStyle(color: AppColors.textSecondary)))
+                    ? const Center(
+                        child: Text('No IEP records found in database',
+                            style: TextStyle(color: AppColors.textSecondary)))
                     : ListView.separated(
                         itemCount: _iepReports.length,
-                        separatorBuilder: (context, index) => const Divider(height: 1, color: AppColors.divider),
+                        separatorBuilder: (context, index) =>
+                            const Divider(height: 1, color: AppColors.divider),
                         itemBuilder: (context, index) {
                           final iep = _iepReports[index];
                           final sName = iep['student_name'] ?? 'Student';
@@ -461,27 +649,50 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                           final isActive = status == 'Active';
 
                           return Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 12),
                             child: Row(
                               children: [
-                                Expanded(flex: 2, child: Text(sName, style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w500))),
-                                Expanded(flex: 2, child: Text(tName, style: const TextStyle(color: AppColors.textPrimary))),
-                                Expanded(flex: 2, child: Text(title, style: const TextStyle(color: AppColors.textPrimary))),
-                                Expanded(flex: 2, child: Text(cycle, style: const TextStyle(color: AppColors.textPrimary))),
+                                Expanded(
+                                    flex: 2,
+                                    child: Text(sName,
+                                        style: const TextStyle(
+                                            color: AppColors.textPrimary,
+                                            fontWeight: FontWeight.w500))),
+                                Expanded(
+                                    flex: 2,
+                                    child: Text(tName,
+                                        style: const TextStyle(
+                                            color: AppColors.textPrimary))),
+                                Expanded(
+                                    flex: 2,
+                                    child: Text(title,
+                                        style: const TextStyle(
+                                            color: AppColors.textPrimary))),
+                                Expanded(
+                                    flex: 2,
+                                    child: Text(cycle,
+                                        style: const TextStyle(
+                                            color: AppColors.textPrimary))),
                                 Expanded(
                                   flex: 1,
                                   child: Align(
                                     alignment: Alignment.centerLeft,
                                     child: Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 10, vertical: 4),
                                       decoration: BoxDecoration(
-                                        color: isActive ? AppColors.statusActiveBg : AppColors.statusPendingBg,
+                                        color: isActive
+                                            ? AppColors.statusActiveBg
+                                            : AppColors.statusPendingBg,
                                         borderRadius: BorderRadius.circular(12),
                                       ),
                                       child: Text(
                                         status,
                                         style: TextStyle(
-                                          color: isActive ? AppColors.statusActive : AppColors.statusPending,
+                                          color: isActive
+                                              ? AppColors.statusActive
+                                              : AppColors.statusPending,
                                           fontSize: 12,
                                           fontWeight: FontWeight.w600,
                                         ),
@@ -499,6 +710,172 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _statusChip(String label, Color color, Color bg) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration:
+          BoxDecoration(color: bg, borderRadius: BorderRadius.circular(12)),
+      child: Text(label,
+          style: TextStyle(
+              color: color, fontSize: 12, fontWeight: FontWeight.w600)),
+    );
+  }
+
+  Widget _cardLine(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 2),
+      child: Text.rich(
+        TextSpan(children: [
+          TextSpan(
+              text: '$label: ',
+              style: const TextStyle(
+                  color: AppColors.tableHeaderText,
+                  fontWeight: FontWeight.w600)),
+          TextSpan(
+              text: value,
+              style: const TextStyle(color: AppColors.textPrimary)),
+        ]),
+        style: const TextStyle(fontSize: 12.5),
+      ),
+    );
+  }
+
+  /// Phone layout of "Recent Students".
+  Widget _buildStudentCards() {
+    return Container(
+      decoration: BoxDecoration(
+          color: Colors.white, borderRadius: BorderRadius.circular(16)),
+      child: _students.isEmpty
+          ? const Center(
+              child: Text('No student records found in database',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: AppColors.textSecondary)))
+          : ListView.separated(
+              itemCount: _students.length,
+              separatorBuilder: (context, index) =>
+                  const Divider(height: 1, color: AppColors.divider),
+              itemBuilder: (context, index) {
+                final s = _students[index];
+                final name =
+                    s['name'] ?? '${s['first_name']} ${s['last_name']}';
+                final email = s['email']?.toString().isNotEmpty == true
+                    ? s['email'].toString()
+                    : 'Not provided';
+                final phone = s['phone']?.toString().isNotEmpty == true
+                    ? s['phone'].toString()
+                    : 'Not provided';
+                final age = _calculateAge(s['dob']);
+                final createdDate = s['created_at'] != null
+                    ? s['created_at'].toString().split('T')[0]
+                    : '—';
+                final isActive = (s['status'] ?? 'Active') == 'Active';
+                return Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                              child: Text(name,
+                                  style: const TextStyle(
+                                      color: AppColors.textPrimary,
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 14))),
+                          const SizedBox(width: 8),
+                          isActive
+                              ? _statusChip('Active', AppColors.statusActive,
+                                  AppColors.statusActiveBg)
+                              : _statusChip(
+                                  'De-Activated',
+                                  AppColors.statusDeactivated,
+                                  AppColors.statusDeactivatedBg),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      _cardLine('Email Id', email),
+                      _cardLine('Phone', phone),
+                      _cardLine('Age', '$age'),
+                      _cardLine('Created Date', createdDate),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: OutlinedButton(
+                          onPressed: () {},
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppColors.primary,
+                            side: const BorderSide(color: AppColors.primary),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16)),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 6),
+                          ),
+                          child: const Text('View',
+                              style: TextStyle(fontSize: 12)),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+    );
+  }
+
+  /// Phone layout of "Recent IEP Requested".
+  Widget _buildIepCards() {
+    return Container(
+      decoration: BoxDecoration(
+          color: Colors.white, borderRadius: BorderRadius.circular(16)),
+      child: _iepReports.isEmpty
+          ? const Center(
+              child: Text('No IEP records found in database',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: AppColors.textSecondary)))
+          : ListView.separated(
+              itemCount: _iepReports.length,
+              separatorBuilder: (context, index) =>
+                  const Divider(height: 1, color: AppColors.divider),
+              itemBuilder: (context, index) {
+                final iep = _iepReports[index];
+                final sName = iep['student_name'] ?? 'Student';
+                final tName = iep['therapist_name'] ?? 'Therapist';
+                final title = iep['title'] ?? 'IEP Plan';
+                final cycle = iep['cycle_term'] ?? 'Q3 2026';
+                final status = iep['status'] ?? 'Active';
+                final isActive = status == 'Active';
+                return Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                              child: Text('$sName',
+                                  style: const TextStyle(
+                                      color: AppColors.textPrimary,
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 14))),
+                          const SizedBox(width: 8),
+                          isActive
+                              ? _statusChip('$status', AppColors.statusActive,
+                                  AppColors.statusActiveBg)
+                              : _statusChip('$status', AppColors.statusPending,
+                                  AppColors.statusPendingBg),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      _cardLine('Therapist', '$tName'),
+                      _cardLine('Title', '$title'),
+                      _cardLine('Cycle', '$cycle'),
+                    ],
+                  ),
+                );
+              },
+            ),
     );
   }
 
@@ -538,8 +915,10 @@ class _AdminDirectorSchedulingDashboardWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheduleService = context.watch<ScheduleService>();
-    final todayAppointments = scheduleService.getDirectorAppointments(date: DateTime.now());
-    final availableSlots = scheduleService.getAvailableDirectorSlots(DateTime.now());
+    final todayAppointments =
+        scheduleService.getDirectorAppointments(date: DateTime.now());
+    final availableSlots =
+        scheduleService.getAvailableDirectorSlots(DateTime.now());
 
     return Container(
       padding: const EdgeInsets.all(22),
@@ -570,7 +949,8 @@ class _AdminDirectorSchedulingDashboardWidget extends StatelessWidget {
                       color: AppColors.primaryLight,
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: const Icon(Icons.event_available, color: AppColors.primary, size: 20),
+                    child: const Icon(Icons.event_available,
+                        color: AppColors.primary, size: 20),
                   ),
                   const SizedBox(width: 12),
                   const Expanded(
@@ -588,7 +968,8 @@ class _AdminDirectorSchedulingDashboardWidget extends StatelessWidget {
                         ),
                         Text(
                           'Admin Clinical Coordination • Check availability & book parent diagnostic intakes for Dr. Vincent Sterling',
-                          style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                          style: TextStyle(
+                              fontSize: 12, color: AppColors.textSecondary),
                         ),
                       ],
                     ),
@@ -601,13 +982,18 @@ class _AdminDirectorSchedulingDashboardWidget extends StatelessWidget {
                 icon: const Icon(Icons.add, size: 16, color: Colors.white),
                 label: const Text(
                   '+ Schedule Appointment for Director',
-                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                  style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12),
                 ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
                   elevation: 1,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8)),
                 ),
               );
 
@@ -652,15 +1038,18 @@ class _AdminDirectorSchedulingDashboardWidget extends StatelessWidget {
                   children: [
                     Row(
                       children: [
-                        const Icon(Icons.schedule, size: 16, color: Color(0xFF2E7D32)),
+                        const Icon(Icons.schedule,
+                            size: 16, color: Color(0xFF2E7D32)),
                         const SizedBox(width: 6),
                         const Text(
                           "Today's Available Slots",
-                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 13),
                         ),
                         const Spacer(),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 2),
                           decoration: BoxDecoration(
                             color: const Color(0xFFE8F5E9),
                             borderRadius: BorderRadius.circular(8),
@@ -682,7 +1071,8 @@ class _AdminDirectorSchedulingDashboardWidget extends StatelessWidget {
                         padding: EdgeInsets.symmetric(vertical: 8),
                         child: Text(
                           'All standard slots are booked for today.',
-                          style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                          style: TextStyle(
+                              fontSize: 12, color: AppColors.textSecondary),
                         ),
                       )
                     else
@@ -694,16 +1084,19 @@ class _AdminDirectorSchedulingDashboardWidget extends StatelessWidget {
                             onTap: () => _openBookingDialog(context, slot),
                             borderRadius: BorderRadius.circular(8),
                             child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 6),
                               decoration: BoxDecoration(
                                 color: const Color(0xFFF1F8E9),
                                 borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: const Color(0xFFA5D6A7)),
+                                border:
+                                    Border.all(color: const Color(0xFFA5D6A7)),
                               ),
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  const Icon(Icons.add, size: 12, color: Color(0xFF2E7D32)),
+                                  const Icon(Icons.add,
+                                      size: 12, color: Color(0xFF2E7D32)),
                                   const SizedBox(width: 4),
                                   Text(
                                     slot,
@@ -734,7 +1127,8 @@ class _AdminDirectorSchedulingDashboardWidget extends StatelessWidget {
                               ),
                             ),
                             SizedBox(width: 4),
-                            Icon(Icons.arrow_forward, size: 12, color: AppColors.primary),
+                            Icon(Icons.arrow_forward,
+                                size: 12, color: AppColors.primary),
                           ],
                         ),
                       ),
@@ -754,16 +1148,19 @@ class _AdminDirectorSchedulingDashboardWidget extends StatelessWidget {
                   children: [
                     Row(
                       children: [
-                        const Icon(Icons.assignment_outlined, size: 16, color: AppColors.primary),
+                        const Icon(Icons.assignment_outlined,
+                            size: 16, color: AppColors.primary),
                         const SizedBox(width: 6),
                         const Text(
                           "Director's Booked Agenda (Today)",
-                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 13),
                         ),
                         const Spacer(),
                         Text(
                           '${todayAppointments.length} Booked',
-                          style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                          style: const TextStyle(
+                              fontSize: 11, color: AppColors.textSecondary),
                         ),
                       ],
                     ),
@@ -773,7 +1170,8 @@ class _AdminDirectorSchedulingDashboardWidget extends StatelessWidget {
                         padding: EdgeInsets.symmetric(vertical: 8),
                         child: Text(
                           'No appointments booked for today yet.',
-                          style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                          style: TextStyle(
+                              fontSize: 12, color: AppColors.textSecondary),
                         ),
                       )
                     else
@@ -789,12 +1187,14 @@ class _AdminDirectorSchedulingDashboardWidget extends StatelessWidget {
                             decoration: BoxDecoration(
                               color: Colors.white,
                               borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: const Color(0xFFEEEEEE)),
+                              border:
+                                  Border.all(color: const Color(0xFFEEEEEE)),
                             ),
                             child: Row(
                               children: [
                                 Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 8, vertical: 4),
                                   decoration: BoxDecoration(
                                     color: AppColors.primaryLight,
                                     borderRadius: BorderRadius.circular(6),
@@ -811,7 +1211,8 @@ class _AdminDirectorSchedulingDashboardWidget extends StatelessWidget {
                                 const SizedBox(width: 10),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Text(
                                         appt.title,
@@ -825,7 +1226,9 @@ class _AdminDirectorSchedulingDashboardWidget extends StatelessWidget {
                                       ),
                                       Text(
                                         '${appt.attendeeName} • ${appt.location}',
-                                        style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                                        style: const TextStyle(
+                                            fontSize: 11,
+                                            color: AppColors.textSecondary),
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
                                       ),
@@ -833,7 +1236,8 @@ class _AdminDirectorSchedulingDashboardWidget extends StatelessWidget {
                                   ),
                                 ),
                                 Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 6, vertical: 2),
                                   decoration: BoxDecoration(
                                     color: const Color(0xFFE0F2FE),
                                     borderRadius: BorderRadius.circular(6),
@@ -881,4 +1285,3 @@ class _AdminDirectorSchedulingDashboardWidget extends StatelessWidget {
     );
   }
 }
-

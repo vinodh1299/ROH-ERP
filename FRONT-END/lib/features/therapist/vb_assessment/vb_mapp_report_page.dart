@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:roh_erp/core/constants/app_colors.dart';
+import '../../../core/layout/responsive.dart';
 import '../widgets/student_card_grid.dart';
 import '../widgets/student_assessment_banner.dart';
 
@@ -16,15 +17,46 @@ class _VbMappReportPageState extends State<VbMappReportPage> {
   int _activeMilestoneLevel = 1; // 1, 2, or 3
 
   final List<String> _level1Columns = [
-    'Mand', 'Tact', 'Listener', 'VP/ MTS', 'Play', 'Social', 'Imitation', 'Echoic', 'Vocal'
+    'Mand',
+    'Tact',
+    'Listener',
+    'VP/ MTS',
+    'Play',
+    'Social',
+    'Imitation',
+    'Echoic',
+    'Vocal'
   ];
 
   final List<String> _level2Columns = [
-    'Mand', 'Tact', 'Listener', 'VP/ MTS', 'Play', 'Social', 'Imitation', 'Echoic', 'LRFFC', 'Intraverbal', 'Group', 'Linguistics'
+    'Mand',
+    'Tact',
+    'Listener',
+    'VP/ MTS',
+    'Play',
+    'Social',
+    'Imitation',
+    'Echoic',
+    'LRFFC',
+    'Intraverbal',
+    'Group',
+    'Linguistics'
   ];
 
   final List<String> _level3Columns = [
-    'Mand', 'Tact', 'Listener', 'VP/ MTS', 'Play', 'Social', 'Reading', 'LRFFC', 'writing', 'Intraverbal', 'Group', 'Linguistics', 'Math'
+    'Mand',
+    'Tact',
+    'Listener',
+    'VP/ MTS',
+    'Play',
+    'Social',
+    'Reading',
+    'LRFFC',
+    'writing',
+    'Intraverbal',
+    'Group',
+    'Linguistics',
+    'Math'
   ];
 
   final List<String> _barrierChartTitles = [
@@ -52,8 +84,8 @@ class _VbMappReportPageState extends State<VbMappReportPage> {
   Widget build(BuildContext context) {
     if (_selectedStudent == null) {
       return StudentCardGrid(
-        title: _isBarrierMode 
-            ? 'Students VB MAPP Barriers Master Scoring Form' 
+        title: _isBarrierMode
+            ? 'Students VB MAPP Barriers Master Scoring Form'
             : 'Students VB MAPP Milestones Master Scoring Form',
         buttonLabel: 'View',
         extraTopRightWidget: Row(
@@ -92,36 +124,46 @@ class _VbMappReportPageState extends State<VbMappReportPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header Row with Switch & Back Button
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
+          // Header Row with Switch & Back Button — title wraps to 2 lines and
+          // the Barrier switch drops below it when the content area is narrow.
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final narrow = constraints.maxWidth < 760;
+              final titleRow = Row(
                 children: [
                   IconButton(
-                    icon: const Icon(Icons.arrow_back, color: AppColors.primary),
+                    icon:
+                        const Icon(Icons.arrow_back, color: AppColors.primary),
                     onPressed: () => setState(() => _selectedStudent = null),
                     tooltip: 'Back to students',
                   ),
                   const SizedBox(width: 8),
-                  Text(
-                    _isBarrierMode 
-                        ? 'Students VB MAPP Barriers Master Scoring Form' 
-                        : 'Students VB MAPP Milestones Master Scoring Form',
-                    style: const TextStyle(
-                      fontFamily: 'Poppins',
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary,
+                  Expanded(
+                    child: Text(
+                      _isBarrierMode
+                          ? 'Students VB MAPP Barriers Master Scoring Form'
+                          : 'Students VB MAPP Milestones Master Scoring Form',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontFamily: 'Poppins',
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary,
+                      ),
                     ),
                   ),
                 ],
-              ),
-              Row(
+              );
+              final barrierSwitch = Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   const Text(
                     'Barrier',
-                    style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w600, fontSize: 14),
+                    style: TextStyle(
+                        fontFamily: 'Poppins',
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14),
                   ),
                   const SizedBox(width: 8),
                   Switch(
@@ -134,8 +176,28 @@ class _VbMappReportPageState extends State<VbMappReportPage> {
                     },
                   ),
                 ],
-              ),
-            ],
+              );
+              if (narrow) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    titleRow,
+                    const SizedBox(height: 4),
+                    Padding(
+                      padding: const EdgeInsets.only(left: 12),
+                      child: barrierSwitch,
+                    ),
+                  ],
+                );
+              }
+              return Row(
+                children: [
+                  Expanded(child: titleRow),
+                  const SizedBox(width: 16),
+                  barrierSwitch,
+                ],
+              );
+            },
           ),
           const SizedBox(height: 20),
 
@@ -144,7 +206,10 @@ class _VbMappReportPageState extends State<VbMappReportPage> {
           const SizedBox(height: 24),
 
           // Render Either Barriers Master Scoring Grid OR Milestones Master Scoring Chart
-          if (_isBarrierMode) _buildBarriersMasterForm() else _buildMilestonesMasterForm(),
+          if (_isBarrierMode)
+            _buildBarriersMasterForm()
+          else
+            _buildMilestonesMasterForm(),
           const SizedBox(height: 40),
         ],
       ),
@@ -159,7 +224,7 @@ class _VbMappReportPageState extends State<VbMappReportPage> {
         color: const Color(0xFFEDE9FE), // Soft purple container
         borderRadius: BorderRadius.circular(20),
       ),
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.all(Breakpoints.isCompact(context) ? 12 : 20),
       child: Column(
         children: [
           // Level Tabs: Level 1 | Level 2 | Level 3
@@ -181,16 +246,26 @@ class _VbMappReportPageState extends State<VbMappReportPage> {
 
           // The Scoring Matrix
           Container(
-            padding: const EdgeInsets.all(20),
+            padding: EdgeInsets.all(Breakpoints.isCompact(context) ? 12 : 20),
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(16),
             ),
-            child: _buildMilestoneMatrix(),
+            // Keep each skill column >= 56px; scroll sideways when narrower.
+            child: ScrollableMinWidth(
+              minWidth: 40 + _activeColumnCount() * 56.0,
+              child: _buildMilestoneMatrix(),
+            ),
           ),
         ],
       ),
     );
+  }
+
+  int _activeColumnCount() {
+    if (_activeMilestoneLevel == 1) return _level1Columns.length;
+    if (_activeMilestoneLevel == 2) return _level2Columns.length;
+    return _level3Columns.length;
   }
 
   Widget _buildLevelTab(String label, int level) {
@@ -218,7 +293,7 @@ class _VbMappReportPageState extends State<VbMappReportPage> {
             label,
             style: TextStyle(
               fontFamily: 'Poppins',
-              fontSize: 16,
+              fontSize: Breakpoints.isCompact(context) ? 14 : 16,
               fontWeight: FontWeight.bold,
               color: isSelected ? const Color(0xFF9333EA) : Colors.white,
             ),
@@ -277,8 +352,11 @@ class _VbMappReportPageState extends State<VbMappReportPage> {
                   SizedBox(
                     width: 40,
                     child: Text(
-                      _activeMilestoneLevel == 1 ? '${startRow - r}' : '${startRow + r}',
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                      _activeMilestoneLevel == 1
+                          ? '${startRow - r}'
+                          : '${startRow + r}',
+                      style: const TextStyle(
+                          fontWeight: FontWeight.bold, fontSize: 13),
                     ),
                   ),
                   for (int c = 0; c < cols.length; c++)
@@ -287,7 +365,8 @@ class _VbMappReportPageState extends State<VbMappReportPage> {
                       height: 32,
                       decoration: BoxDecoration(
                         color: _getSampleMilestoneColor(r, c),
-                        border: Border.all(color: const Color(0xFFD8B4E2), width: 0.8),
+                        border: Border.all(
+                            color: const Color(0xFFD8B4E2), width: 0.8),
                       ),
                     ),
                 ],
@@ -311,6 +390,7 @@ class _VbMappReportPageState extends State<VbMappReportPage> {
         if (constraints.maxWidth < 1300) crossAxisCount = 4;
         if (constraints.maxWidth < 900) crossAxisCount = 3;
         if (constraints.maxWidth < 600) crossAxisCount = 2;
+        if (constraints.maxWidth < 300) crossAxisCount = 1;
 
         return GridView.builder(
           shrinkWrap: true,
@@ -374,7 +454,8 @@ class _VbMappReportPageState extends State<VbMappReportPage> {
                   height: cellHeight,
                   decoration: BoxDecoration(
                     color: cellColor,
-                    border: Border.all(color: const Color(0xFFE5D5F5), width: 0.8),
+                    border:
+                        Border.all(color: const Color(0xFFE5D5F5), width: 0.8),
                   ),
                 );
               }),

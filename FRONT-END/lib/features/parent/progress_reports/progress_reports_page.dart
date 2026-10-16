@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:roh_erp/core/constants/app_colors.dart';
+import 'package:roh_erp/core/layout/responsive.dart';
 import 'package:roh_erp/core/services/api_service.dart';
 
 class ProgressReportsPage extends StatefulWidget {
@@ -63,9 +64,11 @@ class _ProgressReportsPageState extends State<ProgressReportsPage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.error_outline, color: AppColors.statusDeactivated, size: 40),
+            const Icon(Icons.error_outline,
+                color: AppColors.statusDeactivated, size: 40),
             const SizedBox(height: 12),
-            Text(_error!, style: const TextStyle(color: AppColors.textSecondary)),
+            Text(_error!,
+                style: const TextStyle(color: AppColors.textSecondary)),
             const SizedBox(height: 16),
             ElevatedButton(onPressed: _loadReports, child: const Text('Retry')),
           ],
@@ -75,12 +78,13 @@ class _ProgressReportsPageState extends State<ProgressReportsPage> {
 
     if (_reports.isEmpty) {
       return const Center(
-        child: Text('No progress reports filed yet', style: TextStyle(color: AppColors.textSecondary)),
+        child: Text('No progress reports filed yet',
+            style: TextStyle(color: AppColors.textSecondary)),
       );
     }
 
     return Padding(
-      padding: const EdgeInsets.all(24.0),
+      padding: Breakpoints.pagePadding(context),
       child: LayoutBuilder(
         builder: (context, constraints) {
           int crossAxisCount = 3;
@@ -97,8 +101,11 @@ class _ProgressReportsPageState extends State<ProgressReportsPage> {
             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: crossAxisCount,
               childAspectRatio: aspectRatio,
+              // Single column (phone): fixed card height instead of a tall
+              // aspect-ratio box with empty space.
+              mainAxisExtent: crossAxisCount == 1 ? 236 : null,
               crossAxisSpacing: 24,
-              mainAxisSpacing: 24,
+              mainAxisSpacing: crossAxisCount == 1 ? 16 : 24,
             ),
             itemCount: _reports.length,
             itemBuilder: (context, index) {
@@ -107,8 +114,11 @@ class _ProgressReportsPageState extends State<ProgressReportsPage> {
               final title = report['title'] ?? 'Comprehensive Treatment Plan';
               final therapistName = report['therapist_name'] ?? 'Lead BCBA';
               final status = report['status'] ?? 'Active';
-              final isPending = status.toString().toLowerCase().contains('pending');
-              final dateStr = report['created_at'] != null ? report['created_at'].toString().split('T')[0] : '—';
+              final isPending =
+                  status.toString().toLowerCase().contains('pending');
+              final dateStr = report['created_at'] != null
+                  ? report['created_at'].toString().split('T')[0]
+                  : '—';
 
               return Container(
                 decoration: BoxDecoration(
@@ -139,20 +149,27 @@ class _ProgressReportsPageState extends State<ProgressReportsPage> {
                               children: [
                                 CircleAvatar(
                                   backgroundColor: AppColors.primaryLight,
-                                  child: const Icon(Icons.assignment_turned_in, color: AppColors.primary),
+                                  child: const Icon(Icons.assignment_turned_in,
+                                      color: AppColors.primary),
                                 ),
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Text(
                                         studentName,
-                                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: AppColors.textPrimary),
+                                        style: const TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 15,
+                                            color: AppColors.textPrimary),
                                       ),
                                       Text(
                                         'Therapist: $therapistName',
-                                        style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                                        style: const TextStyle(
+                                            fontSize: 12,
+                                            color: AppColors.textSecondary),
                                       ),
                                     ],
                                   ),
@@ -164,12 +181,18 @@ class _ProgressReportsPageState extends State<ProgressReportsPage> {
                               title,
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(fontSize: 13, color: AppColors.textPrimary, fontWeight: FontWeight.w500),
+                              style: const TextStyle(
+                                  fontSize: 13,
+                                  color: AppColors.textPrimary,
+                                  fontWeight: FontWeight.w500),
                             ),
                             const SizedBox(height: 8),
                             Text(
                               'Scores: Manding ${report['manding_score']} | Tacting ${report['tacting_score']} | Echoic ${report['echoic_score']}',
-                              style: const TextStyle(fontSize: 11, color: AppColors.primary, fontWeight: FontWeight.w600),
+                              style: const TextStyle(
+                                  fontSize: 11,
+                                  color: AppColors.primary,
+                                  fontWeight: FontWeight.w600),
                             ),
                           ],
                         ),
@@ -177,7 +200,8 @@ class _ProgressReportsPageState extends State<ProgressReportsPage> {
                     ),
                     Container(
                       color: AppColors.primary,
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 12),
                       child: Row(
                         children: [
                           const Text(
@@ -188,47 +212,67 @@ class _ProgressReportsPageState extends State<ProgressReportsPage> {
                               fontFamily: 'Poppins',
                             ),
                           ),
-                          Text(
-                            dateStr,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
-                              fontFamily: 'Poppins',
+                          Expanded(
+                            child: Text(
+                              dateStr,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                                fontFamily: 'Poppins',
+                              ),
                             ),
                           ),
-                          const Spacer(),
+                          const SizedBox(width: 8),
                           InkWell(
                             onTap: () {
                               showDialog(
                                 context: context,
                                 builder: (ctx) => AlertDialog(
                                   title: Text('$studentName - Treatment Plan'),
-                                  content: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text('Title: $title', style: const TextStyle(fontWeight: FontWeight.bold)),
-                                      const SizedBox(height: 8),
-                                      Text('Therapist: $therapistName'),
-                                      const SizedBox(height: 8),
-                                      Text('Goals: ${report['goals_summary'] ?? 'N/A'}'),
-                                      const SizedBox(height: 8),
-                                      Text('Director Notes: ${report['director_notes'] ?? 'Pending review'}'),
-                                      const SizedBox(height: 8),
-                                      Text('Status: $status', style: TextStyle(color: isPending ? Colors.orange : Colors.green, fontWeight: FontWeight.bold)),
-                                    ],
+                                  content: SingleChildScrollView(
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text('Title: $title',
+                                            style: const TextStyle(
+                                                fontWeight: FontWeight.bold)),
+                                        const SizedBox(height: 8),
+                                        Text('Therapist: $therapistName'),
+                                        const SizedBox(height: 8),
+                                        Text(
+                                            'Goals: ${report['goals_summary'] ?? 'N/A'}'),
+                                        const SizedBox(height: 8),
+                                        Text(
+                                            'Director Notes: ${report['director_notes'] ?? 'Pending review'}'),
+                                        const SizedBox(height: 8),
+                                        Text('Status: $status',
+                                            style: TextStyle(
+                                                color: isPending
+                                                    ? Colors.orange
+                                                    : Colors.green,
+                                                fontWeight: FontWeight.bold)),
+                                      ],
+                                    ),
                                   ),
                                   actions: [
-                                    TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close')),
+                                    TextButton(
+                                        onPressed: () => Navigator.pop(ctx),
+                                        child: const Text('Close')),
                                   ],
                                 ),
                               );
                             },
                             child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 6),
                               decoration: BoxDecoration(
-                                color: isPending ? Colors.orange : const Color(0xFF4CAF50),
+                                color: isPending
+                                    ? Colors.orange
+                                    : const Color(0xFF4CAF50),
                                 borderRadius: BorderRadius.circular(16),
                               ),
                               child: Text(

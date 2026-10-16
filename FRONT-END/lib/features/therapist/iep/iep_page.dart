@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:roh_erp/core/constants/app_colors.dart';
 import 'package:roh_erp/core/constants/app_images.dart';
+import '../../../core/layout/responsive.dart';
 import '../widgets/student_card_grid.dart';
 
 class IepPage extends StatefulWidget {
@@ -55,7 +56,8 @@ class _IepPageState extends State<IepPage> {
               const SizedBox(height: 24),
               const Text(
                 'Item Name',
-                style: TextStyle(color: Colors.white, fontSize: 13, fontFamily: 'Poppins'),
+                style: TextStyle(
+                    color: Colors.white, fontSize: 13, fontFamily: 'Poppins'),
               ),
               const SizedBox(height: 8),
               Container(
@@ -67,9 +69,11 @@ class _IepPageState extends State<IepPage> {
                   controller: textController,
                   decoration: const InputDecoration(
                     hintText: 'enter item name',
-                    hintStyle: TextStyle(color: Color(0xFF9CA3AF), fontSize: 13),
+                    hintStyle:
+                        TextStyle(color: Color(0xFF9CA3AF), fontSize: 13),
                     border: InputBorder.none,
-                    contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    contentPadding:
+                        EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                   ),
                 ),
               ),
@@ -81,10 +85,14 @@ class _IepPageState extends State<IepPage> {
                     onPressed: () => Navigator.pop(context),
                     style: OutlinedButton.styleFrom(
                       side: const BorderSide(color: Colors.white),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8)),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 20, vertical: 10),
                     ),
-                    child: const Text('Cancel', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    child: const Text('Cancel',
+                        style: TextStyle(
+                            color: Colors.white, fontWeight: FontWeight.bold)),
                   ),
                   const SizedBox(width: 12),
                   ElevatedButton(
@@ -92,7 +100,8 @@ class _IepPageState extends State<IepPage> {
                       if (textController.text.trim().isNotEmpty) {
                         setState(() {
                           _mandingGoals.add({
-                            'label': String.fromCharCode(65 + _mandingGoals.length),
+                            'label':
+                                String.fromCharCode(65 + _mandingGoals.length),
                             'goal': textController.text.trim(),
                             'baseline': 'Baseline assessment in progress.',
                           });
@@ -102,10 +111,14 @@ class _IepPageState extends State<IepPage> {
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF6B21A8),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8)),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 24, vertical: 10),
                     ),
-                    child: const Text('Submit', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    child: const Text('Submit',
+                        style: TextStyle(
+                            color: Colors.white, fontWeight: FontWeight.bold)),
                   ),
                 ],
               ),
@@ -143,13 +156,17 @@ class _IepPageState extends State<IepPage> {
                 tooltip: 'Back to students',
               ),
               const SizedBox(width: 8),
-              const Text(
-                'Students Individualized Education Plan (IEP)',
-                style: TextStyle(
-                  fontFamily: 'Poppins',
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textPrimary,
+              const Expanded(
+                child: Text(
+                  'Students Individualized Education Plan (IEP)',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: 'Poppins',
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
+                  ),
                 ),
               ),
             ],
@@ -166,20 +183,26 @@ class _IepPageState extends State<IepPage> {
             children: [
               InkWell(
                 onTap: _showAddItemDialog,
-                child: const Row(
-                  children: [
-                    Icon(Icons.add, size: 18, color: AppColors.primary),
-                    SizedBox(width: 4),
-                    Text(
-                      'Add',
-                      style: TextStyle(
-                        fontFamily: 'Poppins',
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.primary,
+                child: Container(
+                  constraints: BoxConstraints(
+                    minHeight: Breakpoints.isCompact(context) ? 44 : 0,
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.add, size: 18, color: AppColors.primary),
+                      SizedBox(width: 4),
+                      Text(
+                        'Add',
+                        style: TextStyle(
+                          fontFamily: 'Poppins',
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.primary,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ],
@@ -202,25 +225,34 @@ class _IepPageState extends State<IepPage> {
                 onPressed: () => setState(() => _selectedStudent = null),
                 style: OutlinedButton.styleFrom(
                   side: const BorderSide(color: AppColors.primary),
-                  padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8)),
                 ),
-                child: const Text('Cancel', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold)),
+                child: const Text('Cancel',
+                    style: TextStyle(
+                        color: AppColors.primary, fontWeight: FontWeight.bold)),
               ),
               const SizedBox(width: 16),
               ElevatedButton(
                 onPressed: () {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Student IEP Saved Successfully!')),
+                    const SnackBar(
+                        content: Text('Student IEP Saved Successfully!')),
                   );
                   setState(() => _selectedStudent = null);
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
-                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8)),
                 ),
-                child: const Text('Save', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                child: const Text('Save',
+                    style: TextStyle(
+                        color: Colors.white, fontWeight: FontWeight.bold)),
               ),
             ],
           ),
@@ -244,24 +276,24 @@ class _IepPageState extends State<IepPage> {
           ),
         ],
       ),
-      padding: const EdgeInsets.all(20),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
+      padding: EdgeInsets.all(Breakpoints.isCompact(context) ? 16 : 20),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
           // Photo
-          AppImages.studentAvatar(
+          final photo = AppImages.studentAvatar(
             width: 80,
             height: 80,
             borderRadius: BorderRadius.circular(16),
-          ),
-          const SizedBox(width: 20),
+          );
 
           // Name and Info
-          Column(
+          final info = Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 _selectedStudent ?? 'Student',
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                   fontFamily: 'Poppins',
                   fontSize: 18,
@@ -280,12 +312,14 @@ class _IepPageState extends State<IepPage> {
                 style: TextStyle(fontSize: 12, color: Colors.white70),
               ),
             ],
-          ),
-          const Spacer(),
+          );
+
+          // Narrow: the schedule box goes full width under the photo + info.
+          final narrow = constraints.maxWidth < 700;
 
           // Assessment Dates Dark Box
-          Container(
-            width: 320,
+          final schedule = Container(
+            width: narrow ? double.infinity : 320,
             decoration: BoxDecoration(
               color: const Color(0xFF1E1035).withValues(alpha: 0.85),
               borderRadius: BorderRadius.circular(14),
@@ -312,8 +346,35 @@ class _IepPageState extends State<IepPage> {
                 _DateRow('4th Progress Report:', 'Scheduled (Q4)'),
               ],
             ),
-          ),
-        ],
+          );
+
+          if (narrow) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    photo,
+                    const SizedBox(width: 16),
+                    Expanded(child: info),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                schedule,
+              ],
+            );
+          }
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              photo,
+              const SizedBox(width: 20),
+              Expanded(child: info),
+              const SizedBox(width: 16),
+              schedule,
+            ],
+          );
+        },
       ),
     );
   }
@@ -325,7 +386,7 @@ class _IepPageState extends State<IepPage> {
         color: const Color(0xFFE5E7EB).withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(12),
       ),
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.all(Breakpoints.isCompact(context) ? 14 : 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -346,13 +407,17 @@ class _IepPageState extends State<IepPage> {
                 child: Text(
                   'No individualized goals recorded for this domain yet.\nClick "+ Add" to document a clinical target.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: AppColors.textSecondary, fontSize: 13, height: 1.5),
+                  style: TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 13,
+                      height: 1.5),
                 ),
               ),
             )
           else
             for (final item in goals) ...[
-              _buildGoalCard(item['label'] as String, item['goal'] as String, item['baseline'] as String),
+              _buildGoalCard(item['label'] as String, item['goal'] as String,
+                  item['baseline'] as String),
               const SizedBox(height: 16),
             ],
         ],
@@ -388,7 +453,10 @@ class _IepPageState extends State<IepPage> {
                 alignment: Alignment.center,
                 child: Text(
                   label,
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13),
                 ),
               ),
               Expanded(
@@ -396,7 +464,10 @@ class _IepPageState extends State<IepPage> {
                   padding: const EdgeInsets.all(12),
                   child: Text(
                     goal,
-                    style: const TextStyle(fontSize: 12, color: AppColors.textPrimary, height: 1.4),
+                    style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textPrimary,
+                        height: 1.4),
                   ),
                 ),
               ),
@@ -406,7 +477,10 @@ class _IepPageState extends State<IepPage> {
         const SizedBox(height: 6),
         const Text(
           'BASELINE',
-          style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.textSecondary),
+          style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              color: AppColors.textSecondary),
         ),
         const SizedBox(height: 4),
         // Baseline Box
@@ -440,8 +514,16 @@ class _DateRow extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(title, style: const TextStyle(color: Colors.white70, fontSize: 11)),
-          Text(date, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600)),
+          Flexible(
+            child: Text(title,
+                style: const TextStyle(color: Colors.white70, fontSize: 11)),
+          ),
+          const SizedBox(width: 8),
+          Text(date,
+              style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600)),
         ],
       ),
     );

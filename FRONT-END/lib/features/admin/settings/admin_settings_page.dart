@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:roh_erp/core/constants/app_colors.dart';
+import 'package:roh_erp/core/layout/responsive.dart';
 
 import 'package:roh_erp/core/constants/app_images.dart';
 
@@ -9,16 +10,20 @@ class AdminSettingsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24.0),
+      padding: Breakpoints.pagePadding(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Application Settings', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 18)),
+          const Text('Application Settings',
+              style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18)),
           const SizedBox(height: 24),
           ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 960),
             child: Container(
-              padding: const EdgeInsets.all(32),
+              padding: EdgeInsets.all(Breakpoints.isCompact(context) ? 18 : 32),
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(16),
@@ -46,7 +51,8 @@ class AdminSettingsPage extends StatelessWidget {
                             color: AppColors.primary,
                             shape: BoxShape.circle,
                           ),
-                          child: const Icon(Icons.edit, color: Colors.white, size: 16),
+                          child: const Icon(Icons.edit,
+                              color: Colors.white, size: 16),
                         ),
                       ),
                     ],
@@ -58,9 +64,11 @@ class AdminSettingsPage extends StatelessWidget {
                       if (isNarrow) {
                         return Column(
                           children: [
-                            _buildTextField('Center Name', 'Ray of Hope Center for Autism'),
+                            _buildTextField(
+                                'Center Name', 'Ray of Hope Center for Autism'),
                             const SizedBox(height: 16),
-                            _buildTextField('Portal Title', 'Ray of Hope Center for Autism'),
+                            _buildTextField('Portal Title',
+                                'Ray of Hope Center for Autism'),
                             const SizedBox(height: 24),
                             Center(
                               child: SizedBox(
@@ -69,18 +77,27 @@ class AdminSettingsPage extends StatelessWidget {
                                   onPressed: () {},
                                   style: OutlinedButton.styleFrom(
                                     foregroundColor: AppColors.primary,
-                                    side: const BorderSide(color: AppColors.primary),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                    padding: const EdgeInsets.symmetric(vertical: 14),
+                                    side: const BorderSide(
+                                        color: AppColors.primary),
+                                    shape: RoundedRectangleBorder(
+                                        borderRadius:
+                                            BorderRadius.circular(12)),
+                                    padding: const EdgeInsets.symmetric(
+                                        vertical: 14),
                                   ),
-                                  child: const Text('Change Password', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                                  child: const Text('Change Password',
+                                      style: TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 14)),
                                 ),
                               ),
                             ),
                             const SizedBox(height: 24),
-                            _buildTextField('Support Contact Email', 'admin@roh.com'),
+                            _buildTextField(
+                                'Support Contact Email', 'admin@roh.com'),
                             const SizedBox(height: 16),
-                            _buildTextField('Emergency Hotline', 'Contact center administration'),
+                            _buildTextField('Emergency Hotline',
+                                'Contact center administration'),
                           ],
                         );
                       }
@@ -88,9 +105,13 @@ class AdminSettingsPage extends StatelessWidget {
                         children: [
                           Row(
                             children: [
-                              Expanded(child: _buildTextField('Center Name', 'Ray of Hope Center for Autism')),
+                              Expanded(
+                                  child: _buildTextField('Center Name',
+                                      'Ray of Hope Center for Autism')),
                               const SizedBox(width: 24),
-                              Expanded(child: _buildTextField('Portal Title', 'Ray of Hope Center for Autism')),
+                              Expanded(
+                                  child: _buildTextField('Portal Title',
+                                      'Ray of Hope Center for Autism')),
                             ],
                           ),
                           const SizedBox(height: 24),
@@ -101,20 +122,31 @@ class AdminSettingsPage extends StatelessWidget {
                                 onPressed: () {},
                                 style: OutlinedButton.styleFrom(
                                   foregroundColor: AppColors.primary,
-                                  side: const BorderSide(color: AppColors.primary),
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                  padding: const EdgeInsets.symmetric(vertical: 14),
+                                  side: const BorderSide(
+                                      color: AppColors.primary),
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12)),
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 14),
                                 ),
-                                child: const Text('Change Password', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                                child: const Text('Change Password',
+                                    style: TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 14)),
                               ),
                             ),
                           ),
                           const SizedBox(height: 24),
                           Row(
                             children: [
-                              Expanded(child: _buildTextField('Support Contact Email', 'admin@roh.com')),
+                              Expanded(
+                                  child: _buildTextField(
+                                      'Support Contact Email',
+                                      'admin@roh.com')),
                               const SizedBox(width: 24),
-                              Expanded(child: _buildTextField('Emergency Hotline', 'Contact center administration')),
+                              Expanded(
+                                  child: _buildTextField('Emergency Hotline',
+                                      'Contact center administration')),
                             ],
                           ),
                         ],
@@ -129,10 +161,13 @@ class AdminSettingsPage extends StatelessWidget {
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.primary,
                         foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 40, vertical: 14),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8)),
                       ),
-                      child: const Text('Update', style: TextStyle(fontWeight: FontWeight.bold)),
+                      child: const Text('Update',
+                          style: TextStyle(fontWeight: FontWeight.bold)),
                     ),
                   ),
                 ],
@@ -148,7 +183,8 @@ class AdminSettingsPage extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(color: AppColors.textPrimary, fontSize: 14)),
+        Text(label,
+            style: const TextStyle(color: AppColors.textPrimary, fontSize: 14)),
         const SizedBox(height: 8),
         TextField(
           decoration: InputDecoration(
@@ -160,7 +196,8 @@ class AdminSettingsPage extends StatelessWidget {
               borderRadius: BorderRadius.circular(8),
               borderSide: BorderSide.none,
             ),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
           ),
         ),
       ],

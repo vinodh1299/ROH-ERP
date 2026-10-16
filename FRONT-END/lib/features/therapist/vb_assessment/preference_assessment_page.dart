@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:roh_erp/core/constants/app_colors.dart';
+import '../../../core/layout/responsive.dart';
 import '../widgets/student_card_grid.dart';
 import '../widgets/student_assessment_banner.dart';
 
@@ -7,7 +8,8 @@ class PreferenceAssessmentPage extends StatefulWidget {
   const PreferenceAssessmentPage({super.key});
 
   @override
-  State<PreferenceAssessmentPage> createState() => _PreferenceAssessmentPageState();
+  State<PreferenceAssessmentPage> createState() =>
+      _PreferenceAssessmentPageState();
 }
 
 class _PreferenceAssessmentPageState extends State<PreferenceAssessmentPage> {
@@ -15,16 +17,34 @@ class _PreferenceAssessmentPageState extends State<PreferenceAssessmentPage> {
 
   final Map<String, List<String>> _reinforcers = {
     'EDIBLE REINFORCERS': [
-      'Apple Slices', 'Gummy Bears', 'Pretzels', 'Fruit Snacks', 'Juice Box', 'Crackers',
+      'Apple Slices',
+      'Gummy Bears',
+      'Pretzels',
+      'Fruit Snacks',
+      'Juice Box',
+      'Crackers',
     ],
     'TOYS & MATERIAL REINFORCERS': [
-      'Bubbles', 'Spinning Top', 'Light-Up Toy', 'Play-Doh', 'Kinetic Sand', 'Puzzles',
+      'Bubbles',
+      'Spinning Top',
+      'Light-Up Toy',
+      'Play-Doh',
+      'Kinetic Sand',
+      'Puzzles',
     ],
     'SOCIAL REINFORCERS': [
-      'High-Five', 'Verbal Praise', 'Tickles', 'Clapping Cheer', 'Singing Song',
+      'High-Five',
+      'Verbal Praise',
+      'Tickles',
+      'Clapping Cheer',
+      'Singing Song',
     ],
     'ACTIVITY REINFORCERS': [
-      'Trampoline Jump', 'Swing', 'Tablet (2 min)', 'Ball Bounce', 'Dance Break',
+      'Trampoline Jump',
+      'Swing',
+      'Tablet (2 min)',
+      'Ball Bounce',
+      'Dance Break',
     ],
   };
 
@@ -75,7 +95,8 @@ class _PreferenceAssessmentPageState extends State<PreferenceAssessmentPage> {
               const SizedBox(height: 24),
               const Text(
                 'Item Name',
-                style: TextStyle(color: Colors.white, fontSize: 13, fontFamily: 'Poppins'),
+                style: TextStyle(
+                    color: Colors.white, fontSize: 13, fontFamily: 'Poppins'),
               ),
               const SizedBox(height: 8),
               Container(
@@ -87,9 +108,11 @@ class _PreferenceAssessmentPageState extends State<PreferenceAssessmentPage> {
                   controller: textController,
                   decoration: const InputDecoration(
                     hintText: 'enter item name',
-                    hintStyle: TextStyle(color: Color(0xFF9CA3AF), fontSize: 13),
+                    hintStyle:
+                        TextStyle(color: Color(0xFF9CA3AF), fontSize: 13),
                     border: InputBorder.none,
-                    contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    contentPadding:
+                        EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                   ),
                 ),
               ),
@@ -101,27 +124,36 @@ class _PreferenceAssessmentPageState extends State<PreferenceAssessmentPage> {
                     onPressed: () => Navigator.pop(context),
                     style: OutlinedButton.styleFrom(
                       side: const BorderSide(color: Colors.white),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8)),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 20, vertical: 10),
                     ),
-                    child: const Text('Cancel', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    child: const Text('Cancel',
+                        style: TextStyle(
+                            color: Colors.white, fontWeight: FontWeight.bold)),
                   ),
                   const SizedBox(width: 12),
                   ElevatedButton(
                     onPressed: () {
                       if (textController.text.trim().isNotEmpty) {
                         setState(() {
-                          _reinforcers[category]?.add(textController.text.trim());
+                          _reinforcers[category]
+                              ?.add(textController.text.trim());
                         });
                       }
                       Navigator.pop(context);
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF6B21A8),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8)),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 24, vertical: 10),
                     ),
-                    child: const Text('Submit', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    child: const Text('Submit',
+                        style: TextStyle(
+                            color: Colors.white, fontWeight: FontWeight.bold)),
                   ),
                 ],
               ),
@@ -159,13 +191,17 @@ class _PreferenceAssessmentPageState extends State<PreferenceAssessmentPage> {
                 tooltip: 'Back to students',
               ),
               const SizedBox(width: 8),
-              Text(
-                '${_selectedStudent ?? "Student"} VB MAPP Preference Assessment',
-                style: const TextStyle(
-                  fontFamily: 'Poppins',
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.primary,
+              Expanded(
+                child: Text(
+                  '${_selectedStudent ?? "Student"} VB MAPP Preference Assessment',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontFamily: 'Poppins',
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.primary,
+                  ),
                 ),
               ),
             ],
@@ -193,25 +229,35 @@ class _PreferenceAssessmentPageState extends State<PreferenceAssessmentPage> {
                 onPressed: () => setState(() => _selectedStudent = null),
                 style: OutlinedButton.styleFrom(
                   side: const BorderSide(color: AppColors.primary),
-                  padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8)),
                 ),
-                child: const Text('Cancel', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold)),
+                child: const Text('Cancel',
+                    style: TextStyle(
+                        color: AppColors.primary, fontWeight: FontWeight.bold)),
               ),
               const SizedBox(width: 16),
               ElevatedButton(
                 onPressed: () {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Preference Assessment Saved Successfully!')),
+                    const SnackBar(
+                        content:
+                            Text('Preference Assessment Saved Successfully!')),
                   );
                   setState(() => _selectedStudent = null);
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
-                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8)),
                 ),
-                child: const Text('Save', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                child: const Text('Save',
+                    style: TextStyle(
+                        color: Colors.white, fontWeight: FontWeight.bold)),
               ),
             ],
           ),
@@ -228,7 +274,7 @@ class _PreferenceAssessmentPageState extends State<PreferenceAssessmentPage> {
         color: const Color(0xFFE5E7EB).withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(12),
       ),
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.all(Breakpoints.isCompact(context) ? 14 : 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -236,32 +282,41 @@ class _PreferenceAssessmentPageState extends State<PreferenceAssessmentPage> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                category,
-                style: const TextStyle(
-                  fontFamily: 'Poppins',
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textPrimary,
-                  letterSpacing: 0.5,
+              Flexible(
+                child: Text(
+                  category,
+                  style: const TextStyle(
+                    fontFamily: 'Poppins',
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
+                    letterSpacing: 0.5,
+                  ),
                 ),
               ),
+              const SizedBox(width: 12),
               InkWell(
                 onTap: () => _showAddItemDialog(category),
-                child: const Row(
-                  children: [
-                    Icon(Icons.add, size: 16, color: AppColors.primary),
-                    SizedBox(width: 4),
-                    Text(
-                      'Add',
-                      style: TextStyle(
-                        fontFamily: 'Poppins',
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.primary,
+                child: Container(
+                  constraints: BoxConstraints(
+                    minHeight: Breakpoints.isCompact(context) ? 44 : 0,
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.add, size: 16, color: AppColors.primary),
+                      SizedBox(width: 4),
+                      Text(
+                        'Add',
+                        style: TextStyle(
+                          fontFamily: 'Poppins',
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.primary,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ],
@@ -274,8 +329,11 @@ class _PreferenceAssessmentPageState extends State<PreferenceAssessmentPage> {
               int cols = 6;
               if (constraints.maxWidth < 1100) cols = 4;
               if (constraints.maxWidth < 700) cols = 3;
+              if (constraints.maxWidth < 480) cols = 2;
+              if (constraints.maxWidth < 260) cols = 1;
 
-              final itemWidth = (constraints.maxWidth - ((cols - 1) * 12)) / cols;
+              final itemWidth =
+                  (constraints.maxWidth - ((cols - 1) * 12)) / cols;
 
               return Wrap(
                 spacing: 12,
@@ -308,38 +366,44 @@ class _PreferenceAssessmentPageState extends State<PreferenceAssessmentPage> {
           }
         });
       },
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 18,
-            height: 18,
-            decoration: BoxDecoration(
-              color: isChecked ? AppColors.primary : Colors.white,
-              borderRadius: BorderRadius.circular(4),
-              border: Border.all(
-                color: isChecked ? AppColors.primary : const Color(0xFFD1D5DB),
-                width: 1.5,
+      child: Container(
+        constraints: BoxConstraints(
+          minHeight: Breakpoints.isCompact(context) ? 40 : 0,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 18,
+              height: 18,
+              decoration: BoxDecoration(
+                color: isChecked ? AppColors.primary : Colors.white,
+                borderRadius: BorderRadius.circular(4),
+                border: Border.all(
+                  color:
+                      isChecked ? AppColors.primary : const Color(0xFFD1D5DB),
+                  width: 1.5,
+                ),
+              ),
+              child: isChecked
+                  ? const Icon(Icons.check, size: 14, color: Colors.white)
+                  : null,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                label,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontFamily: 'Poppins',
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimary,
+                ),
               ),
             ),
-            child: isChecked
-                ? const Icon(Icons.check, size: 14, color: Colors.white)
-                : null,
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              label,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontFamily: 'Poppins',
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textPrimary,
-              ),
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
