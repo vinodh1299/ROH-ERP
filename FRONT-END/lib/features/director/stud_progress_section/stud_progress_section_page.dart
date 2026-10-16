@@ -2,7 +2,8 @@
 import 'package:flutter/material.dart';
 import 'package:roh_erp/core/constants/app_colors.dart';
 import 'package:roh_erp/core/layout/responsive.dart';
-import 'package:roh_erp/core/services/api_service.dart';
+import 'package:roh_erp/features/shared_progress/progress_data.dart';
+import 'package:roh_erp/features/shared_progress/student_progress_table.dart';
 
 class StagnationAlert {
   final String id;
@@ -37,9 +38,14 @@ class StudProgressSectionPage extends StatefulWidget {
 class _StudProgressSectionPageState extends State<StudProgressSectionPage> {
   int _selectedViewTab =
       0; // 0: Overview & Domains, 1: VB-MAPP Cohort Heatmap, 2: Stagnation Alerts
-  int _totalStudents = 0;
   final List<StagnationAlert> _alerts = [];
+  final Set<String> _scheduledReviewIds = {};
+  ProgressData? _data;
   bool _isLoading = true;
+
+  /// A target is flagged when it was first run more than this many days ago,
+  /// is still being run within this window and has not been mastered.
+  static const int _stagnationDays = 21;
 
   @override
   void initState() {
@@ -48,22 +54,72 @@ class _StudProgressSectionPageState extends State<StudProgressSectionPage> {
   }
 
   Future<void> _loadData() async {
-    try {
-      final res = await ApiService().get('get_students');
-      if (res is List && res.isNotEmpty) {
-        setState(() {
-          _totalStudents = res.length;
-          _alerts.clear();
-          // Stagnation alerts will be populated from real clinical data
-          // when backend stagnation-detection endpoint is implemented
-          _isLoading = false;
-        });
-        return;
-      }
-    } catch (_) {}
+    final data = await ProgressData.load();
+    if (!mounted) return;
+    for (final a in _alerts) {
+      if (a.reviewScheduled) _scheduledReviewIds.add(a.id);
+    }
     setState(() {
+      _data = data;
+      _alerts
+        ..clear()
+        ..addAll(_buildAlerts(data));
       _isLoading = false;
     });
+  }
+
+  List<StagnationAlert> _buildAlerts(ProgressData data) {
+    final day = today();
+    final cutoff = day.subtract(const Duration(days: _stagnationDays));
+    final alerts = <StagnationAlert>[];
+    for (final t in data.targets) {
+      if (t.mastered || t.firstSession == null || t.lastSession == null) {
+        continue;
+      }
+      if (!t.firstSession!.isBefore(cutoff) || t.lastSession!.isBefore(cutoff)) {
+        continue;
+      }
+      final id = '${t.studentId}|${t.domain.toLowerCase()}|${t.target.toLowerCase()}';
+      alerts.add(StagnationAlert(
+        id: id,
+        studentName: data.studentNames[t.studentId] ?? t.studentName,
+        domain: t.domain.isEmpty ? 'General' : t.domain,
+        targetDescription: t.target.isEmpty ? 'Unnamed target' : t.target,
+        therapistName:
+            t.therapistName.isEmpty ? 'Unassigned' : t.therapistName,
+        daysStagnant: day.difference(t.firstSession!).inDays,
+        trend: 'last ${(t.lastSuccessRatio * 100).round()}%',
+        reviewScheduled: _scheduledReviewIds.contains(id),
+      ));
+    }
+    alerts.sort((a, b) => b.daysStagnant.compareTo(a.daysStagnant));
+    return alerts;
+  }
+
+  // ── KPI helpers ──────────────────────────────────────────────────────────
+  int get _masteredLast30 {
+    final since = today().subtract(const Duration(days: 30));
+    return (_data?.targets ?? const [])
+        .where((t) => t.masteredOn != null && !t.masteredOn!.isBefore(since))
+        .length;
+  }
+
+  double? get _avgDaysToMastery {
+    final days = (_data?.targets ?? const [])
+        .map((t) => t.daysToMastery)
+        .whereType<int>()
+        .toList();
+    if (days.isEmpty) return null;
+    return days.reduce((a, b) => a + b) / days.length;
+  }
+
+  ({double pct, int students})? get _milestoneRate {
+    final latest = _data?.latestMilestoneByStudent.values.toList() ?? const [];
+    if (latest.isEmpty) return null;
+    final sum = latest
+        .map((m) => numValue(m['total_score']) / milestoneMaxScore)
+        .reduce((a, b) => a + b);
+    return (pct: sum / latest.length * 100, students: latest.length);
   }
 
   void _scheduleReview(StagnationAlert alert) {
@@ -96,7 +152,7 @@ class _StudProgressSectionPageState extends State<StudProgressSectionPage> {
                   color: const Color(0xFFFFF3E0),
                   borderRadius: BorderRadius.circular(8)),
               child: Text(
-                'Alert: Target has not progressed for ${alert.daysStagnant} days (${alert.trend}). A protocol modification or prompt hierarchy shift is recommended.',
+                'Alert: Target is still unmastered ${alert.daysStagnant} days after its first session (${alert.trend}). A protocol modification or prompt hierarchy shift is recommended.',
                 style: const TextStyle(
                     fontSize: 12,
                     color: Color(0xFFB76E00),
@@ -139,6 +195,7 @@ class _StudProgressSectionPageState extends State<StudProgressSectionPage> {
   @override
   Widget build(BuildContext context) {
     final unresolvedCount = _alerts.where((a) => !a.reviewScheduled).length;
+    final milestoneRate = _milestoneRate;
 
     return SingleChildScrollView(
       padding: Breakpoints.pagePadding(context),
@@ -231,27 +288,33 @@ class _StudProgressSectionPageState extends State<StudProgressSectionPage> {
                 children: [
                   _buildProgressKpiItem(
                       'Mastery Velocity',
-                      _totalStudents > 0 ? '0 Targets' : '0 Targets',
-                      'No targets mastered yet',
+                      _isLoading ? '…' : '$_masteredLast30 Targets',
+                      'mastered in the last 30 days',
                       Icons.trending_up,
                       Colors.green),
                   _buildProgressKpiItem(
                       'Avg Acquisition Speed',
-                      '0.0 Days',
-                      'per discrete skill target',
+                      _avgDaysToMastery == null
+                          ? '—'
+                          : '${_avgDaysToMastery!.toStringAsFixed(1)} Days',
+                      'first session to mastery',
                       Icons.speed_outlined,
                       Colors.purple),
                   _buildProgressKpiItem(
                       'VB-MAPP Milestone Rate',
-                      '0.0%',
-                      'Center-wide average',
+                      milestoneRate == null
+                          ? '—'
+                          : '${milestoneRate.pct.toStringAsFixed(1)}%',
+                      milestoneRate == null
+                          ? 'No milestone tests yet'
+                          : 'Avg latest score / 170 (${milestoneRate.students} students)',
                       Icons.military_tech_outlined,
                       Colors.blue),
                   _buildProgressKpiItem(
                       'Stagnation Alerts',
                       '$unresolvedCount Flags',
                       unresolvedCount > 0
-                          ? 'Targets >21d flat'
+                          ? 'Unmastered after >21 days'
                           : 'No stagnant targets',
                       Icons.warning_amber_rounded,
                       Colors.orange),
@@ -276,9 +339,20 @@ class _StudProgressSectionPageState extends State<StudProgressSectionPage> {
           const SizedBox(height: 18),
 
           // Content Area based on tab
-          if (_selectedViewTab == 0) _buildDomainMasterySection(),
-          if (_selectedViewTab == 1) _buildVbMappCohortHeatmapSection(),
-          if (_selectedViewTab == 2) _buildStagnationAlertsSection(),
+          if (_isLoading)
+            const Padding(
+              padding: EdgeInsets.all(40),
+              child: Center(child: CircularProgressIndicator()),
+            )
+          else ...[
+            if (_selectedViewTab == 0) _buildDomainMasterySection(),
+            if (_selectedViewTab == 1) _buildVbMappCohortHeatmapSection(),
+            if (_selectedViewTab == 2) _buildStagnationAlertsSection(),
+            if (_data?.hasAnyData ?? false) ...[
+              const SizedBox(height: 24),
+              StudentProgressTable(rows: _data!.studentRows()),
+            ],
+          ],
         ],
       ),
     );
@@ -395,89 +469,223 @@ class _StudProgressSectionPageState extends State<StudProgressSectionPage> {
 
   // ── Tab 0: Domain Mastery ──────────────────────────────────────────────────
   Widget _buildDomainMasterySection() {
+    final targets = _data?.targets ?? const [];
+    if (targets.isEmpty) {
+      return const ProgressEmptyState(
+        icon: Icons.insights_outlined,
+        title: 'No Clinical Domain Data Available',
+        message:
+            'Domain mastery will calculate and display here once therapists log discrete trial data sheets for students.',
+      );
+    }
+
+    // Group targets by domain (case-insensitive), keeping the first spelling.
+    final names = <String, String>{};
+    final introduced = <String, int>{};
+    final mastered = <String, int>{};
+    for (final t in targets) {
+      final label = t.domain.trim().isEmpty ? 'General' : t.domain.trim();
+      final key = label.toLowerCase();
+      names.putIfAbsent(key, () => label);
+      introduced[key] = (introduced[key] ?? 0) + 1;
+      if (t.mastered) mastered[key] = (mastered[key] ?? 0) + 1;
+    }
+    final keys = introduced.keys.toList()
+      ..sort((x, y) => introduced[y]!.compareTo(introduced[x]!));
+
     return Container(
       width: double.infinity,
-      padding: EdgeInsets.all(Breakpoints.isCompact(context) ? 20 : 32),
+      padding: EdgeInsets.all(Breakpoints.isCompact(context) ? 16 : 24),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.divider),
       ),
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: AppColors.primary.withValues(alpha: 0.08),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(Icons.insights_outlined,
-                size: 48, color: AppColors.primary),
-          ),
-          const SizedBox(height: 16),
-          const Text(
-            'No Clinical Domain Data Available',
-            style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: AppColors.textPrimary),
-          ),
-          const SizedBox(height: 8),
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 500),
-            child: const Text(
-              'Domain mastery velocity and target percentages will automatically calculate and display here once therapists log discrete trial data sheets for students.',
-              textAlign: TextAlign.center,
+          const Text('Targets Mastered by Domain',
               style: TextStyle(
-                  fontSize: 13, color: AppColors.textSecondary, height: 1.5),
-            ),
+                  fontWeight: FontWeight.bold,
+                  fontSize: 15,
+                  color: AppColors.textPrimary)),
+          const SizedBox(height: 4),
+          Text(
+            'Mastered / introduced skill targets across ${_data!.studentNames.length} students, from daily data sheets.',
+            style:
+                const TextStyle(fontSize: 12, color: AppColors.textSecondary),
           ),
+          const SizedBox(height: 18),
+          for (final k in keys) ...[
+            _buildDomainBar(names[k]!, mastered[k] ?? 0, introduced[k]!),
+            const SizedBox(height: 14),
+          ],
         ],
       ),
     );
   }
 
+  Widget _buildDomainBar(String domain, int mastered, int introduced) {
+    final ratio = introduced == 0 ? 0.0 : mastered / introduced;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(domain,
+                  style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary),
+                  overflow: TextOverflow.ellipsis),
+            ),
+            const SizedBox(width: 8),
+            Text('$mastered / $introduced (${(ratio * 100).round()}%)',
+                style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.primary)),
+          ],
+        ),
+        const SizedBox(height: 6),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(6),
+          child: LinearProgressIndicator(
+            value: ratio.clamp(0.0, 1.0),
+            backgroundColor: const Color(0xFFEEEEEE),
+            valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primary),
+            minHeight: 10,
+          ),
+        ),
+      ],
+    );
+  }
+
   // ── Tab 1: VB-MAPP Cohort Heatmap ──────────────────────────────────────────
   Widget _buildVbMappCohortHeatmapSection() {
+    final data = _data;
+    final latest = data?.latestMilestoneByStudent ?? const {};
+    if (data == null || latest.isEmpty) {
+      return const ProgressEmptyState(
+        icon: Icons.grid_view_outlined,
+        title: 'No Cohort Assessment Heatmap Data',
+        message:
+            'The VB-MAPP cohort heatmap will render here once milestone scoring forms are completed by clinical staff.',
+      );
+    }
+
+    final rows = latest.entries.toList()
+      ..sort((x, y) => (data.studentNames[x.key] ?? '')
+          .toLowerCase()
+          .compareTo((data.studentNames[y.key] ?? '').toLowerCase()));
+
+    const nameWidth = 150.0;
+    const cellWidth = 64.0;
+    const headerStyle = TextStyle(
+        fontSize: 11,
+        fontWeight: FontWeight.bold,
+        color: AppColors.textSecondary);
+
+    Widget cell(double score) {
+      final t = (score / 15).clamp(0.0, 1.0);
+      return Container(
+        width: cellWidth - 4,
+        height: 34,
+        margin: const EdgeInsets.all(2),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: AppColors.primary.withValues(alpha: 0.06 + 0.84 * t),
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Text(
+          formatScore(score),
+          style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: t >= 0.5 ? Colors.white : AppColors.textPrimary),
+        ),
+      );
+    }
+
     return Container(
       width: double.infinity,
-      padding: EdgeInsets.all(Breakpoints.isCompact(context) ? 20 : 32),
+      padding: EdgeInsets.all(Breakpoints.isCompact(context) ? 16 : 24),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.divider),
       ),
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: AppColors.primary.withValues(alpha: 0.08),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(Icons.grid_view_outlined,
-                size: 48, color: AppColors.primary),
+          const Text('VB-MAPP Milestone Scores by Domain',
+              style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 15,
+                  color: AppColors.textPrimary)),
+          const SizedBox(height: 4),
+          const Text(
+            'Each student\'s latest milestone test; domain scores out of 15, darker = higher.',
+            style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
           ),
           const SizedBox(height: 16),
-          const Text(
-            'No Cohort Assessment Heatmap Data',
-            style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: AppColors.textPrimary),
-          ),
-          const SizedBox(height: 8),
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 500),
-            child: const Text(
-              'Center-wide VB-MAPP milestone cohort heatmaps will render here once milestone scoring forms are completed by clinical staff.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                  fontSize: 13, color: AppColors.textSecondary, height: 1.5),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const SizedBox(
+                        width: nameWidth,
+                        child: Text('STUDENT', style: headerStyle)),
+                    for (final d in vbMappDomains)
+                      SizedBox(
+                        width: cellWidth,
+                        child: Text(d.label,
+                            textAlign: TextAlign.center,
+                            style: headerStyle,
+                            overflow: TextOverflow.ellipsis),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                for (final e in rows)
+                  Row(
+                    children: [
+                      SizedBox(
+                        width: nameWidth,
+                        child: Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(data.studentNames[e.key] ?? 'Student',
+                                  style: const TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppColors.textPrimary),
+                                  overflow: TextOverflow.ellipsis),
+                              Text(
+                                  StudentProgressTable.milestoneDetail(
+                                      e.value),
+                                  style: const TextStyle(
+                                      fontSize: 10,
+                                      color: AppColors.textSecondary),
+                                  overflow: TextOverflow.ellipsis),
+                            ],
+                          ),
+                        ),
+                      ),
+                      for (final d in vbMappDomains)
+                        SizedBox(
+                          width: cellWidth,
+                          child: cell(numValue(e.value[d.key])),
+                        ),
+                    ],
+                  ),
+              ],
             ),
           ),
         ],
@@ -517,7 +725,7 @@ class _StudProgressSectionPageState extends State<StudProgressSectionPage> {
                               fontSize: 15,
                               color: Color(0xFF7C2D12))),
                       Text(
-                          'Flagged when a student has zero mastery acquisition over 21 consecutive days or registers >15% prompt dependency regression.',
+                          'Flagged when a target first run more than 21 days ago is still being run and has not yet met mastery (at least 5 trials at 80% or better in a session).',
                           style: TextStyle(
                               fontSize: 12, color: Color(0xFF9A3412))),
                     ],
@@ -526,6 +734,14 @@ class _StudProgressSectionPageState extends State<StudProgressSectionPage> {
               ],
             ),
           ),
+          if (_alerts.isEmpty)
+            const Padding(
+              padding: EdgeInsets.all(24),
+              child: Text(
+                'No stagnant targets right now.',
+                style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+              ),
+            ),
           ListView.separated(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
@@ -738,7 +954,7 @@ class _StudProgressSectionPageState extends State<StudProgressSectionPage> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text('${a.daysStagnant} Days Inactive',
+                              Text('${a.daysStagnant} Days Unmastered',
                                   style: const TextStyle(
                                       fontWeight: FontWeight.bold,
                                       fontSize: 12,

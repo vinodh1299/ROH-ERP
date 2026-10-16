@@ -5,6 +5,7 @@ import 'package:roh_erp/core/constants/app_colors.dart';
 import 'package:intl/intl.dart';
 import '../../../core/layout/responsive.dart';
 import '../../../core/services/db_queries.dart';
+import '../../../core/services/progress_metrics.dart';
 import '../widgets/student_card_grid.dart';
 import 'widgets/incident_stopwatch.dart';
 import 'widgets/daily_data_chart_painters.dart';
@@ -45,33 +46,32 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
   final List<Map<String, dynamic>> _allMandingRows = [];
   final List<Map<String, dynamic>> _mandingRows = [];
 
-  // Daily Data Sheet DTT Filters & State
+  // Every daily_data_sheets row of the selected student; the graphs, the
+  // skill tracking sheet and the IEP summary are computed from these.
+  final List<Map<String, dynamic>> _records = [];
+
+  // Daily Data Sheet DTT: session date shown (MM/dd/yyyy)
   late String _ddsDate;
-  late String _ddsTimeIn;
-  late String _ddsTimeOut;
   bool _mandingGoalsExpanded = true;
   bool _listenerGoalsExpanded = true;
   bool _tactingGoalsExpanded = false;
   bool _vpGoalsExpanded = false;
+  bool _otherGoalsExpanded = true;
   final List<Map<String, dynamic>> _dttTargets = [];
 
-  // Manding Graph Filters & State
+  // Manding Graph Filters (MM/dd/yyyy, inclusive)
   late String _mgFromDate;
   late String _mgToDate;
-  final List<Map<String, dynamic>> _mandingGraphData = [];
 
   // Skill Tracking Sheet
   String _skillDomain = 'Manding';
-  String _skillGoal = 'emit 10 different mands without prompts';
-  final List<Map<String, dynamic>> _skillTargets = [];
 
-  // Acquisition Graph Filters
+  // Acquisition Graph Filters (MM/dd/yyyy, inclusive)
   late String _acqFromDate;
   late String _acqToDate;
   String _acqDomain = 'Manding';
-  final List<Map<String, dynamic>> _acquisitionGraphData = [];
 
-  // ABC Data Sheet
+  // ABC Data Sheet: saved incidents (with 'id') plus unsaved new ones
   final List<Map<String, dynamic>> _abcIncidents = [];
 
   // BRP (Behaviour Reduction Plan) form
@@ -85,9 +85,11 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
   int? _brpId; // saved BRP row that the BRP form edits
 
   // PB Graph State
-  String _pbGraphType = 'Behavior Data';
-  final List<Map<String, dynamic>> _pbDurationData = [];
-  final List<Map<String, dynamic>> _pbMultiBehaviorData = [];
+  static const List<String> _pbGraphTypes = [
+    'Problem Behaviour Duration',
+    'Behaviour Count',
+  ];
+  String _pbGraphType = 'Problem Behaviour Duration';
 
   final List<String> _tabs = [
     'Manding',
@@ -150,9 +152,7 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
     _mandingTimeIn = tFormat;
     _mandingTimeOut = tOutFormat;
 
-    _ddsDate = DateFormat('dd-MM-yyyy').format(now);
-    _ddsTimeIn = DateFormat('HH:mm').format(now);
-    _ddsTimeOut = DateFormat('HH:mm').format(now.add(const Duration(hours: 1)));
+    _ddsDate = dFormat;
 
     _mgFromDate = dFormat;
     _mgToDate = dFormat;
@@ -180,42 +180,40 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
       _brpFormController.clear();
       _brpFunctionController.clear();
       _brpMeasurementController.clear();
-      _loadStudentData();
+      _records.clear();
+      _abcIncidents.clear();
+      _loadStudentData(resetFilters: true);
     });
   }
 
-  Future<void> _loadStudentData() async {
+  /// Loads the student's rows. [resetFilters] (on student change) points
+  /// the date filters at the span of the student's data.
+  Future<void> _loadStudentData({bool resetFilters = false}) async {
     if (_selectedStudentId == null) return;
     try {
       final records =
           await DailyDataQueries.fetchForStudent(_selectedStudentId.toString());
       if (mounted) {
         setState(() {
+          _records
+            ..clear()
+            ..addAll(records);
           _mandingRows.clear();
           _allMandingRows.clear();
           _brpId = null;
           _dttTargets.clear();
-          _mandingGraphData.clear();
-          _skillTargets.clear();
-          _acquisitionGraphData.clear();
-          _abcIncidents.clear();
-          _pbDurationData.clear();
-          _pbMultiBehaviorData.clear();
-
-          int cumulativeMastered = 0;
+          // Keep incidents added here but not saved yet.
+          final unsaved = _abcIncidents
+              .where((i) => i['id'] == null && i['saved'] != true)
+              .toList();
+          _abcIncidents
+            ..clear()
+            ..addAll(unsaved);
 
           for (final r in records) {
             final domain = (r['domain'] ?? '').toString();
             final domainLower = domain.toLowerCase();
             final sessionDateRaw = (r['session_date'] ?? '').toString();
-            String formattedDate = sessionDateRaw;
-            try {
-              if (sessionDateRaw.isNotEmpty) {
-                final dt = DateTime.parse(sessionDateRaw.split('T')[0]);
-                formattedDate = DateFormat('dd-MMM').format(dt);
-              }
-            } catch (_) {}
-
             final completed =
                 int.tryParse(r['trials_completed']?.toString() ?? '0') ?? 0;
             final successful =
@@ -223,12 +221,7 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
             final targetSkill =
                 (r['target_skill'] ?? 'Target Skill').toString();
             final prompt = (r['prompt_level'] ?? 'Independent').toString();
-            final notes = (r['notes'] ?? '').toString();
-            Map<String, dynamic> notesJson = {};
-            try {
-              final decoded = jsonDecode(notes);
-              if (decoded is Map) notesJson = Map<String, dynamic>.from(decoded);
-            } catch (_) {}
+            final notesJson = _notesJson(r);
 
             // 0. BRP — not trial data; the latest one fills the BRP form.
             if (domainLower == 'brp') {
@@ -241,7 +234,7 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
               continue;
             }
 
-            // 1. Manding Sheet & Manding Graph
+            // 1. Manding Sheet (the Manding Graph is computed from _records)
             if (domainLower == 'manding') {
               // Sheets saved from this tab carry the exact per-column counts.
               final savedCounts = notesJson['counts'];
@@ -261,117 +254,377 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
                 'counts': counts,
                 'savedCounts': List<int>.from(counts),
               });
-
-              final promptedCount = (completed - successful).clamp(0, 999);
-              final unpromptedCount = successful;
-              _mandingGraphData.add({
-                'date': formattedDate,
-                'prompted': promptedCount,
-                'unprompted': unpromptedCount,
-              });
             }
 
-            // 2. DTT Targets & Skill Acquisition (All instructional skill domains)
-            if (!domainLower.contains('abc') &&
-                !domainLower.contains('problem behavior')) {
+            // 2. DTT targets (all instructional skill domains)
+            if (isSkillRow(r)) {
+              final pct = double.tryParse(
+                      r['percentage_success']?.toString() ?? '') ??
+                  (completed == 0 ? 0 : successful * 100 / completed);
               _dttTargets.add({
+                'date': sessionDateRaw.split('T')[0],
                 'domain': domain,
                 'target': targetSkill,
                 'prompt': prompt,
                 'trials': completed,
                 'success': successful,
-                'pct': r['percentage_success'] ?? '0.00',
+                'pct': pct.toStringAsFixed(0),
               });
-
-              _skillTargets.add({
-                'target': targetSkill,
-                'introduced': formattedDate,
-                'mastered': successful >= 8 ? 'Mastered' : 'In Acquisition',
-              });
-
-              if (successful > 0) {
-                cumulativeMastered += successful;
-                _acquisitionGraphData.add({
-                  'date': formattedDate,
-                  'count': cumulativeMastered,
-                });
-              }
+              continue;
             }
 
-            // 3. ABC Incidents & Behavior Duration / Deceleration
-            if (domainLower.contains('abc') ||
-                domainLower.contains('behavior')) {
-              int durMins = 0;
-              final durMatch =
-                  RegExp(r'Duration\s+(\d+)\s+mins', caseSensitive: false)
-                      .firstMatch(notes);
-              if (durMatch != null) {
-                durMins = int.tryParse(durMatch.group(1) ?? '0') ?? 0;
-              } else {
-                durMins = completed > 0 ? completed : 2;
-              }
-
-              _abcIncidents.add({
-                'timeLabel': '$formattedDate $targetSkill',
-                'date': sessionDateRaw.split('T')[0],
-                'time': '10:00 AM',
-                'setting': 'Classroom 1A',
-                'antecedent': notes.contains('Antecedent:')
-                    ? notes.split('Antecedent:')[1].split('.')[0].trim()
-                    : 'Work Demand',
-                'antecedentNote': '',
-                'behavior': targetSkill,
-                'count': completed > 0 ? completed : 1,
-                'timeMins': durMins,
-                'consequence': notes.contains('Consequence:')
-                    ? notes.split('Consequence:')[1].trim()
-                    : 'Prompted redirect',
-                'consequenceNote': '',
-                'isExpanded': false,
-              });
-
-              _pbDurationData.add({
-                'date': formattedDate,
-                'duration': durMins,
-              });
-
-              final bUpper = targetSkill.toUpperCase();
-              _pbMultiBehaviorData.add({
-                'date': formattedDate,
-                'FLOP': bUpper.contains('FLOP')
-                    ? (completed > 0 ? completed : 1)
-                    : 0,
-                'HIT': bUpper.contains('HIT')
-                    ? (completed > 0 ? completed : 1)
-                    : 0,
-                'KICK': bUpper.contains('KICK')
-                    ? (completed > 0 ? completed : 1)
-                    : 0,
-                'BOLT': bUpper.contains('BOLT')
-                    ? (completed > 0 ? completed : 1)
-                    : 0,
-                'GRAB': bUpper.contains('GRAB')
-                    ? (completed > 0 ? completed : 1)
-                    : 0,
-                'CRYING': bUpper.contains('CRY')
-                    ? (completed > 0 ? completed : 1)
-                    : 0,
-                'WHINE': bUpper.contains('WHINE')
-                    ? (completed > 0 ? completed : 1)
-                    : 0,
-                'Throwing': bUpper.contains('THROW')
-                    ? (completed > 0 ? completed : 1)
-                    : 0,
-                'Bite': bUpper.contains('BITE')
-                    ? (completed > 0 ? completed : 1)
-                    : 0,
-              });
+            // 3. ABC incidents / problem behaviour rows
+            if (_isBehaviourRow(r)) {
+              _abcIncidents.add(_incidentFromRow(r));
             }
           }
+          _abcIncidents.sort((a, b) => _incidentSortKey(b)
+              .compareTo(_incidentSortKey(a))); // newest first
+          if (resetFilters) _resetFilters();
           _applyMandingDate();
         });
       }
     } catch (_) {}
+  }
+
+  // ── Data helpers ──────────────────────────────────────────────────────────
+
+  static final DateFormat _filterFmt = DateFormat('MM/dd/yyyy');
+  static final DateFormat _labelFmt = DateFormat('dd-MMM');
+
+  Map<String, dynamic> _notesJson(Map<String, dynamic> r) {
+    try {
+      final decoded = jsonDecode((r['notes'] ?? '').toString());
+      if (decoded is Map) return Map<String, dynamic>.from(decoded);
+    } catch (_) {}
+    return {};
+  }
+
+  int _intOf(Object? v) => int.tryParse(v?.toString() ?? '') ?? 0;
+
+  /// ABC incidents and problem-behaviour counts (not skills, not the BRP).
+  bool _isBehaviourRow(Map<String, dynamic> r) {
+    final d = (r['domain'] ?? '').toString().toLowerCase();
+    return d != 'brp' && !isSkillRow(r);
+  }
+
+  DateTime? _parseFilterDate(String mmddyyyy) {
+    try {
+      return _filterFmt.parseStrict(mmddyyyy);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Whether [d] lies within the inclusive MM/dd/yyyy range [from]–[to].
+  bool _inRange(DateTime? d, String from, String to) {
+    if (d == null) return false;
+    final f = _parseFilterDate(from);
+    final t = _parseFilterDate(to);
+    return (f == null || !d.isBefore(f)) && (t == null || !d.isAfter(t));
+  }
+
+  /// Earliest session date among [rows] (or today) through the later of
+  /// today and the latest session date, as MM/dd/yyyy.
+  (String, String) _spanOf(Iterable<Map<String, dynamic>> rows) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    DateTime first = today;
+    DateTime last = today;
+    for (final r in rows) {
+      final d = rowDate(r);
+      if (d == null) continue;
+      if (d.isBefore(first)) first = d;
+      if (d.isAfter(last)) last = d;
+    }
+    return (_filterFmt.format(first), _filterFmt.format(last));
+  }
+
+  void _resetFilters() {
+    final manding = _records
+        .where((r) => (r['domain'] ?? '').toString().toLowerCase() == 'manding');
+    final (mgFrom, mgTo) = _spanOf(manding);
+    _mgFromDate = mgFrom;
+    _mgToDate = mgTo;
+    final (acqFrom, acqTo) = _spanOf(_records.where(isSkillRow));
+    _acqFromDate = acqFrom;
+    _acqToDate = acqTo;
+
+    final domains = _skillDomains();
+    _skillDomain = _pickDomain(_skillDomain, domains);
+    _acqDomain = _pickDomain(_acqDomain, domains);
+
+    // DTT sheet opens on the latest session with skill data.
+    DateTime? latest;
+    for (final r in _records.where(isSkillRow)) {
+      final d = rowDate(r);
+      if (d != null && (latest == null || d.isAfter(latest))) latest = d;
+    }
+    _ddsDate = _filterFmt.format(latest ?? DateTime.now());
+  }
+
+  /// Skill domains present in the student's rows, first spelling wins.
+  List<String> _skillDomains() {
+    final seen = <String, String>{};
+    for (final r in _records.where(isSkillRow)) {
+      final d = (r['domain'] ?? '').toString().trim();
+      if (d.isEmpty) continue;
+      seen.putIfAbsent(d.toLowerCase(), () => d);
+    }
+    final list = seen.values.toList()
+      ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+    return list;
+  }
+
+  /// [current] if it is one of [domains] (ignoring case), else the first.
+  String _pickDomain(String current, List<String> domains) {
+    for (final d in domains) {
+      if (d.toLowerCase() == current.toLowerCase()) return d;
+    }
+    return domains.isEmpty ? current : domains.first;
+  }
+
+  bool _sameDomain(String a, String b) =>
+      a.trim().toLowerCase() == b.trim().toLowerCase();
+
+  /// Opens a date picker for an MM/dd/yyyy filter value.
+  Future<void> _pickFilterDate(
+      String current, void Function(String picked) apply) async {
+    final initial = _parseFilterDate(current) ?? DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+    );
+    if (picked == null || !mounted) return;
+    setState(() => apply(_filterFmt.format(picked)));
+  }
+
+  /// Applies a picked From/To date, keeping From on or before To.
+  void _setRange(String picked, bool isFrom, void Function(String) setFrom,
+      void Function(String) setTo, String other) {
+    final p = _parseFilterDate(picked)!;
+    final o = _parseFilterDate(other);
+    if (isFrom) {
+      setFrom(picked);
+      if (o != null && p.isAfter(o)) setTo(picked);
+    } else {
+      setTo(picked);
+      if (o != null && p.isBefore(o)) setFrom(picked);
+    }
+  }
+
+  /// One point per manding session date in the selected range:
+  /// prompted = completed − successful, unprompted = successful.
+  List<Map<String, dynamic>> _mandingGraphPoints() {
+    final byDate = <DateTime, List<int>>{};
+    for (final r in _records) {
+      if ((r['domain'] ?? '').toString().toLowerCase() != 'manding') continue;
+      final d = rowDate(r);
+      if (!_inRange(d, _mgFromDate, _mgToDate)) continue;
+      final completed = _intOf(r['trials_completed']);
+      final successful = _intOf(r['trials_successful']);
+      final sums = byDate.putIfAbsent(d!, () => [0, 0]);
+      sums[0] += (completed - successful).clamp(0, 1 << 30);
+      sums[1] += successful;
+    }
+    final dates = byDate.keys.toList()..sort();
+    return [
+      for (final d in dates)
+        {
+          'date': _labelFmt.format(d),
+          'prompted': byDate[d]![0],
+          'unprompted': byDate[d]![1],
+        },
+    ];
+  }
+
+  /// Cumulative count of [domain] targets mastered, one point per mastery
+  /// date within the range. The count includes targets mastered before the
+  /// range starts, so the line is the student's running total.
+  List<Map<String, dynamic>> _acquisitionPoints() {
+    final mastered = targetProgress(_records)
+        .where((t) => t.masteredOn != null && _sameDomain(t.domain, _acqDomain))
+        .map((t) => t.masteredOn!)
+        .toList()
+      ..sort();
+    final points = <Map<String, dynamic>>[];
+    DateTime? lastDate;
+    for (int i = 0; i < mastered.length; i++) {
+      final d = mastered[i];
+      if (!_inRange(d, _acqFromDate, _acqToDate)) continue;
+      if (d == lastDate) {
+        points.last['count'] = i + 1;
+        points.last['new'] = (points.last['new'] as int) + 1;
+      } else {
+        points.add({'date': _labelFmt.format(d), 'count': i + 1, 'new': 1});
+        lastDate = d;
+      }
+    }
+    return points;
+  }
+
+  // ── ABC incidents ─────────────────────────────────────────────────────────
+
+  static const List<String> _antecedentOptions = [
+    'Work Demand',
+    'Denied Access',
+    'Transition',
+    'Attention',
+  ];
+  static const List<String> _behaviourOptions = [
+    'Hit',
+    'Scream',
+    'Elopement',
+    'Bite',
+    'Throwing',
+  ];
+  static const List<String> _consequenceOptions = [
+    'Ignored problem behaviour',
+    'Redirected to task',
+    'Given break',
+    'Response block',
+  ];
+
+  /// Incident map for a saved ABC / behaviour row. Rows saved by this page
+  /// keep their details as JSON in notes; older rows may use plain text.
+  Map<String, dynamic> _incidentFromRow(Map<String, dynamic> r) {
+    final notes = (r['notes'] ?? '').toString();
+    final j = _notesJson(r);
+    final d = rowDate(r);
+    String fromText(String key) {
+      if (!notes.contains('$key:')) return '';
+      return notes.split('$key:')[1].split('.')[0].trim();
+    }
+
+    int duration = _intOf(j['duration']);
+    if (j['duration'] == null) {
+      final m = RegExp(r'Duration\s+(\d+)\s+min', caseSensitive: false)
+          .firstMatch(notes);
+      duration = int.tryParse(m?.group(1) ?? '') ?? 0;
+    }
+    final completed = _intOf(r['trials_completed']);
+    return {
+      'id': r['id'],
+      'domain': (r['domain'] ?? 'ABC').toString(),
+      'date': d == null ? _filterFmt.format(DateTime.now()) : _filterFmt.format(d),
+      'time': (j['time'] ?? '').toString(),
+      'setting': (j['setting'] ?? '').toString(),
+      'antecedent': (j['antecedent'] ?? fromText('Antecedent')).toString(),
+      'antecedentNote': (j['antecedent_note'] ?? '').toString(),
+      'behavior': (r['target_skill'] ?? '').toString(),
+      'count': completed > 0 ? completed : 1,
+      'timeMins': duration,
+      'consequence': (j['consequence'] ?? fromText('Consequence')).toString(),
+      'consequenceNote': (j['consequence_note'] ?? '').toString(),
+      'isExpanded': false,
+    };
+  }
+
+  String _incidentSortKey(Map<String, dynamic> i) {
+    final d = _parseFilterDate(i['date'] ?? '');
+    final day = d == null ? '' : DateFormat('yyyy-MM-dd').format(d);
+    DateTime? t;
+    try {
+      t = DateFormat('hh:mm a').parseStrict((i['time'] ?? '').toString());
+    } catch (_) {}
+    return '$day ${t == null ? '' : DateFormat('HH:mm').format(t)}';
+  }
+
+  String _incidentTitle(Map<String, dynamic> i) {
+    final d = _parseFilterDate(i['date'] ?? '');
+    final parts = [
+      if (d != null) DateFormat('dd-MMM-yyyy').format(d),
+      if ((i['time'] ?? '').toString().isNotEmpty) i['time'],
+      if ((i['behavior'] ?? '').toString().isNotEmpty) i['behavior'],
+    ];
+    final title = parts.isEmpty ? 'New incident' : parts.join('  ');
+    return i['id'] == null ? '$title (not saved)' : title;
+  }
+
+  Future<void> _saveIncident(Map<String, dynamic> incident) async {
+    final studentId = _selectedStudentId;
+    if (studentId == null || incident['saving'] == true) return;
+    final behaviour = (incident['behavior'] ?? '').toString().trim();
+    if (behaviour.isEmpty) {
+      _showSnack('Choose the behaviour before saving.', error: true);
+      return;
+    }
+    setState(() => incident['saving'] = true);
+    final ok = await DailyDataQueries.saveSheet(
+      studentId: studentId,
+      sessionDate: _apiDate(incident['date'] ?? ''),
+      rows: [
+        {
+          if (incident['id'] != null) 'id': incident['id'],
+          'domain': incident['domain'] ?? 'ABC',
+          'target_skill': behaviour,
+          'trials_completed': incident['count'] ?? 1,
+          'trials_successful': 0,
+          'notes': jsonEncode({
+            'antecedent': incident['antecedent'] ?? '',
+            'antecedent_note': incident['antecedentNote'] ?? '',
+            'consequence': incident['consequence'] ?? '',
+            'consequence_note': incident['consequenceNote'] ?? '',
+            'setting': incident['setting'] ?? '',
+            'time': incident['time'] ?? '',
+            'duration': incident['timeMins'] ?? 0,
+          }),
+        },
+      ],
+    );
+    if (!mounted) return;
+    setState(() => incident['saving'] = false);
+    if (!ok) {
+      _showSnack('Could not save the incident. Please try again.',
+          error: true);
+      return;
+    }
+    incident['saved'] = true; // the reload brings it back with its id
+    _showSnack('Incident saved successfully.');
+    await _loadStudentData();
+  }
+
+  // ── PB graph data ─────────────────────────────────────────────────────────
+
+  /// Saved behaviour rows by session date (oldest first).
+  Map<DateTime, List<Map<String, dynamic>>> _behaviourRowsByDate() {
+    final byDate = <DateTime, List<Map<String, dynamic>>>{};
+    for (final r in _records.where(_isBehaviourRow)) {
+      final d = rowDate(r);
+      if (d == null) continue;
+      (byDate[d] ??= []).add(_incidentFromRow(r));
+    }
+    return Map.fromEntries(
+        byDate.entries.toList()..sort((a, b) => a.key.compareTo(b.key)));
+  }
+
+  /// Total problem-behaviour minutes per date.
+  List<Map<String, dynamic>> _pbDurationPoints() => [
+        for (final e in _behaviourRowsByDate().entries)
+          {
+            'date': _labelFmt.format(e.key),
+            'duration':
+                e.value.fold<int>(0, (a, i) => a + (i['timeMins'] as int)),
+          },
+      ];
+
+  /// Behaviour names (first spelling wins) and per-date counts of each.
+  (List<String>, List<Map<String, dynamic>>) _pbCountPoints() {
+    final names = <String, String>{};
+    final points = <Map<String, dynamic>>[];
+    for (final e in _behaviourRowsByDate().entries) {
+      final point = <String, dynamic>{'date': _labelFmt.format(e.key)};
+      for (final i in e.value) {
+        final raw = (i['behavior'] ?? '').toString().trim();
+        final name = names.putIfAbsent(
+            raw.toLowerCase(), () => raw.isEmpty ? 'Unspecified' : raw);
+        point[name] = (point[name] as int? ?? 0) + (i['count'] as int);
+      }
+      points.add(point);
+    }
+    return (names.values.toList(), points);
   }
 
   /// Shows the manding rows recorded on the selected date.
@@ -406,16 +659,17 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
     final now = DateTime.now();
     setState(() {
       _abcIncidents.insert(0, {
-        'timeLabel': DateFormat('MM-dd-yyyy hh:mm a').format(now),
-        'date': DateFormat('MM/dd/yyyy').format(now),
+        'id': null,
+        'domain': 'ABC',
+        'date': _filterFmt.format(now),
         'time': DateFormat('hh:mm a').format(now),
         'setting': '',
-        'antecedent': 'Work Demand',
+        'antecedent': '',
         'antecedentNote': '',
-        'behavior': 'Hit',
+        'behavior': '',
         'count': 1,
         'timeMins': 0,
-        'consequence': 'Ignored problem behaviour',
+        'consequence': '',
         'consequenceNote': '',
         'isExpanded': true,
       });
@@ -1042,26 +1296,23 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
   // 2. MANDING GRAPH TAB
   // ════════════════════════════════════════════════════════════════════════════
   Widget _buildMandingGraphTab() {
+    final points = _mandingGraphPoints();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _buildFilterBar(
-          wideAt: 700,
+          wideAt: 640,
           leading: [
-            _buildFilterPill('From Date:', _mgFromDate, 140),
-            _buildFilterPill('To Date:', _mgToDate, 140),
-            ElevatedButton(
-              onPressed: () {},
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF9333EA),
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8)),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              ),
-              child: const Text('Search'),
-            ),
+            _buildFilterPill('From Date:', _mgFromDate, 140,
+                onTap: () => _pickFilterDate(
+                    _mgFromDate,
+                    (d) => _setRange(d, true, (v) => _mgFromDate = v,
+                        (v) => _mgToDate = v, _mgToDate))),
+            _buildFilterPill('To Date:', _mgToDate, 140,
+                onTap: () => _pickFilterDate(
+                    _mgToDate,
+                    (d) => _setRange(d, false, (v) => _mgFromDate = v,
+                        (v) => _mgToDate = v, _mgFromDate))),
           ],
           trailing: Container(
             height: 32,
@@ -1086,49 +1337,54 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
           ),
         ),
         const SizedBox(height: 24),
-        Container(
-          height: 340,
-          width: double.infinity,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFFE9D5FF)),
-          ),
-          child: MandingLineChart(data: _mandingGraphData),
-        ),
-        const SizedBox(height: 24),
-        if (_mandingGraphData.isEmpty)
+        if (points.isEmpty)
+          _buildEmptyBox(
+              'No manding sessions recorded between $_mgFromDate and $_mgToDate.')
+        else ...[
           Container(
+            height: 340,
             width: double.infinity,
-            padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: const Color(0xFFC084FC)),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFFE9D5FF)),
             ),
-            child: const Center(
-              child: Text(
-                'No recorded session data found for this date range.',
-                style: TextStyle(
-                    color: Color(0xFF6B7280),
-                    fontSize: 13,
-                    fontFamily: 'Poppins'),
-              ),
-            ),
-          )
-        else
-          _buildMandingSessionTable(),
+            child: MandingLineChart(data: points),
+          ),
+          const SizedBox(height: 24),
+          _buildMandingSessionTable(points),
+        ],
       ],
+    );
+  }
+
+  /// White bordered box with a short centred message, for empty graphs and
+  /// tables.
+  Widget _buildEmptyBox(String message) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFC084FC)),
+      ),
+      child: Text(
+        message,
+        textAlign: TextAlign.center,
+        style: const TextStyle(
+            color: Color(0xFF6B7280), fontSize: 13, fontFamily: 'Poppins'),
+      ),
     );
   }
 
   /// Date / Prompted / Unprompted table with one column per session. On narrow
   /// widths each session column keeps a readable 60px and the table scrolls
   /// sideways; the row-label column stays 96px wide.
-  Widget _buildMandingSessionTable() {
+  Widget _buildMandingSessionTable(List<Map<String, dynamic>> points) {
     const labelColWidth = 96.0;
     const dataColWidth = 60.0;
-    final minWidth = labelColWidth + _mandingGraphData.length * dataColWidth;
+    final minWidth = labelColWidth + points.length * dataColWidth;
 
     return Container(
       width: double.infinity,
@@ -1153,7 +1409,7 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
                       child: Text('Date',
                           style: TextStyle(
                               fontWeight: FontWeight.bold, fontSize: 12))),
-                  ..._mandingGraphData.map((d) => Padding(
+                  ...points.map((d) => Padding(
                       padding: const EdgeInsets.all(8),
                       child: Text(d['date'] ?? '',
                           textAlign: TextAlign.center,
@@ -1167,7 +1423,7 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
                       child: Text('Prompted',
                           style: TextStyle(
                               fontWeight: FontWeight.bold, fontSize: 12))),
-                  ..._mandingGraphData.map((d) => Padding(
+                  ...points.map((d) => Padding(
                       padding: const EdgeInsets.all(8),
                       child: Text('${d['prompted'] ?? 0}',
                           textAlign: TextAlign.center,
@@ -1181,7 +1437,7 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
                       child: Text('Unprompted',
                           style: TextStyle(
                               fontWeight: FontWeight.bold, fontSize: 12))),
-                  ..._mandingGraphData.map((d) => Padding(
+                  ...points.map((d) => Padding(
                       padding: const EdgeInsets.all(8),
                       child: Text('${d['unprompted'] ?? 0}',
                           textAlign: TextAlign.center,
@@ -1206,9 +1462,9 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
         _buildFilterBar(
           wideAt: 720,
           leading: [
-            _buildFilterPill('Date:', _ddsDate, 130),
-            _buildFilterPill('Time In:', _ddsTimeIn, 110),
-            _buildFilterPill('Time Out:', _ddsTimeOut, 110),
+            _buildFilterPill('Date:', _ddsDate, 130,
+                onTap: () =>
+                    _pickFilterDate(_ddsDate, (d) => _ddsDate = d)),
           ],
           trailing: Container(
             padding: const EdgeInsets.all(8),
@@ -1252,7 +1508,7 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
           onToggle: () =>
               setState(() => _mandingGoalsExpanded = !_mandingGoalsExpanded),
           child: _buildDttDomainTargets(
-              'mand', 'No active manding targets logged for this student.'),
+              'mand', 'No manding targets recorded on this date.'),
         ),
         const SizedBox(height: 12),
         _buildAccordionSection(
@@ -1261,7 +1517,7 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
           onToggle: () =>
               setState(() => _listenerGoalsExpanded = !_listenerGoalsExpanded),
           child: _buildDttDomainTargets('listener',
-              'No active listener responding targets logged for this student.'),
+              'No listener responding targets recorded on this date.'),
         ),
         const SizedBox(height: 12),
         _buildAccordionSection(
@@ -1270,7 +1526,7 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
           onToggle: () =>
               setState(() => _tactingGoalsExpanded = !_tactingGoalsExpanded),
           child: _buildDttDomainTargets(
-              'tact', 'No active tacting targets logged for this student.'),
+              'tact', 'No tacting targets recorded on this date.'),
         ),
         const SizedBox(height: 12),
         _buildAccordionSection(
@@ -1278,62 +1534,62 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
           isExpanded: _vpGoalsExpanded,
           onToggle: () => setState(() => _vpGoalsExpanded = !_vpGoalsExpanded),
           child: _buildDttDomainTargets(
-              'vp', 'No active VP/MTS targets logged for this student.'),
+              'vp', 'No VP/MTS targets recorded on this date.'),
         ),
+        if (_dttForDate().any((t) => _dttSection(t) == 'other')) ...[
+          const SizedBox(height: 12),
+          _buildAccordionSection(
+            title: 'OTHER SKILL GOALS',
+            isExpanded: _otherGoalsExpanded,
+            onToggle: () =>
+                setState(() => _otherGoalsExpanded = !_otherGoalsExpanded),
+            child: _buildDttDomainTargets('other', ''),
+          ),
+        ],
       ],
     );
+  }
+
+  /// DTT rows of the selected session date.
+  List<Map<String, dynamic>> _dttForDate() {
+    final date = _apiDate(_ddsDate);
+    return _dttTargets.where((t) => t['date'] == date).toList();
+  }
+
+  /// Which DTT accordion a target belongs to.
+  String _dttSection(Map<String, dynamic> t) {
+    final d = (t['domain'] ?? '').toString().toLowerCase();
+    if (d.contains('mand')) return 'mand';
+    if (d.contains('listener')) return 'listener';
+    if (d.contains('tact')) return 'tact';
+    if (d.contains('vp') || d.contains('visual') || d.contains('matching')) {
+      return 'vp';
+    }
+    return 'other';
   }
 
   // ════════════════════════════════════════════════════════════════════════════
   // 4. SKILL TRACKING SHEET TAB
   // ════════════════════════════════════════════════════════════════════════════
   Widget _buildSkillTrackingTab() {
-    Widget domainDropdown() => Container(
-          height: 36,
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          decoration: BoxDecoration(
-              color: Colors.white, borderRadius: BorderRadius.circular(8)),
-          child: DropdownButtonHideUnderline(
-            child: DropdownButton<String>(
-              value: _skillDomain,
-              items: ['Manding', 'Tacting', 'Listener', 'Echoic']
-                  .map((d) => DropdownMenuItem(
-                      value: d,
-                      child: Text(d,
-                          style: const TextStyle(
-                              fontSize: 12, fontWeight: FontWeight.w600))))
-                  .toList(),
-              onChanged: (val) => setState(() => _skillDomain = val!),
-            ),
-          ),
-        );
-    Widget goalDropdown({bool expanded = false}) => Container(
-          height: 36,
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          decoration: BoxDecoration(
-              color: Colors.white, borderRadius: BorderRadius.circular(8)),
-          child: DropdownButtonHideUnderline(
-            child: DropdownButton<String>(
-              value: _skillGoal,
-              isExpanded: expanded,
-              items: [
-                'emit 10 different mands without prompts',
-                'label 20 common household objects',
-              ]
-                  .map((g) => DropdownMenuItem(
-                      value: g,
-                      child: Text(g,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                              fontSize: 12, fontWeight: FontWeight.w600))))
-                  .toList(),
-              onChanged: (val) => setState(() => _skillGoal = val!),
-            ),
-          ),
-        );
-    const goalLabel = Text('ITP GOAL: ',
-        style: TextStyle(
-            fontWeight: FontWeight.bold, color: Colors.white, fontSize: 13));
+    final domains = _skillDomains();
+    final domain = _pickDomain(_skillDomain, domains);
+    // One row per target of the chosen domain, oldest introduced first.
+    final targets = targetProgress(_records)
+        .where((t) => _sameDomain(t.domain, domain))
+        .toList()
+      ..sort((a, b) => (a.firstSession ?? DateTime(0))
+          .compareTo(b.firstSession ?? DateTime(0)));
+    final masteredCount = targets.where((t) => t.mastered).length;
+
+    final summary = Text(
+      domains.isEmpty
+          ? 'No skill targets recorded yet'
+          : '${targets.length} target${targets.length == 1 ? '' : 's'} · '
+              '$masteredCount mastered',
+      style: const TextStyle(
+          fontWeight: FontWeight.bold, color: Colors.white, fontSize: 13),
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1347,30 +1603,16 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
             ),
             borderRadius: BorderRadius.circular(12),
           ),
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              if (constraints.maxWidth >= 560) {
-                return Row(
-                  children: [
-                    domainDropdown(),
-                    const SizedBox(width: 20),
-                    goalLabel,
-                    const SizedBox(width: 8),
-                    goalDropdown(),
-                  ],
-                );
-              }
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  domainDropdown(),
-                  const SizedBox(height: 10),
-                  goalLabel,
-                  const SizedBox(height: 6),
-                  goalDropdown(expanded: true),
-                ],
-              );
-            },
+          child: Wrap(
+            spacing: 20,
+            runSpacing: 10,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              if (domains.isNotEmpty)
+                _buildDomainDropdown(domains, domain,
+                    (val) => setState(() => _skillDomain = val)),
+              summary,
+            ],
           ),
         ),
         const SizedBox(height: 24),
@@ -1381,14 +1623,17 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
             color: const Color(0xFFE2E8F0),
             borderRadius: BorderRadius.circular(16),
           ),
-          child: _skillTargets.isEmpty
-              ? const Padding(
-                  padding: EdgeInsets.all(24),
+          child: targets.isEmpty
+              ? Padding(
+                  padding: const EdgeInsets.all(24),
                   child: Center(
                     child: Text(
-                        'No cumulative mastered targets logged for this student in this goal.',
-                        style:
-                            TextStyle(color: Color(0xFF6B7280), fontSize: 13)),
+                        domains.isEmpty
+                            ? 'No skill targets recorded for this student yet.'
+                            : 'No $domain targets recorded for this student.',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                            color: Color(0xFF6B7280), fontSize: 13)),
                   ),
                 )
               : Column(
@@ -1425,32 +1670,41 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    ..._skillTargets.map((t) {
+                    ...targets.map((t) {
+                      final dateFmt = DateFormat('dd-MMM-yyyy');
                       return Container(
                         margin: const EdgeInsets.only(bottom: 6),
                         padding: const EdgeInsets.symmetric(
                             vertical: 10, horizontal: 16),
                         decoration: BoxDecoration(
-                            color: const Color(0xFFFEE2E2),
+                            color: t.mastered
+                                ? const Color(0xFFDCFCE7)
+                                : const Color(0xFFFEE2E2),
                             borderRadius: BorderRadius.circular(8)),
                         child: Row(
                           children: [
                             Expanded(
                                 flex: 3,
-                                child: Text(t['target'] ?? '',
+                                child: Text(t.target,
                                     style: const TextStyle(
                                         fontWeight: FontWeight.w600,
                                         fontSize: 12))),
                             Expanded(
                                 flex: 3,
-                                child: Text(t['introduced'] ?? '',
+                                child: Text(
+                                    t.firstSession == null
+                                        ? '—'
+                                        : dateFmt.format(t.firstSession!),
                                     textAlign: TextAlign.center,
                                     style: const TextStyle(
                                         fontWeight: FontWeight.w600,
                                         fontSize: 12))),
                             Expanded(
                                 flex: 3,
-                                child: Text(t['mastered'] ?? '',
+                                child: Text(
+                                    t.masteredOn == null
+                                        ? 'In acquisition'
+                                        : dateFmt.format(t.masteredOn!),
                                     textAlign: TextAlign.center,
                                     style: const TextStyle(
                                         fontWeight: FontWeight.w600,
@@ -1462,7 +1716,40 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
                   ],
                 ),
         ),
+        const SizedBox(height: 8),
+        Text(
+          'A target is mastered on the first session with at least '
+          '$masteryMinTrials trials and ${(masteryRatio * 100).round()}% success.',
+          style: const TextStyle(fontSize: 11, color: Color(0xFF6B7280)),
+        ),
       ],
+    );
+  }
+
+  /// White domain dropdown used by the Skill Tracking and Acquisition tabs.
+  /// [value] must be one of [domains].
+  Widget _buildDomainDropdown(
+      List<String> domains, String value, ValueChanged<String> onChanged) {
+    return Container(
+      height: 36,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+          color: Colors.white, borderRadius: BorderRadius.circular(8)),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: value,
+          items: domains
+              .map((d) => DropdownMenuItem(
+                  value: d,
+                  child: Text(d,
+                      style: const TextStyle(
+                          fontSize: 12, fontWeight: FontWeight.w600))))
+              .toList(),
+          onChanged: (val) {
+            if (val != null) onChanged(val);
+          },
+        ),
+      ),
     );
   }
 
@@ -1470,67 +1757,51 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
   // 5. ACQUISITION GRAPH TAB
   // ════════════════════════════════════════════════════════════════════════════
   Widget _buildAcquisitionGraphTab() {
+    final domains = _skillDomains();
+    _acqDomain = _pickDomain(_acqDomain, domains);
+    final points = _acquisitionPoints();
+    const headStyle = TextStyle(fontWeight: FontWeight.bold, fontSize: 12);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _buildFilterBar(
           wideAt: 640,
           leading: [
-            _buildFilterPill('From Date:', _acqFromDate, 140),
-            _buildFilterPill('To Date:', _acqToDate, 140),
+            _buildFilterPill('From Date:', _acqFromDate, 140,
+                onTap: () => _pickFilterDate(
+                    _acqFromDate,
+                    (d) => _setRange(d, true, (v) => _acqFromDate = v,
+                        (v) => _acqToDate = v, _acqToDate))),
+            _buildFilterPill('To Date:', _acqToDate, 140,
+                onTap: () => _pickFilterDate(
+                    _acqToDate,
+                    (d) => _setRange(d, false, (v) => _acqFromDate = v,
+                        (v) => _acqToDate = v, _acqFromDate))),
           ],
-          trailing: Container(
-            height: 36,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            decoration: BoxDecoration(
-                color: Colors.white, borderRadius: BorderRadius.circular(8)),
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<String>(
-                value: _acqDomain,
-                items: ['Manding', 'Tacting', 'Listener', 'Echoic']
-                    .map((d) => DropdownMenuItem(
-                        value: d,
-                        child: Text(d,
-                            style: const TextStyle(
-                                fontSize: 12, fontWeight: FontWeight.w600))))
-                    .toList(),
-                onChanged: (val) => setState(() => _acqDomain = val!),
-              ),
-            ),
-          ),
+          trailing: domains.isEmpty
+              ? null
+              : _buildDomainDropdown(domains, _acqDomain,
+                  (val) => setState(() => _acqDomain = val)),
         ),
         const SizedBox(height: 24),
-        Container(
-          height: 340,
-          width: double.infinity,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFFE9D5FF)),
-          ),
-          child: AcquisitionLineChart(data: _acquisitionGraphData),
-        ),
-        const SizedBox(height: 24),
-        if (_acquisitionGraphData.isEmpty)
+        if (domains.isEmpty)
+          _buildEmptyBox('No skill targets recorded for this student yet.')
+        else if (points.isEmpty)
+          _buildEmptyBox(
+              'No $_acqDomain targets mastered between $_acqFromDate and $_acqToDate.')
+        else ...[
           Container(
+            height: 340,
             width: double.infinity,
-            padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: const Color(0xFFC084FC)),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFFE9D5FF)),
             ),
-            child: const Center(
-              child: Text(
-                'No target acquisition count records found for this student.',
-                style: TextStyle(
-                    color: Color(0xFF6B7280),
-                    fontSize: 13,
-                    fontFamily: 'Poppins'),
-              ),
-            ),
-          )
-        else
+            child: AcquisitionLineChart(data: points),
+          ),
+          const SizedBox(height: 24),
           Container(
             width: double.infinity,
             decoration: BoxDecoration(
@@ -1546,21 +1817,24 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
                   children: [
                     Padding(
                         padding: EdgeInsets.all(8),
-                        child: Text('Date',
-                            style: TextStyle(
-                                fontWeight: FontWeight.bold, fontSize: 12))),
+                        child: Text('Date', style: headStyle)),
                     Padding(
                         padding: EdgeInsets.all(8),
-                        child: Text('Count',
-                            style: TextStyle(
-                                fontWeight: FontWeight.bold, fontSize: 12))),
+                        child: Text('Mastered', style: headStyle)),
+                    Padding(
+                        padding: EdgeInsets.all(8),
+                        child: Text('Cumulative', style: headStyle)),
                   ],
                 ),
-                ..._acquisitionGraphData.map((d) => TableRow(
+                ...points.map((d) => TableRow(
                       children: [
                         Padding(
                             padding: const EdgeInsets.all(8),
                             child: Text(d['date'] ?? '',
+                                style: const TextStyle(fontSize: 12))),
+                        Padding(
+                            padding: const EdgeInsets.all(8),
+                            child: Text('${d['new'] ?? 0}',
                                 style: const TextStyle(fontSize: 12))),
                         Padding(
                             padding: const EdgeInsets.all(8),
@@ -1574,6 +1848,7 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
               ],
             ),
           ),
+        ],
       ],
     );
   }
@@ -1594,7 +1869,7 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
                 children: [
                   Icon(Icons.add, size: 16, color: Color(0xFF7E22CE)),
                   SizedBox(width: 4),
-                  Text('+ Add Incident',
+                  Text('Add Incident',
                       style: TextStyle(
                           color: Color(0xFF7E22CE),
                           fontWeight: FontWeight.bold,
@@ -1616,7 +1891,7 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
             ),
             child: const Center(
               child: Text(
-                'No antecedent-behavior-consequence (ABC) incidents logged for this student.\nClick "+ Add Incident" above to record a live behavior event with stopwatch tracking.',
+                'No antecedent-behavior-consequence (ABC) incidents logged for this student.\nClick "Add Incident" above to record one.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                     color: Color(0xFF6B7280),
@@ -1626,239 +1901,261 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
             ),
           )
         else
-          ..._abcIncidents.map((incident) {
-            final isExpanded = incident['isExpanded'] as bool;
-            return Container(
-              margin: const EdgeInsets.only(bottom: 12),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFFC084FC), Color(0xFFD8B4FE)],
-                ),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Column(
-                children: [
-                  InkWell(
-                    onTap: () =>
-                        setState(() => incident['isExpanded'] = !isExpanded),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 12),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Expanded(
-                            child: Text(
-                              incident['timeLabel'],
-                              style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 15,
-                                  color: Colors.black87),
-                            ),
-                          ),
-                          Icon(
-                            isExpanded
-                                ? Icons.keyboard_arrow_up
-                                : Icons.keyboard_arrow_down,
-                            color: Colors.black87,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  if (isExpanded)
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(16),
-                      decoration: const BoxDecoration(
-                        color: Color(0xFFFAF5FF),
-                        borderRadius: BorderRadius.only(
-                            bottomLeft: Radius.circular(12),
-                            bottomRight: Radius.circular(12)),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Wrap(
-                            spacing: 20,
-                            runSpacing: 10,
-                            children: [
-                              _buildFilterPill('Date:', incident['date'], 130),
-                              _buildFilterPill('Time:', incident['time'], 130),
-                            ],
-                          ),
-                          const SizedBox(height: 14),
-                          const Text('Setting Events:',
-                              style: TextStyle(
-                                  fontWeight: FontWeight.bold, fontSize: 13)),
-                          const SizedBox(height: 6),
-                          Container(
-                            height: 38,
-                            decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(8),
-                                border:
-                                    Border.all(color: const Color(0xFFE9D5FF))),
-                            child: TextField(
-                              decoration: const InputDecoration(
-                                  border: InputBorder.none,
-                                  contentPadding: EdgeInsets.symmetric(
-                                      horizontal: 12, vertical: 10),
-                                  hintText:
-                                      'Enter setting events or environmental triggers'),
-                              onChanged: (val) => incident['setting'] = val,
-                            ),
-                          ),
-                          const SizedBox(height: 14),
-                          const Text('Antecedent',
-                              style: TextStyle(
-                                  fontWeight: FontWeight.bold, fontSize: 13)),
-                          const SizedBox(height: 6),
-                          _buildDropdownWithNote(
-                            value: incident['antecedent'],
-                            options: const [
-                              'Work Demand',
-                              'Denied Access',
-                              'Transition',
-                              'Attention'
-                            ],
-                            onSelected: (val) =>
-                                setState(() => incident['antecedent'] = val),
-                            onNoteChanged: (val) =>
-                                incident['antecedentNote'] = val,
-                          ),
-                          const SizedBox(height: 14),
-                          const Text('Behaviors',
-                              style: TextStyle(
-                                  fontWeight: FontWeight.bold, fontSize: 13)),
-                          const SizedBox(height: 6),
-                          LayoutBuilder(
-                            builder: (context, constraints) {
-                              final behaviorDropdown = Container(
-                                height: 38,
-                                width: 200,
-                                padding:
-                                    const EdgeInsets.symmetric(horizontal: 12),
-                                decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(8),
-                                    border: Border.all(
-                                        color: const Color(0xFFE9D5FF))),
-                                child: DropdownButtonHideUnderline(
-                                  child: DropdownButton<String>(
-                                    value: incident['behavior'],
-                                    items: [
-                                      'Hit',
-                                      'Scream',
-                                      'Elopement',
-                                      'Bite',
-                                      'Throwing'
-                                    ]
-                                        .map((b) => DropdownMenuItem(
-                                            value: b,
-                                            child: Text(b,
-                                                style: const TextStyle(
-                                                    fontSize: 12))))
-                                        .toList(),
-                                    onChanged: (val) => setState(
-                                        () => incident['behavior'] = val!),
-                                  ),
-                                ),
-                              );
-                              const countLabel = Text('Count: ',
-                                  style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 13));
-                              final countCounter = _buildMiniCounter(
-                                  incident['count'],
-                                  (val) =>
-                                      setState(() => incident['count'] = val));
-                              const timeLabel = Text('Time(mint): ',
-                                  style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 13));
-                              final timeCounter = _buildMiniCounter(
-                                  incident['timeMins'],
-                                  (val) => setState(
-                                      () => incident['timeMins'] = val));
-                              // Real Interactive Digital Stopwatch with Start/Stop/Reset
-                              final stopwatch = IncidentStopwatch(
-                                onMinutesUpdated: (mins) {
-                                  setState(() {
-                                    incident['timeMins'] = mins;
-                                  });
-                                },
-                              );
-
-                              if (constraints.maxWidth >= 720) {
-                                return Row(
-                                  children: [
-                                    behaviorDropdown,
-                                    const SizedBox(width: 16),
-                                    countLabel,
-                                    const SizedBox(width: 6),
-                                    countCounter,
-                                    const SizedBox(width: 16),
-                                    timeLabel,
-                                    const SizedBox(width: 6),
-                                    timeCounter,
-                                    const SizedBox(width: 16),
-                                    stopwatch,
-                                  ],
-                                );
-                              }
-                              return Wrap(
-                                spacing: 16,
-                                runSpacing: 10,
-                                crossAxisAlignment: WrapCrossAlignment.center,
-                                children: [
-                                  behaviorDropdown,
-                                  Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        countLabel,
-                                        const SizedBox(width: 6),
-                                        countCounter
-                                      ]),
-                                  Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        timeLabel,
-                                        const SizedBox(width: 6),
-                                        timeCounter
-                                      ]),
-                                  stopwatch,
-                                ],
-                              );
-                            },
-                          ),
-                          const SizedBox(height: 14),
-                          const Text('Consequences',
-                              style: TextStyle(
-                                  fontWeight: FontWeight.bold, fontSize: 13)),
-                          const SizedBox(height: 6),
-                          _buildDropdownWithNote(
-                            value: incident['consequence'],
-                            options: const [
-                              'Ignored problem behaviour',
-                              'Redirected to task',
-                              'Given break',
-                              'Response block'
-                            ],
-                            onSelected: (val) =>
-                                setState(() => incident['consequence'] = val),
-                            onNoteChanged: (val) =>
-                                incident['consequenceNote'] = val,
-                          ),
-                        ],
-                      ),
-                    ),
-                ],
-              ),
-            );
-          }),
+          ..._abcIncidents.map(_buildIncidentCard),
       ],
     );
+  }
+
+  Widget _buildIncidentCard(Map<String, dynamic> incident) {
+    final isExpanded = incident['isExpanded'] as bool;
+    final saving = incident['saving'] == true;
+    return Container(
+      key: ObjectKey(incident),
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFFC084FC), Color(0xFFD8B4FE)],
+        ),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        children: [
+          InkWell(
+            onTap: () => setState(() => incident['isExpanded'] = !isExpanded),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text(
+                      _incidentTitle(incident),
+                      style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15,
+                          color: Colors.black87),
+                    ),
+                  ),
+                  Icon(
+                    isExpanded
+                        ? Icons.keyboard_arrow_up
+                        : Icons.keyboard_arrow_down,
+                    color: Colors.black87,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (isExpanded)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: const BoxDecoration(
+                color: Color(0xFFFAF5FF),
+                borderRadius: BorderRadius.only(
+                    bottomLeft: Radius.circular(12),
+                    bottomRight: Radius.circular(12)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Wrap(
+                    spacing: 20,
+                    runSpacing: 10,
+                    children: [
+                      _buildFilterPill('Date:', incident['date'] ?? '', 130,
+                          onTap: () => _pickFilterDate(incident['date'] ?? '',
+                              (d) => incident['date'] = d)),
+                      _buildFilterPill('Time:', incident['time'] ?? '', 130,
+                          onTap: () => _pickIncidentTime(incident)),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  const Text('Setting Events:',
+                      style:
+                          TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                  const SizedBox(height: 6),
+                  Container(
+                    height: 38,
+                    decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: const Color(0xFFE9D5FF))),
+                    child: TextFormField(
+                      initialValue: incident['setting'] ?? '',
+                      decoration: const InputDecoration(
+                          border: InputBorder.none,
+                          contentPadding:
+                              EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          hintText:
+                              'Enter setting events or environmental triggers'),
+                      onChanged: (val) => incident['setting'] = val,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  const Text('Antecedent',
+                      style:
+                          TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                  const SizedBox(height: 6),
+                  _buildDropdownWithNote(
+                    value: incident['antecedent'] ?? '',
+                    options: _antecedentOptions,
+                    hint: 'Select antecedent',
+                    note: incident['antecedentNote'] ?? '',
+                    onSelected: (val) =>
+                        setState(() => incident['antecedent'] = val),
+                    onNoteChanged: (val) => incident['antecedentNote'] = val,
+                  ),
+                  const SizedBox(height: 14),
+                  const Text('Behaviors',
+                      style:
+                          TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                  const SizedBox(height: 6),
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final behaviorDropdown = _buildOptionDropdown(
+                        value: incident['behavior'] ?? '',
+                        options: _behaviourOptions,
+                        hint: 'Select behaviour',
+                        onSelected: (val) =>
+                            setState(() => incident['behavior'] = val),
+                      );
+                      const countLabel = Text('Count: ',
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 13));
+                      final countCounter = _buildMiniCounter(
+                          incident['count'],
+                          (val) => setState(() => incident['count'] = val));
+                      const timeLabel = Text('Time(mint): ',
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 13));
+                      final timeCounter = _buildMiniCounter(
+                          incident['timeMins'],
+                          (val) => setState(() => incident['timeMins'] = val));
+                      // Real Interactive Digital Stopwatch with Start/Stop/Reset
+                      final stopwatch = IncidentStopwatch(
+                        onMinutesUpdated: (mins) {
+                          setState(() {
+                            incident['timeMins'] = mins;
+                          });
+                        },
+                      );
+
+                      if (constraints.maxWidth >= 720) {
+                        return Row(
+                          children: [
+                            behaviorDropdown,
+                            const SizedBox(width: 16),
+                            countLabel,
+                            const SizedBox(width: 6),
+                            countCounter,
+                            const SizedBox(width: 16),
+                            timeLabel,
+                            const SizedBox(width: 6),
+                            timeCounter,
+                            const SizedBox(width: 16),
+                            stopwatch,
+                          ],
+                        );
+                      }
+                      return Wrap(
+                        spacing: 16,
+                        runSpacing: 10,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          behaviorDropdown,
+                          Row(mainAxisSize: MainAxisSize.min, children: [
+                            countLabel,
+                            const SizedBox(width: 6),
+                            countCounter
+                          ]),
+                          Row(mainAxisSize: MainAxisSize.min, children: [
+                            timeLabel,
+                            const SizedBox(width: 6),
+                            timeCounter
+                          ]),
+                          stopwatch,
+                        ],
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 14),
+                  const Text('Consequences',
+                      style:
+                          TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                  const SizedBox(height: 6),
+                  _buildDropdownWithNote(
+                    value: incident['consequence'] ?? '',
+                    options: _consequenceOptions,
+                    hint: 'Select consequence',
+                    note: incident['consequenceNote'] ?? '',
+                    onSelected: (val) =>
+                        setState(() => incident['consequence'] = val),
+                    onNoteChanged: (val) => incident['consequenceNote'] = val,
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: Wrap(
+                      alignment: WrapAlignment.end,
+                      spacing: 10,
+                      runSpacing: 10,
+                      children: [
+                        if (incident['id'] == null)
+                          OutlinedButton(
+                            onPressed: saving
+                                ? null
+                                : () => setState(
+                                    () => _abcIncidents.remove(incident)),
+                            style: OutlinedButton.styleFrom(
+                              backgroundColor: const Color(0xFFE9D5FF),
+                              foregroundColor: const Color(0xFF7E22CE),
+                              side: BorderSide.none,
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8)),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 20, vertical: 12),
+                            ),
+                            child: const Text('Discard'),
+                          ),
+                        ElevatedButton(
+                          onPressed:
+                              saving ? null : () => _saveIncident(incident),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF9333EA),
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8)),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 24, vertical: 12),
+                          ),
+                          child: Text(saving
+                              ? 'Saving…'
+                              : (incident['id'] == null
+                                  ? 'Save'
+                                  : 'Update')),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _pickIncidentTime(Map<String, dynamic> incident) async {
+    TimeOfDay initial = TimeOfDay.now();
+    try {
+      initial = TimeOfDay.fromDateTime(
+          DateFormat('hh:mm a').parseStrict((incident['time'] ?? '').toString()));
+    } catch (_) {}
+    final picked = await showTimePicker(context: context, initialTime: initial);
+    if (picked == null || !mounted) return;
+    setState(() => incident['time'] = DateFormat('hh:mm a')
+        .format(DateTime(2000, 1, 1, picked.hour, picked.minute)));
   }
 
   // ════════════════════════════════════════════════════════════════════════════
@@ -2017,73 +2314,137 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
   // 8. PB GRAPH TAB
   // ════════════════════════════════════════════════════════════════════════════
   Widget _buildPbGraphTab() {
+    final isDuration = _pbGraphType == _pbGraphTypes.first;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            Container(
-              height: 38,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: const Color(0xFFE9D5FF)),
-              ),
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<String>(
-                  value: _pbGraphType,
-                  items: [
-                    'Behavior Data',
-                    'Problem Behaviour Duration',
-                    'Problem Behaviour Duration Graph',
-                    'Behavior Data Graph',
-                  ]
-                      .map((t) => DropdownMenuItem(
-                          value: t,
-                          child: Text(t,
-                              style: const TextStyle(
-                                  fontSize: 12, fontWeight: FontWeight.bold))))
-                      .toList(),
-                  onChanged: (val) => setState(() => _pbGraphType = val!),
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 20),
-        if (_pbGraphType == 'Problem Behaviour Duration')
-          _buildPbDurationTable()
-        else if (_pbGraphType == 'Problem Behaviour Duration Graph')
-          _buildPbDurationGraph()
-        else if (_pbGraphType == 'Behavior Data Graph')
-          _buildPbMultiBehaviorGraph()
-        else
-          Container(
-            height: 320,
-            width: double.infinity,
+        Align(
+          alignment: Alignment.centerRight,
+          child: Container(
+            height: 38,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(8),
               border: Border.all(color: const Color(0xFFE9D5FF)),
             ),
-            child: const Center(
-              child: Text(
-                'Problem Behavior Trend Analysis\n(Select Graph or Table view from dropdown)',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                    color: Color(0xFF6B7280),
-                    fontFamily: 'Poppins',
-                    fontSize: 13),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: _pbGraphType,
+                items: _pbGraphTypes
+                    .map((t) => DropdownMenuItem(
+                        value: t,
+                        child: Text(t,
+                            style: const TextStyle(
+                                fontSize: 12, fontWeight: FontWeight.bold))))
+                    .toList(),
+                onChanged: (val) {
+                  if (val != null) setState(() => _pbGraphType = val);
+                },
               ),
             ),
           ),
+        ),
+        const SizedBox(height: 20),
+        if (isDuration) _buildPbDurationView() else _buildPbCountView(),
       ],
     );
   }
 
-  Widget _buildPbDurationTable() {
+  /// Total problem-behaviour minutes per date: graph, then table.
+  Widget _buildPbDurationView() {
+    final points = _pbDurationPoints();
+    if (points.isEmpty) {
+      return _buildEmptyBox(
+          'No problem behaviour incidents recorded for this student.');
+    }
+    return Column(
+      children: [
+        Container(
+          height: 330,
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFFE9D5FF)),
+          ),
+          child: Column(
+            children: [
+              const Text('DURATION (MINS)',
+                  style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                      color: Color(0xFF1E3A8A))),
+              const SizedBox(height: 12),
+              Expanded(child: PbDurationLineChart(data: points)),
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
+        _buildPbTable(
+          headers: const ['Date', 'Duration (mins)'],
+          rows: [
+            for (final p in points) ['${p['date']}', '${p['duration']}'],
+          ],
+        ),
+      ],
+    );
+  }
+
+  /// Count of each behaviour per date: multi-line graph, then table.
+  Widget _buildPbCountView() {
+    final (behaviours, points) = _pbCountPoints();
+    if (points.isEmpty) {
+      return _buildEmptyBox(
+          'No problem behaviour incidents recorded for this student.');
+    }
+    return Column(
+      children: [
+        Container(
+          height: 330,
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFFE9D5FF)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Wrap(
+                spacing: 12,
+                runSpacing: 4,
+                children: [
+                  for (int i = 0; i < behaviours.length; i++)
+                    _buildLegendItem(behaviours[i], pbBehaviorColor(i)),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Expanded(
+                child: PbMultiBehaviorLineChart(
+                    data: points, behaviors: behaviours),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
+        _buildPbTable(
+          headers: ['Date', ...behaviours],
+          rows: [
+            for (final p in points)
+              ['${p['date']}', for (final b in behaviours) '${p[b] ?? 0}'],
+          ],
+        ),
+      ],
+    );
+  }
+
+  /// Simple bordered table; scrolls sideways when there are many columns.
+  Widget _buildPbTable(
+      {required List<String> headers, required List<List<String>> rows}) {
+    const headStyle = TextStyle(fontWeight: FontWeight.bold, fontSize: 12);
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
@@ -2091,112 +2452,37 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: const Color(0xFFC084FC)),
       ),
-      child: _pbDurationData.isEmpty
-          ? const Padding(
-              padding: EdgeInsets.all(24),
-              child: Center(
-                child: Text(
-                    'No problem behavior duration records logged for this student.',
-                    style: TextStyle(color: Color(0xFF6B7280), fontSize: 13)),
-              ),
-            )
-          : Table(
-              border: TableBorder.all(color: const Color(0xFFE9D5FF)),
+      child: ScrollableMinWidth(
+        minWidth: headers.length * 90.0,
+        child: Table(
+          border: TableBorder.all(color: const Color(0xFFE9D5FF)),
+          children: [
+            TableRow(
+              decoration: const BoxDecoration(color: Color(0xFFFAF5FF)),
               children: [
-                const TableRow(
-                  decoration: BoxDecoration(color: Color(0xFFFAF5FF)),
-                  children: [
+                for (final h in headers)
+                  Padding(
+                      padding: const EdgeInsets.all(8),
+                      child: Text(h, style: headStyle)),
+              ],
+            ),
+            for (final r in rows)
+              TableRow(
+                children: [
+                  for (int i = 0; i < r.length; i++)
                     Padding(
-                        padding: EdgeInsets.all(8),
-                        child: Text('Date',
-                            style: TextStyle(
-                                fontWeight: FontWeight.bold, fontSize: 12))),
-                    Padding(
-                        padding: EdgeInsets.all(8),
-                        child: Text('DURATION (MINS)',
-                            style: TextStyle(
-                                fontWeight: FontWeight.bold, fontSize: 12))),
-                  ],
-                ),
-                ..._pbDurationData.map((d) => TableRow(
-                      children: [
-                        Padding(
-                            padding: const EdgeInsets.all(8),
-                            child: Text(d['date'] ?? '',
-                                style: const TextStyle(fontSize: 12))),
-                        Padding(
-                            padding: const EdgeInsets.all(8),
-                            child: Text('${d['duration'] ?? 0}',
-                                style: const TextStyle(
+                        padding: const EdgeInsets.all(8),
+                        child: Text(r[i],
+                            style: i == 0
+                                ? const TextStyle(fontSize: 12)
+                                : const TextStyle(
                                     fontWeight: FontWeight.bold,
                                     fontSize: 12,
                                     color: Color(0xFF7E22CE)))),
-                      ],
-                    )),
-              ],
-            ),
-    );
-  }
-
-  Widget _buildPbDurationGraph() {
-    return Container(
-      height: 330,
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE9D5FF)),
-      ),
-      child: Column(
-        children: [
-          const Text('DURATION (MINS)',
-              style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 13,
-                  color: Color(0xFF1E3A8A))),
-          const SizedBox(height: 12),
-          Expanded(
-            child: PbDurationLineChart(data: _pbDurationData),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPbMultiBehaviorGraph() {
-    return Container(
-      height: 330,
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE9D5FF)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Wrap(
-            spacing: 12,
-            runSpacing: 4,
-            children: [
-              _buildLegendItem('FLOP', const Color(0xFF2563EB)),
-              _buildLegendItem('HIT', const Color(0xFFDC2626)),
-              _buildLegendItem('KICK', const Color(0xFF16A34A)),
-              _buildLegendItem('BOLT', const Color(0xFF7C3AED)),
-              _buildLegendItem('GRAB', const Color(0xFF0891B2)),
-              _buildLegendItem('CRYING', const Color(0xFFEA580C)),
-              _buildLegendItem('WHINE', const Color(0xFF0284C7)),
-              _buildLegendItem('Throwing', const Color(0xFF991B1B)),
-              _buildLegendItem('Bite', const Color(0xFF4D7C0F)),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Expanded(
-            child: PbMultiBehaviorLineChart(data: _pbMultiBehaviorData),
-          ),
-        ],
+                ],
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -2216,23 +2502,145 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
   // ════════════════════════════════════════════════════════════════════════════
   // 9. IEP REPORT TAB
   // ════════════════════════════════════════════════════════════════════════════
+  /// Summary of the student's recorded data: sessions, targets per domain
+  /// (mastered via progress_metrics) and behaviour incidents.
   Widget _buildIepReportTab() {
+    final skillRows = _records.where(isSkillRow).toList();
+    final targets = targetProgress(_records);
+    final behaviourRows = _records.where(_isBehaviourRow).toList();
+    final sessionDates = {
+      for (final r in skillRows) rowDate(r),
+    }.whereType<DateTime>().toList()
+      ..sort();
+    final dateFmt = DateFormat('dd-MMM-yyyy');
+
+    // Targets and mastered targets per domain, first spelling wins.
+    final byDomain = <String, List<TargetProgress>>{};
+    for (final t in targets) {
+      final key = byDomain.keys.firstWhere((k) => _sameDomain(k, t.domain),
+          orElse: () => t.domain.trim());
+      (byDomain[key] ??= []).add(t);
+    }
+    final domainNames = byDomain.keys.toList()
+      ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+    final recentlyMastered = targets.where((t) => t.mastered).toList()
+      ..sort((a, b) => b.masteredOn!.compareTo(a.masteredOn!));
+
+    const headStyle = TextStyle(fontWeight: FontWeight.bold, fontSize: 12);
+    Widget stat(String label, String value) => Container(
+          width: 160,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFAF5FF),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: const Color(0xFFE9D5FF)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(value,
+                  style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF7E22CE))),
+              const SizedBox(height: 2),
+              Text(label,
+                  style: const TextStyle(
+                      fontSize: 11, color: AppColors.textSecondary)),
+            ],
+          ),
+        );
+
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(Breakpoints.isCompact(context) ? 16 : 24),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
       ),
-      child: const Column(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('IEP Daily Session Takeaways & Objectives',
+          const Text('IEP Daily Session Takeaways & Objectives',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-          SizedBox(height: 16),
+          const SizedBox(height: 8),
           Text(
-              'Session summary notes and clinical objectives tracked for parent and supervisor review.',
-              style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+              sessionDates.isEmpty
+                  ? 'No skill sessions recorded for this student yet.'
+                  : 'Sessions from ${dateFmt.format(sessionDates.first)} '
+                      'to ${dateFmt.format(sessionDates.last)}.',
+              style: const TextStyle(
+                  color: AppColors.textSecondary, fontSize: 13)),
+          if (_records.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: [
+                stat('Session days', '${sessionDates.length}'),
+                stat('Targets', '${targets.length}'),
+                stat('Mastered',
+                    '${targets.where((t) => t.mastered).length}'),
+                stat('In acquisition',
+                    '${targets.where((t) => !t.mastered).length}'),
+                stat('Behaviour incidents', '${behaviourRows.length}'),
+              ],
+            ),
+          ],
+          if (domainNames.isNotEmpty) ...[
+            const SizedBox(height: 20),
+            const Text('Targets by domain', style: headStyle),
+            const SizedBox(height: 8),
+            Table(
+              border: TableBorder.all(color: const Color(0xFFE9D5FF)),
+              children: [
+                const TableRow(
+                  decoration: BoxDecoration(color: Color(0xFFFAF5FF)),
+                  children: [
+                    Padding(
+                        padding: EdgeInsets.all(8),
+                        child: Text('Domain', style: headStyle)),
+                    Padding(
+                        padding: EdgeInsets.all(8),
+                        child: Text('Targets', style: headStyle)),
+                    Padding(
+                        padding: EdgeInsets.all(8),
+                        child: Text('Mastered', style: headStyle)),
+                  ],
+                ),
+                for (final d in domainNames)
+                  TableRow(
+                    children: [
+                      Padding(
+                          padding: const EdgeInsets.all(8),
+                          child:
+                              Text(d, style: const TextStyle(fontSize: 12))),
+                      Padding(
+                          padding: const EdgeInsets.all(8),
+                          child: Text('${byDomain[d]!.length}',
+                              style: const TextStyle(fontSize: 12))),
+                      Padding(
+                          padding: const EdgeInsets.all(8),
+                          child: Text(
+                              '${byDomain[d]!.where((t) => t.mastered).length}',
+                              style: const TextStyle(fontSize: 12))),
+                    ],
+                  ),
+              ],
+            ),
+          ],
+          if (recentlyMastered.isNotEmpty) ...[
+            const SizedBox(height: 20),
+            const Text('Recently mastered', style: headStyle),
+            const SizedBox(height: 8),
+            for (final t in recentlyMastered.take(5))
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Text(
+                    '${t.target} (${t.domain}) · ${dateFmt.format(t.masteredOn!)}',
+                    style: const TextStyle(fontSize: 12)),
+              ),
+          ],
         ],
       ),
     );
@@ -2321,15 +2729,19 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
         onTap: onTap, borderRadius: BorderRadius.circular(16), child: pill);
   }
 
-  /// ABC "dropdown + Note: field" row. Side by side when there is room,
-  /// otherwise the note field drops below the dropdown.
-  Widget _buildDropdownWithNote({
+  /// White 200px dropdown for the ABC form. An empty [value] shows [hint];
+  /// a saved value that is not one of [options] is added so it still shows.
+  Widget _buildOptionDropdown({
     required String value,
     required List<String> options,
+    required String hint,
     required ValueChanged<String> onSelected,
-    required ValueChanged<String> onNoteChanged,
   }) {
-    final dropdown = Container(
+    final items = [
+      ...options,
+      if (value.isNotEmpty && !options.contains(value)) value,
+    ];
+    return Container(
       height: 38,
       width: 200,
       padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -2339,16 +2751,36 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
           border: Border.all(color: const Color(0xFFE9D5FF))),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
-          value: value,
-          items: options
+          value: value.isEmpty ? null : value,
+          isExpanded: true,
+          hint: Text(hint, style: const TextStyle(fontSize: 12)),
+          items: items
               .map((o) => DropdownMenuItem(
                   value: o,
-                  child: Text(o, style: const TextStyle(fontSize: 12))))
+                  child: Text(o,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 12))))
               .toList(),
-          onChanged: (val) => onSelected(val!),
+          onChanged: (val) {
+            if (val != null) onSelected(val);
+          },
         ),
       ),
     );
+  }
+
+  /// ABC "dropdown + Note: field" row. Side by side when there is room,
+  /// otherwise the note field drops below the dropdown.
+  Widget _buildDropdownWithNote({
+    required String value,
+    required List<String> options,
+    required String hint,
+    required String note,
+    required ValueChanged<String> onSelected,
+    required ValueChanged<String> onNoteChanged,
+  }) {
+    final dropdown = _buildOptionDropdown(
+        value: value, options: options, hint: hint, onSelected: onSelected);
     final noteRow = <Widget>[
       const Text('Note:',
           style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
@@ -2360,7 +2792,8 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
               color: Colors.white,
               borderRadius: BorderRadius.circular(8),
               border: Border.all(color: const Color(0xFFE9D5FF))),
-          child: TextField(
+          child: TextFormField(
+            initialValue: note,
             decoration: const InputDecoration(
                 border: InputBorder.none,
                 contentPadding:
@@ -2465,18 +2898,13 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
   }
 
   Widget _buildDttDomainTargets(String domainKey, String emptyMessage) {
-    final targets = _dttTargets.where((t) {
-      final d = (t['domain'] ?? '').toString().toLowerCase();
-      if (domainKey == 'mand') return d.contains('mand');
-      if (domainKey == 'listener') return d.contains('listener');
-      if (domainKey == 'tact') return d.contains('tact');
-      if (domainKey == 'vp') {
-        return d.contains('vp') ||
-            d.contains('visual') ||
-            d.contains('matching');
-      }
-      return false;
-    }).toList();
+    final targets =
+        _dttForDate().where((t) => _dttSection(t) == domainKey).toList();
+    // Introduced / mastered dates of each target, keyed like targetKey().
+    final progress = {
+      for (final p in targetProgress(_records))
+        '${p.domain.trim().toLowerCase()}|${p.target.trim().toLowerCase()}': p,
+    };
 
     if (targets.isEmpty) {
       return Padding(
@@ -2484,6 +2912,7 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
         child: Center(
           child: Text(
             emptyMessage,
+            textAlign: TextAlign.center,
             style: const TextStyle(
                 color: Colors.black54,
                 fontStyle: FontStyle.italic,
@@ -2499,7 +2928,9 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
         final prompt = (t['prompt'] ?? '').toString();
         final trials = t['trials'] ?? 0;
         final success = t['success'] ?? 0;
-        final pct = (t['pct'] ?? '0.00').toString();
+        final pct = (t['pct'] ?? '0').toString();
+        final tp = progress['${(t['domain'] ?? '').toString().trim().toLowerCase()}'
+            '|${target.trim().toLowerCase()}'];
 
         return Container(
           margin: const EdgeInsets.symmetric(vertical: 4),
@@ -2526,6 +2957,23 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
                     'Prompt Level: $prompt',
                     style: const TextStyle(fontSize: 11, color: Colors.black54),
                   ),
+                  if (tp != null) ...[
+                    const SizedBox(height: 4),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      children: [
+                        if (tp.firstSession != null)
+                          _buildDateTag(
+                              'Introduced ${_labelFmt.format(tp.firstSession!)}',
+                              const Color(0xFFB91C1C)),
+                        if (tp.masteredOn != null)
+                          _buildDateTag(
+                              'Mastered ${_labelFmt.format(tp.masteredOn!)}',
+                              const Color(0xFF15803D)),
+                      ],
+                    ),
+                  ],
                 ],
               );
               final trialsChip = Container(
@@ -2587,6 +3035,20 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
           ),
         );
       }).toList(),
+    );
+  }
+
+  /// Small coloured label matching the DTT legend (introduced / mastered).
+  Widget _buildDateTag(String text, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(text,
+          style: const TextStyle(
+              fontSize: 10, fontWeight: FontWeight.w600, color: Colors.white)),
     );
   }
 

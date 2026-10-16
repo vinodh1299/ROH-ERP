@@ -28,19 +28,8 @@ class _TransitionAssessmentPageState extends State<TransitionAssessmentPage> {
 
   /// Area scores per test number, keyed "1".."7". Records are applied
   /// oldest first, so a newer save overrides the areas it scored.
-  Map<int, Map<String, int>> get _scoresPerTest {
-    final records = [..._transitionRecords]
-      ..sort((a, b) => recordId(a).compareTo(recordId(b)));
-    final perTest = <int, Map<String, int>>{};
-    for (final r in records) {
-      final scores = perTest[recordTestNumber(r)] ??= {};
-      jsonColumnMap(r['area_scores']).forEach((area, v) {
-        final score = int.tryParse(v.toString());
-        if (score != null) scores[area] = score;
-      });
-    }
-    return perTest;
-  }
+  Map<int, Map<String, int>> get _scoresPerTest =>
+      scoresPerTest(_transitionRecords, 'area_scores');
 
   /// Scores as last loaded, per test; only changed tests are saved.
   Map<int, Map<String, int>> _loadedScores = {};
@@ -136,20 +125,19 @@ class _TransitionAssessmentPageState extends State<TransitionAssessmentPage> {
     );
   }
 
-  /// Latest saved score for each area ("1".."7"). Records are applied
-  /// oldest first, so a later partial entry only overrides the areas it scored.
-  Map<String, int> get _latestAreaScores {
-    final records = [..._transitionRecords]
-      ..sort((a, b) => recordId(a).compareTo(recordId(b)));
-    final scores = <String, int>{};
-    for (final r in records) {
-      jsonColumnMap(r['area_scores']).forEach((area, v) {
-        final score = int.tryParse(v.toString());
-        if (score != null) scores[area] = score;
-      });
-    }
-    return scores;
+  /// The latest assessment: the highest test number with saved scores.
+  int? get _latestTest {
+    final tests = _scoresPerTest.entries
+        .where((e) => e.value.isNotEmpty)
+        .map((e) => e.key)
+        .toList()
+      ..sort();
+    return tests.isEmpty ? null : tests.last;
   }
+
+  /// Area scores ("1".."7") of the latest test.
+  Map<String, int> get _latestAreaScores =>
+      _latestTest == null ? {} : _scoresPerTest[_latestTest]!;
 
   int _resolveStudentId(String name) {
     final lower = name.toLowerCase();
@@ -369,6 +357,7 @@ class _TransitionAssessmentPageState extends State<TransitionAssessmentPage> {
             // Student Assessment Banner
             StudentAssessmentBanner(
               studentName: _selectedStudent ?? 'Student',
+              records: _transitionRecords,
             ),
             const SizedBox(height: 20),
 
@@ -459,6 +448,7 @@ class _TransitionAssessmentPageState extends State<TransitionAssessmentPage> {
       children: [
         StudentAssessmentBanner(
           studentName: _selectedStudent ?? 'Student',
+          records: _transitionRecords,
         ),
         const SizedBox(height: 24),
         Container(
@@ -480,6 +470,16 @@ class _TransitionAssessmentPageState extends State<TransitionAssessmentPage> {
                   color: AppColors.textPrimary,
                   fontFamily: 'Poppins',
                 ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                _latestTest == null
+                    ? 'No transition assessment saved yet.'
+                    : 'Showing the latest test: '
+                        '${_testLabels[_latestTest! - 1]} '
+                        '(${assessmentDateFor(newestRecordForTest(_transitionRecords, _latestTest!))})',
+                style: const TextStyle(
+                    fontSize: 12, color: AppColors.textSecondary),
               ),
               const SizedBox(height: 20),
               for (int i = 0; i < _transitionAreas.length; i++) ...[

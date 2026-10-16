@@ -5,6 +5,8 @@ import 'package:provider/provider.dart';
 import 'package:roh_erp/core/constants/app_colors.dart';
 import 'package:roh_erp/core/layout/responsive.dart';
 import 'package:roh_erp/core/models/schedule_model.dart';
+import 'package:roh_erp/core/services/db_queries.dart';
+import 'package:roh_erp/core/services/progress_metrics.dart';
 import 'package:roh_erp/core/services/schedule_service.dart';
 import 'package:roh_erp/features/auth/auth_service.dart';
 import 'widgets/parent_request_appointment_dialog.dart';
@@ -23,6 +25,36 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
   String get _childName {
     final students = ScheduleService.centerStudents;
     return students.isNotEmpty ? (students.first['name'] as String) : '';
+  }
+
+  String get _childId {
+    final students = ScheduleService.centerStudents;
+    return students.isNotEmpty ? '${students.first['id'] ?? ''}' : '';
+  }
+
+  // Mastered-target count for the child, loaded from daily data sheets
+  // without blocking the rest of the page.
+  String? _masteryLoadedFor;
+  int? _masteredTargets;
+  bool _masteryLoading = false;
+
+  void _ensureMasteryLoaded() {
+    final id = _childId;
+    if (id.isEmpty || id == _masteryLoadedFor) return;
+    _masteryLoadedFor = id;
+    _masteryLoading = true;
+    _masteredTargets = null;
+    DailyDataQueries.fetchForStudent(id).then((rows) {
+      if (!mounted || _masteryLoadedFor != id) return;
+      final childRows =
+          rows.where((r) => '${r['student_id']}' == id).toList();
+      setState(() {
+        _masteredTargets = childRows.isEmpty
+            ? null
+            : targetProgress(childRows).where((t) => t.mastered).length;
+        _masteryLoading = false;
+      });
+    });
   }
 
   void _openAppointmentDialog(String parentName) {
@@ -48,9 +80,7 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
     final allStudentSessions = _childName.isNotEmpty
         ? scheduleService.getSessionsForStudent(_childName)
         : <TherapySession>[];
-    final completedSessionsCount = allStudentSessions
-        .where((s) => s.status == SessionStatus.completed)
-        .length;
+    _ensureMasteryLoaded();
 
     // Director appointments for parent / student
     final parentAppointments = _childName.isNotEmpty
@@ -92,8 +122,7 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
                   const SizedBox(height: 24),
 
                   // Child's Clinical KPI Summary
-                  _buildClinicalKpiCard(
-                      allStudentSessions.length, completedSessionsCount),
+                  _buildClinicalKpiCard(allStudentSessions),
                 ],
               );
 
@@ -922,7 +951,21 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
   }
 
   // ── 5. Child's Clinical KPI Summary Card ───
-  Widget _buildClinicalKpiCard(int totalSessions, int completedSessions) {
+  Widget _buildClinicalKpiCard(List<TherapySession> sessions) {
+    final totalSessions = sessions.length;
+    final completedSessions =
+        sessions.where((s) => s.status == SessionStatus.completed).length;
+    // Attendance = completed / sessions dated up to today that are no
+    // longer upcoming (future and still-upcoming sessions are excluded).
+    final now = DateTime.now();
+    final endOfToday = DateTime(now.year, now.month, now.day + 1);
+    final dueSessions = sessions
+        .where((s) =>
+            s.date.isBefore(endOfToday) && s.status != SessionStatus.upcoming)
+        .length;
+    final attendance = dueSessions == 0
+        ? '—'
+        : '${(completedSessions / dueSessions * 100).round()}%';
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -969,15 +1012,19 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
 
               final stat1 = _buildKpiBox(
                 'Mastered Targets',
-                totalSessions > 0 ? '42' : '0',
-                totalSessions > 0 ? 'VB-MAPP Domains' : 'No active targets',
+                _masteryLoading ? '…' : (_masteredTargets?.toString() ?? '—'),
+                _masteryLoading
+                    ? 'Loading data sheets'
+                    : (_masteredTargets == null
+                        ? 'No data sheets yet'
+                        : 'Skill targets at 80%+ criteria'),
                 Colors.green,
               );
               final stat2 = _buildKpiBox(
                 'Total Sessions',
                 '$completedSessions / $totalSessions',
                 totalSessions > 0
-                    ? 'Attendance: 100%'
+                    ? 'Attendance: $attendance'
                     : 'No sessions scheduled',
                 AppColors.primary,
               );

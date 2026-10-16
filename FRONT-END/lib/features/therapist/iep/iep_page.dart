@@ -22,6 +22,22 @@ class _IepPageState extends State<IepPage> {
   // sign-off and its goals were written by this page. Otherwise a save
   // creates a new plan.
   int? _editableIepId;
+  // VB-MAPP domain scores stored on the latest plan, e.g. "Mand 3 · Tact 1".
+  String? _savedDomainScores;
+  DateTime? _studentDob; // from the IEP rows (student_dob)
+
+  String get _dobText => _studentDob == null
+      ? '—'
+      : '${_studentDob!.year}-${_studentDob!.month.toString().padLeft(2, '0')}-${_studentDob!.day.toString().padLeft(2, '0')}';
+
+  String get _ageText {
+    final dob = _studentDob;
+    if (dob == null) return '—';
+    final now = DateTime.now();
+    var months = (now.year - dob.year) * 12 + now.month - dob.month;
+    if (now.day < dob.day) months--;
+    return '${months ~/ 12} years ${months % 12} months';
+  }
   // Latest IEP's goals when they were not written by this page (free text).
   String? _previousSummary;
 
@@ -86,8 +102,11 @@ class _IepPageState extends State<IepPage> {
     if (studentId == null) return;
     final reports = await IepQueries.fetchAll();
     Map<String, dynamic>? latest;
+    DateTime? dob;
     for (final r in reports) {
       if (r['student_id']?.toString() != '$studentId') continue;
+      dob ??= DateTime.tryParse(
+          (r['student_dob'] ?? '').toString().split('T').first);
       final id = int.tryParse(r['id']?.toString() ?? '') ?? 0;
       if (latest == null ||
           id > (int.tryParse(latest['id']?.toString() ?? '') ?? 0)) {
@@ -98,6 +117,16 @@ class _IepPageState extends State<IepPage> {
     setState(() {
       _savedStatus = latest?['status']?.toString();
       _savedTitle = latest?['title']?.toString();
+      _studentDob = dob;
+      _savedDomainScores = latest == null
+          ? null
+          : [
+              ('Mand', 'manding_score'),
+              ('Tact', 'tacting_score'),
+              ('Listener', 'listener_score'),
+              ('Echoic', 'echoic_score'),
+              ('LRFFC', 'lrffc_score'),
+            ].map((d) => '${d.$1} ${latest![d.$2] ?? 0}').join(' · ');
       final summary = (latest?['goals_summary'] ?? '').toString().trim();
       _restoreGoals(summary);
       _previousSummary =
@@ -345,6 +374,8 @@ class _IepPageState extends State<IepPage> {
             _savedTitle = null;
             _previousSummary = null;
             _editableIepId = null;
+            _savedDomainScores = null;
+            _studentDob = null;
             _mandingGoals.clear();
             _tactingGoals.clear();
           });
@@ -431,6 +462,15 @@ class _IepPageState extends State<IepPage> {
           ),
           const SizedBox(height: 12),
 
+          if (_savedDomainScores != null) ...[
+            Text(
+              'VB-MAPP milestone scores on this plan (from the latest '
+              'milestone assessment when saved): $_savedDomainScores',
+              style: const TextStyle(
+                  fontSize: 12, color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 12),
+          ],
           if (_previousSummary != null) ...[
             Container(
               width: double.infinity,
@@ -551,14 +591,14 @@ class _IepPageState extends State<IepPage> {
                 ),
               ),
               const SizedBox(height: 8),
-              const Text(
-                'Date of Birth : —',
-                style: TextStyle(fontSize: 12, color: Colors.white70),
+              Text(
+                'Date of Birth : $_dobText',
+                style: const TextStyle(fontSize: 12, color: Colors.white70),
               ),
               const SizedBox(height: 4),
-              const Text(
-                'Age : —',
-                style: TextStyle(fontSize: 12, color: Colors.white70),
+              Text(
+                'Age : $_ageText',
+                style: const TextStyle(fontSize: 12, color: Colors.white70),
               ),
             ],
           );

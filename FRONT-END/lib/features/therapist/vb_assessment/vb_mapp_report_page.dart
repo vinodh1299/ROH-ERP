@@ -4,6 +4,7 @@ import '../../../core/layout/responsive.dart';
 import '../../../core/services/db_queries.dart';
 import '../widgets/student_card_grid.dart';
 import '../widgets/student_assessment_banner.dart';
+import 'assessment_records.dart';
 import 'milestone_matrix.dart';
 
 class VbMappReportPage extends StatefulWidget {
@@ -19,56 +20,21 @@ class _VbMappReportPageState extends State<VbMappReportPage> {
   int _activeMilestoneLevel = 1; // 1, 2, or 3
   int? _selectedStudentId;
   List<Map<String, dynamic>> _milestoneRecords = [];
+  List<Map<String, dynamic>> _barrierRecords = [];
 
   Future<void> _loadMilestoneData() async {
     final studentId = _selectedStudentId;
     if (studentId == null) return;
-    final res = await MilestoneAssessmentQueries.fetchForStudent('$studentId');
-    if (mounted) setState(() => _milestoneRecords = res);
+    final results = await Future.wait([
+      MilestoneAssessmentQueries.fetchForStudent('$studentId'),
+      BarriersAssessmentQueries.fetchForStudent('$studentId'),
+    ]);
+    if (!mounted) return;
+    setState(() {
+      _milestoneRecords = results[0];
+      _barrierRecords = results[1];
+    });
   }
-
-  final List<String> _level1Columns = [
-    'Mand',
-    'Tact',
-    'Listener',
-    'VP/ MTS',
-    'Play',
-    'Social',
-    'Imitation',
-    'Echoic',
-    'Vocal'
-  ];
-
-  final List<String> _level2Columns = [
-    'Mand',
-    'Tact',
-    'Listener',
-    'VP/ MTS',
-    'Play',
-    'Social',
-    'Imitation',
-    'Echoic',
-    'LRFFC',
-    'Intraverbal',
-    'Group',
-    'Linguistics'
-  ];
-
-  final List<String> _level3Columns = [
-    'Mand',
-    'Tact',
-    'Listener',
-    'VP/ MTS',
-    'Play',
-    'Social',
-    'Reading',
-    'LRFFC',
-    'writing',
-    'Intraverbal',
-    'Group',
-    'Linguistics',
-    'Math'
-  ];
 
   final List<String> _barrierChartTitles = [
     'Behaviour Problems',
@@ -128,6 +94,7 @@ class _VbMappReportPageState extends State<VbMappReportPage> {
             _selectedStudent = student;
             _selectedStudentId = studentId;
             _milestoneRecords = [];
+            _barrierRecords = [];
           });
           _loadMilestoneData();
         },
@@ -216,7 +183,10 @@ class _VbMappReportPageState extends State<VbMappReportPage> {
           const SizedBox(height: 20),
 
           // Student Assessment Banner
-          StudentAssessmentBanner(studentName: _selectedStudent!),
+          StudentAssessmentBanner(
+            studentName: _selectedStudent!,
+            records: _isBarrierMode ? _barrierRecords : _milestoneRecords,
+          ),
           const SizedBox(height: 24),
 
           // Render Either Barriers Master Scoring Grid OR Milestones Master Scoring Chart
@@ -276,11 +246,8 @@ class _VbMappReportPageState extends State<VbMappReportPage> {
     );
   }
 
-  int _activeColumnCount() {
-    if (_activeMilestoneLevel == 1) return _level1Columns.length;
-    if (_activeMilestoneLevel == 2) return _level2Columns.length;
-    return _level3Columns.length;
-  }
+  int _activeColumnCount() =>
+      milestoneLevelColumns[_activeMilestoneLevel]!.length;
 
   Widget _buildLevelTab(String label, int level) {
     final isSelected = _activeMilestoneLevel == level;
@@ -318,14 +285,7 @@ class _VbMappReportPageState extends State<VbMappReportPage> {
   }
 
   Widget _buildMilestoneMatrix() {
-    List<String> cols;
-    if (_activeMilestoneLevel == 1) {
-      cols = _level1Columns;
-    } else if (_activeMilestoneLevel == 2) {
-      cols = _level2Columns;
-    } else {
-      cols = _level3Columns;
-    }
+    final cols = milestoneLevelColumns[_activeMilestoneLevel]!;
     // Highest milestone of the level on top (e.g. Level 2: 10 down to 6).
     final topRow = _activeMilestoneLevel * 5;
 
@@ -406,6 +366,7 @@ class _VbMappReportPageState extends State<VbMappReportPage> {
         if (constraints.maxWidth < 600) crossAxisCount = 2;
         if (constraints.maxWidth < 300) crossAxisCount = 1;
 
+        final barrierScores = scoresPerTest(_barrierRecords, 'barrier_scores');
         return GridView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
@@ -440,7 +401,8 @@ class _VbMappReportPageState extends State<VbMappReportPage> {
                   ),
                   const SizedBox(height: 8),
                   Expanded(
-                    child: _buildBarrierMasterGrid(),
+                    child: _buildBarrierMasterGrid(
+                        _barrierChartTitles[index], barrierScores),
                   ),
                 ],
               ),
@@ -451,17 +413,25 @@ class _VbMappReportPageState extends State<VbMappReportPage> {
     );
   }
 
-  Widget _buildBarrierMasterGrid() {
+  /// Same chart as the Barriers graph: rows are ratings 4 (top) to 0, one
+  /// column per test, filled up to that test's score for [title].
+  Widget _buildBarrierMasterGrid(
+      String title, Map<int, Map<String, int>> scoresPerTest) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final cellWidth = constraints.maxWidth / 4;
         final cellHeight = constraints.maxHeight / 5;
 
         return Column(
-          children: List.generate(5, (_) {
+          children: List.generate(5, (rowIndex) {
+            final rating = 4 - rowIndex;
             return Row(
               children: List.generate(4, (colIndex) {
-                Color cellColor = Colors.transparent;
+                final test = colIndex + 1;
+                final score = scoresPerTest[test]?[title] ?? 0;
+                final cellColor = rating > 0 && score >= rating
+                    ? milestoneTestColors[test]!
+                    : Colors.transparent;
 
                 return Container(
                   width: cellWidth,

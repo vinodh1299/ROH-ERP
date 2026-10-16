@@ -8,6 +8,8 @@ import '../../auth/auth_service.dart';
 import 'widgets/schedule_therapist_session_dialog.dart';
 
 import 'package:roh_erp/core/services/api_service.dart';
+import 'package:roh_erp/core/services/progress_metrics.dart';
+import '../../shared_progress/progress_data.dart';
 
 class DirectorDashboardPage extends StatefulWidget {
   const DirectorDashboardPage({super.key});
@@ -21,6 +23,7 @@ class _DirectorDashboardPageState extends State<DirectorDashboardPage> {
   List<Map<String, dynamic>> _therapists = [];
   List<Map<String, dynamic>> _iepReports = [];
   bool _isLoading = true;
+  ProgressData? _progress; // daily data + milestones for the KPI cards
 
   @override
   void initState() {
@@ -33,12 +36,14 @@ class _DirectorDashboardPageState extends State<DirectorDashboardPage> {
       final sRes = await ApiService().get('get_students');
       final tRes = await ApiService().get('get_therapists');
       final iRes = await ApiService().get('get_iep_reports');
+      final progress = await ProgressData.load();
 
       if (mounted) {
         setState(() {
           if (sRes is List) _students = List<Map<String, dynamic>>.from(sRes);
           if (tRes is List) _therapists = List<Map<String, dynamic>>.from(tRes);
           if (iRes is List) _iepReports = List<Map<String, dynamic>>.from(iRes);
+          _progress = progress;
           _isLoading = false;
         });
       }
@@ -64,6 +69,24 @@ class _DirectorDashboardPageState extends State<DirectorDashboardPage> {
         '${now.day.toString().padLeft(2, '0')}-${now.month.toString().padLeft(2, '0')}-${now.year} ${dayNames[now.weekday - 1]}';
 
     final enrolledCount = _students.length;
+    // KPI figures from real records (same rules as Student Progress).
+    final since = DateTime.now().subtract(const Duration(days: 30));
+    final masteredLast30 = _progress?.targets
+            .where((t) => t.masteredOn != null && t.masteredOn!.isAfter(since))
+            .length ??
+        0;
+    final pendingIeps = _iepReports
+        .where((r) => (r['status'] ?? '').toString() == 'Pending Approval')
+        .length;
+    int completed30 = 0, successful30 = 0;
+    for (final r in _progress?.dailyRows ?? const <Map<String, dynamic>>[]) {
+      final d = rowDate(r);
+      if (!isSkillRow(r) || d == null || d.isBefore(since)) continue;
+      completed30 += int.tryParse('${r['trials_completed']}') ?? 0;
+      successful30 += int.tryParse('${r['trials_successful']}') ?? 0;
+    }
+    final double? avgSuccess30 =
+        completed30 > 0 ? successful30 / completed30 * 100 : null;
     const maxCapacity = 30;
     final capacityPercent =
         maxCapacity > 0 ? (enrolledCount / maxCapacity * 100).toInt() : 0;
@@ -139,28 +162,26 @@ class _DirectorDashboardPageState extends State<DirectorDashboardPage> {
                 ),
                 _KpiStatCard(
                   label: 'Mastery Velocity',
-                  value: enrolledCount > 0
-                      ? '${enrolledCount * 10} Targets'
-                      : '0 Targets',
-                  subtext: enrolledCount > 0
-                      ? '+18.4% this quarter'
-                      : 'No active targets',
+                  value: _progress == null ? '—' : '$masteredLast30 Targets',
+                  subtext: 'mastered in the last 30 days',
                   icon: Icons.trending_up,
                   color: Colors.green,
                 ),
                 _KpiStatCard(
-                  label: 'Audit Compliance',
-                  value: enrolledCount > 0 ? '96.4%' : '100.0%',
-                  subtext: 'Clinical Governance',
+                  label: 'IEPs Awaiting Sign-off',
+                  value: '$pendingIeps',
+                  subtext: pendingIeps > 0
+                      ? 'Pending director approval'
+                      : 'No plans waiting',
                   icon: Icons.verified_user_outlined,
                   color: Colors.blue,
                 ),
                 _KpiStatCard(
-                  label: 'BACB Supervised',
-                  value: enrolledCount > 0 ? '42.5 hrs' : '0.0 hrs',
-                  subtext: enrolledCount > 0
-                      ? '5.2% ratio (Compliant)'
-                      : 'No sessions recorded',
+                  label: 'Avg Trial Success',
+                  value: avgSuccess30 == null
+                      ? '—'
+                      : '${avgSuccess30.toStringAsFixed(0)}%',
+                  subtext: 'skill trials, last 30 days',
                   icon: Icons.access_time_outlined,
                   color: Colors.teal,
                 ),
