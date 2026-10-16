@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:roh_erp/core/constants/app_colors.dart';
 import '../../../core/layout/responsive.dart';
+import '../../../core/services/db_queries.dart';
 import '../widgets/student_card_grid.dart';
 import '../widgets/student_assessment_banner.dart';
 
@@ -13,9 +14,104 @@ class EesAssessmentPage extends StatefulWidget {
 
 class _EesAssessmentPageState extends State<EesAssessmentPage> {
   String? _selectedStudent;
+  int? _selectedStudentId;
+  List<Map<String, dynamic>> _eesaRecords = [];
+  int _testNumber = 1; // which of the 4 assessments this probe is
+  bool _saving = false;
+  static const _testLabels = ['1ST', '2ND', '3RD', '4TH'];
 
   // Track response state: 0 = None, 1 = No, 2 = Yes, 3 = Half
   final Map<String, int> _responses = {};
+  static const _responseNames = {1: 'No', 2: 'Yes', 3: 'Half'};
+
+  /// Yes = 1 point, Half = 1/2 point, No / unscored = 0.
+  double _groupScore(String prefix) {
+    var total = 0.0;
+    _responses.forEach((key, v) {
+      if (!key.startsWith('${prefix}_')) return;
+      if (v == 2) total += 1;
+      if (v == 3) total += 0.5;
+    });
+    return total;
+  }
+
+  String _formatScore(double v) =>
+      v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(1);
+
+  Future<void> _loadEesaData() async {
+    final studentId = _selectedStudentId;
+    if (studentId == null) return;
+    final res = await EesaAssessmentQueries.fetchForStudent('$studentId');
+    if (mounted) setState(() => _eesaRecords = res);
+  }
+
+  /// Group 1 score of the latest saved record for [testNum], if any.
+  double? _savedGroup1Score(int testNum) {
+    Map<String, dynamic>? latest;
+    for (final r in _eesaRecords) {
+      if ((int.tryParse(r['test_number']?.toString() ?? '') ?? 1) != testNum) {
+        continue;
+      }
+      final id = int.tryParse(r['id']?.toString() ?? '') ?? 0;
+      if (latest == null ||
+          id > (int.tryParse(latest['id']?.toString() ?? '') ?? 0)) {
+        latest = r;
+      }
+    }
+    if (latest == null) return null;
+    return double.tryParse(latest['group1_score']?.toString() ?? '');
+  }
+
+  Map<String, String> _groupResponses(String prefix, List<String> items) => {
+        for (int i = 0; i < items.length; i++)
+          if (_responseNames.containsKey(_responses['${prefix}_$i']))
+            items[i]: _responseNames[_responses['${prefix}_$i']]!,
+      };
+
+  Future<void> _saveEesaAssessment() async {
+    final studentId = _selectedStudentId;
+    if (studentId == null || _saving) return;
+    if (_responses.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Score at least one item before saving.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+    setState(() => _saving = true);
+    final g1 = _groupScore('g1');
+    final g2 = _groupScore('g2');
+    final ok = await EesaAssessmentQueries.save({
+      'student_id': studentId,
+      'test_number': _testNumber,
+      'assessment_date': DateTime.now().toIso8601String().substring(0, 10),
+      'group1_score': g1,
+      'group2_score': g2,
+      'total_score': g1 + g2,
+      'responses': {
+        'group1': _groupResponses('g1', _group1Items),
+        'group2': _groupResponses('g2', _group2Items),
+      },
+    });
+    if (!mounted) return;
+    setState(() => _saving = false);
+    if (!ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not save the EES assessment. Please try again.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('EES Assessment Saved Successfully!')),
+    );
+    setState(() => _responses.clear());
+    await _loadEesaData();
+  }
 
   final List<String> _group1Items = [
     'ah',
@@ -73,7 +169,12 @@ class _EesAssessmentPageState extends State<EesAssessmentPage> {
         onStudentAction: (student, studentId) {
           setState(() {
             _selectedStudent = student;
+            _selectedStudentId = studentId;
+            _eesaRecords = [];
+            _responses.clear();
+            _testNumber = 1;
           });
+          _loadEesaData();
         },
       );
     }
@@ -172,43 +273,43 @@ class _EesAssessmentPageState extends State<EesAssessmentPage> {
           const SizedBox(height: 24),
 
           // Buttons Row
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              OutlinedButton(
-                onPressed: () => setState(() => _selectedStudent = null),
-                style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: AppColors.primary),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8)),
+          SizedBox(
+            width: double.infinity,
+            child: Wrap(
+              alignment: WrapAlignment.end,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 16,
+              runSpacing: 12,
+              children: [
+                _buildTestSelector(),
+                OutlinedButton(
+                  onPressed: () => setState(() => _selectedStudent = null),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: AppColors.primary),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8)),
+                  ),
+                  child: const Text('Cancel',
+                      style: TextStyle(
+                          color: AppColors.primary, fontWeight: FontWeight.bold)),
                 ),
-                child: const Text('Cancel',
-                    style: TextStyle(
-                        color: AppColors.primary, fontWeight: FontWeight.bold)),
-              ),
-              const SizedBox(width: 16),
-              ElevatedButton(
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                        content: Text('EES Assessment Saved Successfully!')),
-                  );
-                  setState(() => _selectedStudent = null);
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8)),
+                ElevatedButton(
+                  onPressed: _saving ? null : _saveEesaAssessment,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8)),
+                  ),
+                  child: Text(_saving ? 'Saving…' : 'Save',
+                      style: const TextStyle(
+                          color: Colors.white, fontWeight: FontWeight.bold)),
                 ),
-                child: const Text('Save',
-                    style: TextStyle(
-                        color: Colors.white, fontWeight: FontWeight.bold)),
-              ),
-            ],
+              ],
+            ),
           ),
           const SizedBox(height: 40),
         ],
@@ -275,13 +376,10 @@ class _EesAssessmentPageState extends State<EesAssessmentPage> {
                         color: AppColors.textPrimary),
                   ),
                   const SizedBox(height: 10),
-                  _buildScoreRow('1ST'),
-                  const SizedBox(height: 6),
-                  _buildScoreRow('2ND'),
-                  const SizedBox(height: 6),
-                  _buildScoreRow('3RD'),
-                  const SizedBox(height: 6),
-                  _buildScoreRow('4TH'),
+                  for (int t = 1; t <= 4; t++) ...[
+                    if (t > 1) const SizedBox(height: 6),
+                    _buildScoreRow(t),
+                  ],
                 ],
               );
               if (constraints.maxWidth < 600) {
@@ -427,6 +525,17 @@ class _EesAssessmentPageState extends State<EesAssessmentPage> {
             for (int i = 0; i < _group2Items.length; i++)
               _buildSyllableItem('g2_$i', _group2Items[i]),
           ]),
+          const SizedBox(height: 16),
+          Align(
+            alignment: Alignment.centerRight,
+            child: Text(
+              'Sub Total Group - 2: ${_formatScore(_groupScore('g2'))}',
+              style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary),
+            ),
+          ),
         ],
       ),
     );
@@ -517,7 +626,47 @@ class _EesAssessmentPageState extends State<EesAssessmentPage> {
     );
   }
 
-  Widget _buildScoreRow(String label) {
+  Widget _buildTestSelector() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.divider),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<int>(
+          value: _testNumber,
+          isDense: true,
+          icon: const Icon(Icons.keyboard_arrow_down, color: AppColors.primary),
+          items: [
+            for (int t = 1; t <= 4; t++)
+              DropdownMenuItem(
+                value: t,
+                child: Text('${_testLabels[t - 1]} Assessment',
+                    style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                        color: AppColors.textPrimary)),
+              ),
+          ],
+          onChanged: (val) {
+            if (val != null) setState(() => _testNumber = val);
+          },
+        ),
+      ),
+    );
+  }
+
+  /// Group 1 score for test [testNum]: the live score for the test being
+  /// administered (once scoring has started), otherwise the latest saved one.
+  Widget _buildScoreRow(int testNum) {
+    final label = _testLabels[testNum - 1];
+    final isCurrent = testNum == _testNumber && _responses.isNotEmpty;
+    final saved = _savedGroup1Score(testNum);
+    final value = isCurrent
+        ? _formatScore(_groupScore('g1'))
+        : (saved == null ? '–' : _formatScore(saved));
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
@@ -545,11 +694,13 @@ class _EesAssessmentPageState extends State<EesAssessmentPage> {
             border: Border.all(color: AppColors.divider),
           ),
           alignment: Alignment.center,
-          child: const TextField(
-            textAlign: TextAlign.center,
-            decoration: InputDecoration(
-                border: InputBorder.none, contentPadding: EdgeInsets.zero),
-            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+          child: Text(
+            value,
+            style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color:
+                    isCurrent ? AppColors.primary : AppColors.textPrimary),
           ),
         ),
       ],

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:roh_erp/core/constants/app_colors.dart';
 import '../../../core/layout/responsive.dart';
+import '../../../core/services/db_queries.dart';
 import '../widgets/student_card_grid.dart';
 import '../widgets/student_assessment_banner.dart';
 
@@ -14,6 +15,110 @@ class PreferenceAssessmentPage extends StatefulWidget {
 
 class _PreferenceAssessmentPageState extends State<PreferenceAssessmentPage> {
   String? _selectedStudent;
+  int? _selectedStudentId;
+  bool _saving = false;
+  String? _lastSavedDate;
+
+  /// UI section → preference_assessments.category
+  static const Map<String, String> _categoryValues = {
+    'EDIBLE REINFORCERS': 'Edible',
+    'TOYS & MATERIAL REINFORCERS': 'Toys/Materials',
+    'SOCIAL REINFORCERS': 'Social',
+    'ACTIVITY REINFORCERS': 'Other',
+  };
+
+  String _sectionFor(String category) => _categoryValues.entries
+      .firstWhere((e) => e.value == category,
+          orElse: () => _categoryValues.entries.last)
+      .key;
+
+  String _itemId(String section, String item) => '$section|$item';
+
+  /// Details of items from the last saved snapshot (keyed by _itemId), so
+  /// re-saving keeps their category, rating, rank and notes.
+  final Map<String, Map<String, dynamic>> _savedItems = {};
+
+  /// Restores the checked items from the student's latest saved snapshot.
+  Future<void> _loadPreferences() async {
+    final studentId = _selectedStudentId;
+    if (studentId == null) return;
+    final rows = await PreferenceAssessmentQueries.fetchForStudent('$studentId');
+    if (!mounted || rows.isEmpty) return;
+    // Rows come newest first; keep only the latest assessment date.
+    final latestDate =
+        (rows.first['assessment_date'] ?? '').toString().split('T').first;
+    setState(() {
+      _lastSavedDate = latestDate;
+      _checkedItems.clear();
+      _savedItems.clear();
+      for (final r in rows) {
+        if ((r['assessment_date'] ?? '').toString().split('T').first !=
+            latestDate) {
+          continue;
+        }
+        final section = _sectionFor((r['category'] ?? '').toString());
+        final item = (r['item_name'] ?? '').toString();
+        if (item.isEmpty) continue;
+        final list = _reinforcers[section]!;
+        if (!list.contains(item)) list.add(item);
+        _checkedItems.add(_itemId(section, item));
+        _savedItems[_itemId(section, item)] = {
+          'category': r['category'],
+          'rating': r['rating'],
+          'hierarchy_rank': r['hierarchy_rank'],
+          'notes': r['notes'],
+        };
+      }
+    });
+  }
+
+  Future<void> _savePreferences() async {
+    final studentId = _selectedStudentId;
+    if (studentId == null || _saving) return;
+    final items = <Map<String, dynamic>>[
+      for (final entry in _reinforcers.entries)
+        for (final item in entry.value)
+          if (_checkedItems.contains(_itemId(entry.key, item)))
+            {
+              'category': _categoryValues[entry.key] ?? 'Other',
+              'rating': 5,
+              'hierarchy_rank': 'High-Preference Primary Reinforcer',
+              ...?_savedItems[_itemId(entry.key, item)],
+              'item_name': item,
+            },
+    ];
+    if (items.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Tick at least one preferred item before saving.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+    setState(() => _saving = true);
+    final ok = await PreferenceAssessmentQueries.save({
+      'student_id': studentId,
+      'assessment_date': DateTime.now().toIso8601String().substring(0, 10),
+      'items': items,
+    });
+    if (!mounted) return;
+    setState(() => _saving = false);
+    if (!ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+              'Could not save the preference assessment. Please try again.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Preference Assessment Saved Successfully!')),
+    );
+    await _loadPreferences();
+  }
 
   final Map<String, List<String>> _reinforcers = {
     'EDIBLE REINFORCERS': [
@@ -173,7 +278,12 @@ class _PreferenceAssessmentPageState extends State<PreferenceAssessmentPage> {
         onStudentAction: (student, studentId) {
           setState(() {
             _selectedStudent = student;
+            _selectedStudentId = studentId;
+            _lastSavedDate = null;
+            _checkedItems.clear();
+            _savedItems.clear();
           });
+          _loadPreferences();
         },
       );
     }
@@ -213,6 +323,14 @@ class _PreferenceAssessmentPageState extends State<PreferenceAssessmentPage> {
             studentName: _selectedStudent ?? 'Student',
           ),
           const SizedBox(height: 20),
+          if (_lastSavedDate != null) ...[
+            Text(
+              'Showing preferences saved on $_lastSavedDate',
+              style: const TextStyle(
+                  fontSize: 12, color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 12),
+          ],
 
           // 4 Category sections
           for (final entry in _reinforcers.entries) ...[
@@ -240,14 +358,7 @@ class _PreferenceAssessmentPageState extends State<PreferenceAssessmentPage> {
               ),
               const SizedBox(width: 16),
               ElevatedButton(
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                        content:
-                            Text('Preference Assessment Saved Successfully!')),
-                  );
-                  setState(() => _selectedStudent = null);
-                },
+                onPressed: _saving ? null : _savePreferences,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
                   padding:
@@ -255,8 +366,8 @@ class _PreferenceAssessmentPageState extends State<PreferenceAssessmentPage> {
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8)),
                 ),
-                child: const Text('Save',
-                    style: TextStyle(
+                child: Text(_saving ? 'Saving…' : 'Save',
+                    style: const TextStyle(
                         color: Colors.white, fontWeight: FontWeight.bold)),
               ),
             ],
@@ -342,7 +453,8 @@ class _PreferenceAssessmentPageState extends State<PreferenceAssessmentPage> {
                   for (int i = 0; i < items.length; i++)
                     SizedBox(
                       width: itemWidth,
-                      child: _buildCheckboxItem('${category}_$i', items[i]),
+                      child: _buildCheckboxItem(
+                          _itemId(category, items[i]), items[i]),
                     ),
                 ],
               );

@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:roh_erp/core/constants/app_colors.dart';
@@ -70,6 +71,15 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
   // ABC Data Sheet
   final List<Map<String, dynamic>> _abcIncidents = [];
 
+  // BRP (Behaviour Reduction Plan) form
+  final TextEditingController _brpFormController = TextEditingController();
+  final TextEditingController _brpFunctionController = TextEditingController();
+  final TextEditingController _brpMeasurementController =
+      TextEditingController();
+
+  bool _savingManding = false;
+  bool _savingBrp = false;
+
   // PB Graph State
   String _pbGraphType = 'Behavior Data';
   final List<Map<String, dynamic>> _pbDurationData = [];
@@ -117,6 +127,9 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
   @override
   void dispose() {
     _tabScroll.dispose();
+    _brpFormController.dispose();
+    _brpFunctionController.dispose();
+    _brpMeasurementController.dispose();
     super.dispose();
   }
 
@@ -160,6 +173,9 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
       _selectedStudent = studentName;
       _selectedStudentId = id ?? _resolveStudentId(studentName);
       _activeTab = 0;
+      _brpFormController.clear();
+      _brpFunctionController.clear();
+      _brpMeasurementController.clear();
       _loadStudentData();
     });
   }
@@ -202,15 +218,37 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
                 (r['target_skill'] ?? 'Target Skill').toString();
             final prompt = (r['prompt_level'] ?? 'Independent').toString();
             final notes = (r['notes'] ?? '').toString();
+            Map<String, dynamic> notesJson = {};
+            try {
+              final decoded = jsonDecode(notes);
+              if (decoded is Map) notesJson = Map<String, dynamic>.from(decoded);
+            } catch (_) {}
+
+            // 0. BRP — not trial data; the latest one fills the BRP form.
+            if (domainLower == 'brp') {
+              _brpFormController.text = (notesJson['form'] ?? '').toString();
+              _brpFunctionController.text =
+                  (notesJson['function'] ?? '').toString();
+              _brpMeasurementController.text =
+                  (notesJson['measurement'] ?? '').toString();
+              continue;
+            }
 
             // 1. Manding Sheet & Manding Graph
             if (domainLower == 'manding') {
-              final counts = List.generate(10, (idx) {
-                if (idx < successful) return 1;
-                if (idx < completed) return 2;
-                return 0;
-              });
+              // Sheets saved from this tab carry the exact per-column counts.
+              final savedCounts = notesJson['counts'];
+              final counts = savedCounts is List && savedCounts.length == 10
+                  ? savedCounts
+                      .map((c) => int.tryParse(c.toString()) ?? 0)
+                      .toList()
+                  : List.generate(10, (idx) {
+                      if (idx < successful) return 1;
+                      if (idx < completed) return 2;
+                      return 0;
+                    });
               _mandingRows.add({
+                'id': r['id'],
                 'label': targetSkill,
                 'counts': counts,
               });
@@ -344,6 +382,121 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
         'isExpanded': true,
       });
     });
+  }
+
+  /// Converts a 'MM/dd/yyyy' filter date to the API's 'yyyy-MM-dd'.
+  String _apiDate(String mmddyyyy) {
+    try {
+      return DateFormat('yyyy-MM-dd')
+          .format(DateFormat('MM/dd/yyyy').parseStrict(mmddyyyy));
+    } catch (_) {
+      return DateFormat('yyyy-MM-dd').format(DateTime.now());
+    }
+  }
+
+  void _showSnack(String message, {bool error = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+          content: Text(message),
+          backgroundColor: error ? Colors.red : null),
+    );
+  }
+
+  /// Most intrusive prompt used in a manding row (columns: FP, PP, FM/FV,
+  /// PM/PV, F3, F5, F6, F6, Error, Vocal).
+  String _mandPromptLevel(List<int> counts) {
+    if (counts[0] + counts[1] > 0) return 'Physical';
+    if (counts[2] + counts[3] > 0) return 'Verbal';
+    if (counts.sublist(4, 8).any((c) => c > 0)) return 'Gestural';
+    return 'Independent';
+  }
+
+  /// Saves the manding rows added this session (rows loaded from the server
+  /// are already stored and are shown read-only).
+  Future<void> _saveMandingSheet() async {
+    final studentId = _selectedStudentId;
+    if (studentId == null || _savingManding) return;
+    final newRows = _mandingRows
+        .where((r) =>
+            r['id'] == null && (r['counts'] as List<int>).any((c) => c > 0))
+        .toList();
+    if (newRows.isEmpty) {
+      _showSnack('Record at least one trial in a new row before saving.',
+          error: true);
+      return;
+    }
+    setState(() => _savingManding = true);
+    final ok = await DailyDataQueries.saveSheet(
+      studentId: studentId,
+      sessionDate: _apiDate(_mandingDate),
+      rows: [
+        for (final r in newRows)
+          () {
+            final counts = r['counts'] as List<int>;
+            // Same split as the summary bar: the first 8 columns are prompted.
+            final unprompted = counts.sublist(8).fold<int>(0, (a, b) => a + b);
+            return <String, dynamic>{
+              'domain': 'Manding',
+              'target_skill': r['label'] ?? 'Mand',
+              'prompt_level': _mandPromptLevel(counts),
+              'trials_completed': counts.fold<int>(0, (a, b) => a + b),
+              'trials_successful': unprompted,
+              'notes': jsonEncode({
+                'counts': counts,
+                'time_in': _mandingTimeIn,
+                'time_out': _mandingTimeOut,
+              }),
+            };
+          }(),
+      ],
+    );
+    if (!mounted) return;
+    setState(() => _savingManding = false);
+    if (!ok) {
+      _showSnack('Could not save the session data. Please try again.',
+          error: true);
+      return;
+    }
+    _showSnack('Session data saved successfully.');
+    await _loadStudentData();
+  }
+
+  Future<void> _saveBrp() async {
+    final studentId = _selectedStudentId;
+    if (studentId == null || _savingBrp) return;
+    final form = _brpFormController.text.trim();
+    final function = _brpFunctionController.text.trim();
+    final measurement = _brpMeasurementController.text.trim();
+    if (form.isEmpty && function.isEmpty && measurement.isEmpty) {
+      _showSnack('Fill in the plan before saving.', error: true);
+      return;
+    }
+    setState(() => _savingBrp = true);
+    final ok = await DailyDataQueries.saveSheet(
+      studentId: studentId,
+      sessionDate: DateFormat('yyyy-MM-dd').format(DateTime.now()),
+      rows: [
+        {
+          'domain': 'BRP',
+          'target_skill': form.isEmpty ? 'Behaviour Reduction Plan' : form,
+          'trials_completed': 0,
+          'trials_successful': 0,
+          'notes': jsonEncode({
+            'form': form,
+            'function': function,
+            'measurement': measurement,
+          }),
+        },
+      ],
+    );
+    if (!mounted) return;
+    setState(() => _savingBrp = false);
+    if (!ok) {
+      _showSnack('Could not save the BRP. Please try again.', error: true);
+      return;
+    }
+    _showSnack('Behaviour Reduction Plan saved successfully.');
+    await _loadStudentData();
   }
 
   void _addNewMandRow() {
@@ -703,7 +856,8 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
                                     children: [
                                       GestureDetector(
                                         onTap: () {
-                                          if (counts[colIdx] > 0) {
+                                          if (row['id'] == null &&
+                                              counts[colIdx] > 0) {
                                             setState(() => counts[colIdx]--);
                                           }
                                         },
@@ -729,6 +883,7 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
                                               fontSize: 12)),
                                       GestureDetector(
                                         onTap: () {
+                                          if (row['id'] != null) return;
                                           setState(() => counts[colIdx]++);
                                         },
                                         child: Container(
@@ -819,12 +974,7 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
                 child: const Text('Cancel'),
               ),
               ElevatedButton(
-                onPressed: () async {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                        content: Text('Session data saved successfully.')),
-                  );
-                },
+                onPressed: _savingManding ? null : _saveMandingSheet,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF9333EA),
                   foregroundColor: Colors.white,
@@ -833,7 +983,7 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 28, vertical: 12),
                 ),
-                child: const Text('Save'),
+                child: Text(_savingManding ? 'Saving…' : 'Save'),
               ),
             ],
           ),
@@ -1709,9 +1859,10 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
               color: Colors.white,
               borderRadius: BorderRadius.circular(8),
               border: Border.all(color: const Color(0xFFE9D5FF))),
-          child: const TextField(
+          child: TextField(
+            controller: _brpFormController,
             maxLines: 2,
-            decoration: InputDecoration(
+            decoration: const InputDecoration(
                 border: InputBorder.none,
                 contentPadding: EdgeInsets.all(12),
                 hintText:
@@ -1734,9 +1885,10 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
               color: Colors.white,
               borderRadius: BorderRadius.circular(8),
               border: Border.all(color: const Color(0xFFE9D5FF))),
-          child: const TextField(
+          child: TextField(
+            controller: _brpFunctionController,
             maxLines: 2,
-            decoration: InputDecoration(
+            decoration: const InputDecoration(
                 border: InputBorder.none,
                 contentPadding: EdgeInsets.all(12),
                 hintText: 'Identify maintaining variables and functions...'),
@@ -1753,9 +1905,10 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
               color: Colors.white,
               borderRadius: BorderRadius.circular(8),
               border: Border.all(color: const Color(0xFFE9D5FF))),
-          child: const TextField(
+          child: TextField(
+            controller: _brpMeasurementController,
             maxLines: 2,
-            decoration: InputDecoration(
+            decoration: const InputDecoration(
                 border: InputBorder.none,
                 contentPadding: EdgeInsets.all(12),
                 hintText:
@@ -1784,7 +1937,7 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
                 child: const Text('Cancel'),
               ),
               ElevatedButton(
-                onPressed: () {},
+                onPressed: _savingBrp ? null : _saveBrp,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF9333EA),
                   foregroundColor: Colors.white,
@@ -1793,7 +1946,7 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                 ),
-                child: const Text('Save'),
+                child: Text(_savingBrp ? 'Saving…' : 'Save'),
               ),
               ElevatedButton(
                 onPressed: () {},

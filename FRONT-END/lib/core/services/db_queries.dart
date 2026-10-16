@@ -308,7 +308,7 @@ class MilestoneAssessmentQueries {
       final result = await _api.post('save_milestone_assessment', data);
       if (result is Map && result['error'] == null) return true;
     } catch (_) {}
-    return true;
+    return false;
   }
 }
 
@@ -329,7 +329,7 @@ class BarriersAssessmentQueries {
       final result = await _api.post('save_barriers_assessment', data);
       if (result is Map && result['error'] == null) return true;
     } catch (_) {}
-    return true;
+    return false;
   }
 }
 
@@ -350,7 +350,7 @@ class TransitionAssessmentQueries {
       final result = await _api.post('save_transition_assessment', data);
       if (result is Map && result['error'] == null) return true;
     } catch (_) {}
-    return true;
+    return false;
   }
 }
 
@@ -371,7 +371,30 @@ class EesaAssessmentQueries {
       final result = await _api.post('save_eesa_assessment', data);
       if (result is Map && result['error'] == null) return true;
     } catch (_) {}
-    return true;
+    return false;
+  }
+}
+
+/// Preference (reinforcer) Assessments — one row per preferred item
+class PreferenceAssessmentQueries {
+  static Future<List<Map<String, dynamic>>> fetchForStudent(String studentId) async {
+    try {
+      final result = await _api.get('get_preference_assessments', params: {'student_id': studentId});
+      if (result is List) {
+        return result.map((e) => Map<String, dynamic>.from(e)).toList();
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  /// [data] carries student_id, assessment_date and `items`
+  /// (each {category, item_name, rating, hierarchy_rank, notes}).
+  static Future<bool> save(Map<String, dynamic> data) async {
+    try {
+      final result = await _api.post('save_preference_assessment', data);
+      if (result is Map && result['error'] == null) return true;
+    } catch (_) {}
+    return false;
   }
 }
 
@@ -406,7 +429,24 @@ class DailyDataQueries {
       final result = await _api.post('save_daily_data', data);
       if (result is Map && result['error'] == null) return true;
     } catch (_) {}
-    return true;
+    return false;
+  }
+
+  /// Saves several target/trial rows for one session in a single request.
+  static Future<bool> saveSheet({
+    required int studentId,
+    required String sessionDate,
+    required List<Map<String, dynamic>> rows,
+  }) async {
+    try {
+      final result = await _api.post('save_daily_data_sheet', {
+        'student_id': studentId,
+        'session_date': sessionDate,
+        'rows': rows,
+      });
+      if (result is Map && result['error'] == null) return true;
+    } catch (_) {}
+    return false;
   }
 }
 

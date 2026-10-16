@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:roh_erp/core/constants/app_colors.dart';
 import '../../../core/layout/responsive.dart';
 import '../../../core/services/db_queries.dart';
@@ -19,6 +20,109 @@ class _TransitionAssessmentPageState extends State<TransitionAssessmentPage> {
   int? _selectedStudentId;
   int _activeTab = 0; // 0: Assessment, 1: Graph
   List<Map<String, dynamic>> _transitionRecords = [];
+  bool _saving = false;
+  static const _testLabels = ['1ST', '2ND', '3RD', '4TH'];
+
+  /// Score boxes keyed '<area number 1..7>|<test number>'.
+  final Map<String, TextEditingController> _scoreControllers = {};
+
+  TextEditingController _scoreController(int area, int testNum) =>
+      _scoreControllers.putIfAbsent(
+          '$area|$testNum', () => TextEditingController());
+
+  @override
+  void dispose() {
+    for (final c in _scoreControllers.values) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  Future<void> _saveTransitionAssessment() async {
+    final studentId = _selectedStudentId;
+    if (studentId == null || _saving) return;
+
+    // area_scores is keyed "1".."7"; each filled value must be 1–5.
+    final byTest = <int, Map<String, int>>{};
+    for (int area = 1; area <= _transitionAreas.length; area++) {
+      for (int t = 1; t <= 4; t++) {
+        final text = _scoreController(area, t).text.trim();
+        if (text.isEmpty) continue;
+        final v = int.tryParse(text);
+        if (v == null || v < 1 || v > 5) {
+          _showError(
+              '"${_transitionAreas[area - 1]['title']}" ${_testLabels[t - 1]} score must be 1 to 5.');
+          return;
+        }
+        (byTest[t] ??= {})['$area'] = v;
+      }
+    }
+    if (byTest.isEmpty) {
+      _showError('Enter at least one area score before saving.');
+      return;
+    }
+
+    setState(() => _saving = true);
+    final date = DateTime.now().toIso8601String().substring(0, 10);
+    var ok = true;
+    for (final entry in byTest.entries) {
+      ok = await TransitionAssessmentQueries.save({
+        'student_id': studentId,
+        'test_number': entry.key,
+        'assessment_date': date,
+        'area_scores': entry.value,
+        'total_score': entry.value.values.fold<int>(0, (a, b) => a + b),
+        'max_score': _transitionAreas.length * 5,
+      });
+      if (!ok) break;
+    }
+    if (!mounted) return;
+    setState(() => _saving = false);
+    if (!ok) {
+      _showError('Could not save the transition assessment. Please try again.');
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Transition Assessment Saved Successfully!')),
+    );
+    for (final c in _scoreControllers.values) {
+      c.clear();
+    }
+    await _loadTransitionData();
+    if (mounted) setState(() => _activeTab = 1);
+  }
+
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: Colors.red),
+    );
+  }
+
+  /// Latest saved score for each area ("1".."7"). Records are applied
+  /// oldest first, so a later partial entry only overrides the areas it scored.
+  Map<String, int> get _latestAreaScores {
+    int idOf(Map<String, dynamic> r) =>
+        int.tryParse(r['id']?.toString() ?? '') ?? 0;
+    final records = [..._transitionRecords]
+      ..sort((a, b) => idOf(a).compareTo(idOf(b)));
+    final scores = <String, int>{};
+    for (final r in records) {
+      final rawArea = r['area_scores'];
+      Map<String, dynamic> areaMap = {};
+      if (rawArea is Map) {
+        areaMap = Map<String, dynamic>.from(rawArea);
+      } else if (rawArea is String && rawArea.isNotEmpty) {
+        try {
+          areaMap = Map<String, dynamic>.from(jsonDecode(rawArea));
+        } catch (_) {}
+      }
+      areaMap.forEach((area, v) {
+        final score = int.tryParse(v.toString());
+        if (score != null) scores[area] = score;
+      });
+    }
+    return scores;
+  }
 
   int _resolveStudentId(String name) {
     final lower = name.toLowerCase();
@@ -127,6 +231,11 @@ class _TransitionAssessmentPageState extends State<TransitionAssessmentPage> {
           setState(() {
             _selectedStudent = student;
             _selectedStudentId = studentId ?? _resolveStudentId(student);
+            _activeTab = 0;
+            _transitionRecords = [];
+            for (final c in _scoreControllers.values) {
+              c.clear();
+            }
             _loadTransitionData();
           });
         },
@@ -235,9 +344,11 @@ class _TransitionAssessmentPageState extends State<TransitionAssessmentPage> {
             const SizedBox(height: 20),
 
             // Transition assessment cards
-            for (final area in _transitionAreas) ...[
+            for (int i = 0; i < _transitionAreas.length; i++) ...[
               _buildTransitionCard(
-                  area['title'] as String, area['options'] as List<String>),
+                  i + 1,
+                  _transitionAreas[i]['title'] as String,
+                  _transitionAreas[i]['options'] as List<String>),
               const SizedBox(height: 16),
             ],
             const SizedBox(height: 16),
@@ -263,14 +374,7 @@ class _TransitionAssessmentPageState extends State<TransitionAssessmentPage> {
                 ),
                 const SizedBox(width: 16),
                 ElevatedButton(
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                          content: Text(
-                              'Transition Assessment Saved Successfully!')),
-                    );
-                    setState(() => _selectedStudent = null);
-                  },
+                  onPressed: _saving ? null : _saveTransitionAssessment,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
                     padding: const EdgeInsets.symmetric(
@@ -278,9 +382,9 @@ class _TransitionAssessmentPageState extends State<TransitionAssessmentPage> {
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8)),
                   ),
-                  child: const Text(
-                    'Save',
-                    style: TextStyle(
+                  child: Text(
+                    _saving ? 'Saving…' : 'Save',
+                    style: const TextStyle(
                         color: Colors.white, fontWeight: FontWeight.bold),
                   ),
                 ),
@@ -320,6 +424,7 @@ class _TransitionAssessmentPageState extends State<TransitionAssessmentPage> {
   }
 
   Widget _buildGraphView() {
+    final latestAreaScores = _latestAreaScores;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -351,24 +456,7 @@ class _TransitionAssessmentPageState extends State<TransitionAssessmentPage> {
               for (int i = 0; i < _transitionAreas.length; i++) ...[
                 Builder(
                   builder: (context) {
-                    int activeScore = 0;
-                    if (_transitionRecords.isNotEmpty) {
-                      // API returns tests in ascending test_number order; show the most recent one
-                      final lastRecord = _transitionRecords.last;
-                      final rawArea = lastRecord['area_scores'];
-                      Map<String, dynamic> areaMap = {};
-                      if (rawArea is Map) {
-                        areaMap = Map<String, dynamic>.from(rawArea);
-                      } else if (rawArea is String && rawArea.isNotEmpty) {
-                        try {
-                          areaMap =
-                              Map<String, dynamic>.from(jsonDecode(rawArea));
-                        } catch (_) {}
-                      }
-                      activeScore = int.tryParse(
-                              areaMap['${i + 1}']?.toString() ?? '0') ??
-                          0;
-                    }
+                    final activeScore = latestAreaScores['${i + 1}'] ?? 0;
 
                     final label = Text(
                       _transitionAreas[i]['title'] as String,
@@ -440,7 +528,8 @@ class _TransitionAssessmentPageState extends State<TransitionAssessmentPage> {
     );
   }
 
-  Widget _buildTransitionCard(String title, List<String> options) {
+  Widget _buildTransitionCard(
+      int areaNumber, String title, List<String> options) {
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
@@ -529,8 +618,9 @@ class _TransitionAssessmentPageState extends State<TransitionAssessmentPage> {
                   spacing: 16,
                   runSpacing: 8,
                   children: [
-                    for (final l in const ['1ST', '2ND', '3RD', '4TH'])
-                      _buildScoreInputRow(l),
+                    for (int t = 1; t <= 4; t++)
+                      _buildScoreInputRow(_testLabels[t - 1],
+                          _scoreController(areaNumber, t)),
                   ],
                 ),
               ],
@@ -550,13 +640,11 @@ class _TransitionAssessmentPageState extends State<TransitionAssessmentPage> {
                   children: [
                     scoreTitle,
                     const SizedBox(height: 12),
-                    _buildScoreInputRow('1ST'),
-                    const SizedBox(height: 8),
-                    _buildScoreInputRow('2ND'),
-                    const SizedBox(height: 8),
-                    _buildScoreInputRow('3RD'),
-                    const SizedBox(height: 8),
-                    _buildScoreInputRow('4TH'),
+                    for (int t = 1; t <= 4; t++) ...[
+                      if (t > 1) const SizedBox(height: 8),
+                      _buildScoreInputRow(_testLabels[t - 1],
+                          _scoreController(areaNumber, t)),
+                    ],
                   ],
                 ),
               ),
@@ -567,7 +655,7 @@ class _TransitionAssessmentPageState extends State<TransitionAssessmentPage> {
     );
   }
 
-  Widget _buildScoreInputRow(String label) {
+  Widget _buildScoreInputRow(String label, TextEditingController controller) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       mainAxisAlignment: MainAxisAlignment.center,
@@ -596,11 +684,19 @@ class _TransitionAssessmentPageState extends State<TransitionAssessmentPage> {
             border: Border.all(color: AppColors.divider),
           ),
           alignment: Alignment.center,
-          child: const TextField(
+          child: TextField(
+            controller: controller,
             textAlign: TextAlign.center,
-            decoration: InputDecoration(
-                border: InputBorder.none, contentPadding: EdgeInsets.zero),
-            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+            keyboardType: TextInputType.number,
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(RegExp('[1-5]')),
+              LengthLimitingTextInputFormatter(1),
+            ],
+            decoration: const InputDecoration(
+                hintText: '–',
+                border: InputBorder.none,
+                contentPadding: EdgeInsets.zero),
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
           ),
         ),
       ],
