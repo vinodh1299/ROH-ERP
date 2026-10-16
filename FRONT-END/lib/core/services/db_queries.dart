@@ -3,16 +3,6 @@ import 'api_service.dart';
 final _api = ApiService();
 
 // ════════════════════════════════════════════════════════════════════════════
-// IN-MEMORY MOCK DATABASE STORE FOR OFFLINE TESTING
-// ════════════════════════════════════════════════════════════════════════════
-class MockData {
-  static final List<Map<String, dynamic>> therapists = [];
-  static final List<Map<String, dynamic>> students = [];
-  static final List<Map<String, dynamic>> parents = [];
-  static final List<Map<String, dynamic>> iepReports = [];
-}
-
-// ════════════════════════════════════════════════════════════════════════════
 // AUTH
 // ════════════════════════════════════════════════════════════════════════════
 class AuthQueries {
@@ -41,10 +31,10 @@ class TherapistQueries {
     try {
       final result = await _api.get('get_therapists');
       if (result is List) {
-        return result.map((e) => Map<String, dynamic>.from(e)).toList();
+        return result.map((e) => Map<String, dynamic>.from(e as Map)).toList();
       }
     } catch (_) {}
-    return List<Map<String, dynamic>>.from(MockData.therapists);
+    return [];
   }
 
   /// Adds a new row to `users` with role = 'therapist'.
@@ -52,25 +42,41 @@ class TherapistQueries {
     required String name,
     required String email,
     String password = 'therapist123',
+    String designation = 'Behavior Therapist',
+    String? phone,
   }) async {
     try {
       final result = await _api.post('add_therapist', {
         'name': name,
         'email': email,
         'password': password,
+        'designation': designation,
+        if (phone != null) 'phone': phone,
       });
       if (result is Map && result['error'] == null) {
         return true;
       }
     } catch (_) {}
-    // Fallback: add to local mock data for offline testing
-    MockData.therapists.add({
-      'id': '${MockData.therapists.length + 1}',
-      'name': name,
-      'email': email,
-      'status': 'Active',
-    });
-    return true;
+    return false;
+  }
+
+  static Future<bool> update(Map<String, dynamic> data) async {
+    try {
+      final result = await _api.post('update_therapist', data);
+      return result is Map && result['error'] == null;
+    } catch (_) {}
+    return false;
+  }
+
+  static Future<bool> toggleStatus(int userId, String status) async {
+    try {
+      final result = await _api.post('toggle_therapist_status', {
+        'user_id': userId,
+        'status': status,
+      });
+      return result is Map && result['error'] == null;
+    } catch (_) {}
+    return false;
   }
 }
 
@@ -81,18 +87,18 @@ class ParentQueries {
   static Future<List<Map<String, dynamic>>> fetchAll() async {
     try {
       final result = await _api.get('get_parents');
-      if (result is List && result.isNotEmpty) {
-        return result.map((e) => Map<String, dynamic>.from(e)).toList();
+      if (result is List) {
+        return result.map((e) => Map<String, dynamic>.from(e as Map)).toList();
       }
     } catch (_) {}
-    return List<Map<String, dynamic>>.from(MockData.parents);
+    return [];
   }
 
   static Future<bool> add({
     required String name,
     required String email,
     required String phone,
-    required String childName,
+    String? childName,
     String password = 'parent123',
   }) async {
     try {
@@ -100,22 +106,33 @@ class ParentQueries {
         'name': name,
         'email': email,
         'phone': phone,
-        'child_name': childName,
+        if (childName != null) 'child_name': childName,
         'password': password,
       });
       if (result is Map && result['error'] == null) {
         return true;
       }
     } catch (_) {}
-    MockData.parents.add({
-      'id': '${MockData.parents.length + 1}',
-      'name': name,
-      'email': email,
-      'phone': phone,
-      'child_name': childName,
-      'status': 'Active',
-    });
-    return true;
+    return false;
+  }
+
+  static Future<bool> update(Map<String, dynamic> data) async {
+    try {
+      final result = await _api.post('update_parent', data);
+      return result is Map && result['error'] == null;
+    } catch (_) {}
+    return false;
+  }
+
+  static Future<bool> toggleStatus(int userId, String status) async {
+    try {
+      final result = await _api.post('toggle_parent_status', {
+        'user_id': userId,
+        'status': status,
+      });
+      return result is Map && result['error'] == null;
+    } catch (_) {}
+    return false;
   }
 }
 
@@ -128,10 +145,10 @@ class StudentQueries {
     try {
       final result = await _api.get('get_students_full');
       if (result is List) {
-        return result.map((e) => Map<String, dynamic>.from(e)).toList();
+        return result.map((e) => Map<String, dynamic>.from(e as Map)).toList();
       }
     } catch (_) {}
-    return List<Map<String, dynamic>>.from(MockData.students);
+    return [];
   }
 
   /// Adds a new student
@@ -142,29 +159,23 @@ class StudentQueries {
         return result;
       }
     } catch (_) {}
-    final newStudent = {
-      'id': '${MockData.students.length + 1}',
-      'name': data['first_name'] ?? data['name'] ?? 'New Student',
-      'dob': data['dob'] ?? '2019-01-01',
-      'phone_number': data['phone_number'] ?? '+1 (555) 010-9281',
-      'email': data['email'] ?? 'student@roh.com',
-      'parent_name': data['parent_name'] ?? 'Parent',
-      'status': 'Active',
-    };
-    MockData.students.add(newStudent);
-    return newStudent;
+    return null;
+  }
+
+  static Future<bool> update(Map<String, dynamic> data) async {
+    try {
+      final result = await _api.post('update_student', data);
+      return result is Map && result['error'] == null;
+    } catch (_) {}
+    return false;
   }
 
   static Future<bool> delete(String studentId) async {
     try {
       final result = await _api.get('delete_student', params: {'id': studentId});
-      if (result is Map && result['error'] == null) {
-        MockData.students.removeWhere((s) => '${s['id']}' == studentId);
-        return true;
-      }
+      return result is Map && result['error'] == null;
     } catch (_) {}
-    MockData.students.removeWhere((s) => '${s['id']}' == studentId);
-    return true;
+    return false;
   }
 
   // ── Medical info ──
@@ -259,10 +270,10 @@ class IepQueries {
     try {
       final result = await _api.get('get_iep_reports');
       if (result is List) {
-        return result.map((e) => Map<String, dynamic>.from(e)).toList();
+        return result.map((e) => Map<String, dynamic>.from(e as Map)).toList();
       }
     } catch (_) {}
-    return List<Map<String, dynamic>>.from(MockData.iepReports);
+    return [];
   }
 
   static Future<bool> save(Map<String, dynamic> data) async {
@@ -272,26 +283,19 @@ class IepQueries {
         return true;
       }
     } catch (_) {}
-    MockData.iepReports.add({
-      'id': '${MockData.iepReports.length + 1}',
-      'title': data['title'] ?? 'IEP Goal',
-      'student_name': data['student_name'] ?? 'Aarav Patel',
-      'goals': data['goals_summary'] ?? 'Updated IEP Goals',
-      'status': data['status'] ?? 'Pending Approval',
-      'created_date': DateTime.now().toString().split(' ')[0],
-    });
-    return true;
+    return false;
   }
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// VB ASSESSMENTS
+// DEDICATED CLINICAL ASSESSMENTS
 // ════════════════════════════════════════════════════════════════════════════
-class VbAssessmentQueries {
-  static Future<List<Map<String, dynamic>>> fetchForStudent(
-      String studentId) async {
+
+/// Milestone Assessments
+class MilestoneAssessmentQueries {
+  static Future<List<Map<String, dynamic>>> fetchForStudent(String studentId) async {
     try {
-      final result = await _api.get('get_vb_assessments', params: {'student_id': studentId});
+      final result = await _api.get('get_milestone_assessments', params: {'student_id': studentId});
       if (result is List) {
         return result.map((e) => Map<String, dynamic>.from(e)).toList();
       }
@@ -301,10 +305,84 @@ class VbAssessmentQueries {
 
   static Future<bool> save(Map<String, dynamic> data) async {
     try {
-      final result = await _api.post('save_vb_assessment', data);
+      final result = await _api.post('save_milestone_assessment', data);
       if (result is Map && result['error'] == null) return true;
     } catch (_) {}
     return true;
+  }
+}
+
+/// Barriers Assessments (24 Learning Barriers)
+class BarriersAssessmentQueries {
+  static Future<List<Map<String, dynamic>>> fetchForStudent(String studentId) async {
+    try {
+      final result = await _api.get('get_barriers_assessments', params: {'student_id': studentId});
+      if (result is List) {
+        return result.map((e) => Map<String, dynamic>.from(e)).toList();
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  static Future<bool> save(Map<String, dynamic> data) async {
+    try {
+      final result = await _api.post('save_barriers_assessment', data);
+      if (result is Map && result['error'] == null) return true;
+    } catch (_) {}
+    return true;
+  }
+}
+
+/// Transition Assessments (18 Readiness Areas)
+class TransitionAssessmentQueries {
+  static Future<List<Map<String, dynamic>>> fetchForStudent(String studentId) async {
+    try {
+      final result = await _api.get('get_transition_assessments', params: {'student_id': studentId});
+      if (result is List) {
+        return result.map((e) => Map<String, dynamic>.from(e)).toList();
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  static Future<bool> save(Map<String, dynamic> data) async {
+    try {
+      final result = await _api.post('save_transition_assessment', data);
+      if (result is Map && result['error'] == null) return true;
+    } catch (_) {}
+    return true;
+  }
+}
+
+/// Early Echoic Skills Assessments (EESA Groups 1 & 2)
+class EesaAssessmentQueries {
+  static Future<List<Map<String, dynamic>>> fetchForStudent(String studentId) async {
+    try {
+      final result = await _api.get('get_eesa_assessments', params: {'student_id': studentId});
+      if (result is List) {
+        return result.map((e) => Map<String, dynamic>.from(e)).toList();
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  static Future<bool> save(Map<String, dynamic> data) async {
+    try {
+      final result = await _api.post('save_eesa_assessment', data);
+      if (result is Map && result['error'] == null) return true;
+    } catch (_) {}
+    return true;
+  }
+}
+
+/// Legacy backward compatibility wrapper
+class VbAssessmentQueries {
+  static Future<List<Map<String, dynamic>>> fetchForStudent(String studentId) async {
+    return MilestoneAssessmentQueries.fetchForStudent(studentId);
+  }
+
+  static Future<bool> save(Map<String, dynamic> data) async {
+    return MilestoneAssessmentQueries.save(data);
   }
 }
 

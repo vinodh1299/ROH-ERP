@@ -27,9 +27,7 @@ class ScheduleService extends ChangeNotifier {
         _sessions.clear();
         for (final item in sessRes) {
           if (item is Map<String, dynamic>) {
-            final sDate = item['session_date'] != null
-                ? DateTime.tryParse(item['session_date'].toString()) ?? DateTime.now()
-                : DateTime.now();
+            final sDate = parseCalendarDate(item['session_date']);
             SessionStatus stat = SessionStatus.upcoming;
             if (item['status'] == 'completed') stat = SessionStatus.completed;
             if (item['status'] == 'inProgress') stat = SessionStatus.inProgress;
@@ -59,9 +57,7 @@ class ScheduleService extends ChangeNotifier {
         _directorAppointments.clear();
         for (final item in apptRes) {
           if (item is Map<String, dynamic>) {
-            final aDate = item['date'] != null
-                ? DateTime.tryParse(item['date'].toString()) ?? DateTime.now()
-                : DateTime.now();
+            final aDate = parseCalendarDate(item['date']);
             AppointmentType aType = AppointmentType.diagnosticIntake;
             final typeStr = item['appointment_type']?.toString() ?? '';
             if (typeStr.contains('iep')) aType = AppointmentType.iepReview;
@@ -164,6 +160,27 @@ class ScheduleService extends ChangeNotifier {
   static List<Map<String, String>> get centerTherapists => List.unmodifiable(_therapistsList);
   static List<Map<String, dynamic>> get centerStudents => List.unmodifiable(_studentsList);
 
+  /// Converts backend session_date/appointment date into a local calendar DateTime
+  /// regardless of whether it was serialized as 'YYYY-MM-DD', UTC ISO string, or SQL timestamp.
+  static DateTime parseCalendarDate(dynamic rawVal) {
+    if (rawVal == null) return DateTime.now();
+    final raw = rawVal.toString().trim();
+    if (raw.isEmpty) return DateTime.now();
+    final datePart = raw.contains('T')
+        ? raw.split('T')[0]
+        : (raw.contains(' ') ? raw.split(' ')[0] : raw);
+    final parts = datePart.split('-');
+    if (parts.length == 3) {
+      final y = int.tryParse(parts[0]);
+      final m = int.tryParse(parts[1]);
+      final d = int.tryParse(parts[2]);
+      if (y != null && m != null && d != null) {
+        return DateTime(y, m, d);
+      }
+    }
+    return DateTime.tryParse(raw)?.toLocal() ?? DateTime.now();
+  }
+
   // ──────────────────────────────────────────────────────────────────────────
   // THERAPIST SCHEDULE METHODS
   // ──────────────────────────────────────────────────────────────────────────
@@ -174,7 +191,9 @@ class ScheduleService extends ChangeNotifier {
       final isSameDate = s.date.year == targetDate.year &&
           s.date.month == targetDate.month &&
           s.date.day == targetDate.day;
-      final matchesTherapist = s.therapistId == therapistId || therapistId.isEmpty;
+      final matchesTherapist = therapistId.isEmpty ||
+          therapistId == '0' ||
+          s.therapistId == therapistId;
       return isSameDate && matchesTherapist;
     }).toList()
       ..sort((a, b) => a.startTime.compareTo(b.startTime));
@@ -190,35 +209,84 @@ class ScheduleService extends ChangeNotifier {
   }
 
   // Director schedules session for a therapist
-  bool scheduleTherapySession(TherapySession session) {
+  Future<bool> scheduleTherapySession(TherapySession session) async {
     // Check therapist time conflict
     final conflict = _sessions.any((s) =>
         s.therapistId == session.therapistId &&
         s.date.year == session.date.year &&
         s.date.month == session.date.month &&
         s.date.day == session.date.day &&
-        s.startTime == session.startTime);
+        s.startTime == session.startTime &&
+        s.status != SessionStatus.cancelled);
 
     if (conflict) {
       return false; // Conflict exists
     }
 
+    // Optimistic local add
     _sessions.add(session);
     notifyListeners();
-    return true;
+
+    try {
+      final res = await _api.post('save_therapy_session', {
+        'therapist_id': session.therapistId,
+        'student_id': session.studentId,
+        'session_date': session.date.toIso8601String().split('T')[0],
+        'start_time': session.startTime,
+        'end_time': session.endTime,
+        'room': session.room,
+        'program_title': session.programTitle,
+        'status': session.status.name,
+        'clinical_notes': session.notes,
+      });
+
+      if (res is Map && res['conflict'] == true) {
+        _sessions.remove(session);
+        notifyListeners();
+        return false;
+      }
+
+      // Trigger immediate notification refresh
+      NotificationService().fetchNotifications(silent: true);
+      await syncWithBackend();
+      return true;
+    } catch (e) {
+      debugPrint('ScheduleService save_therapy_session error: $e');
+      return true; // Keep optimistic state
+    }
   }
 
-  void updateSessionStatus(String sessionId, SessionStatus newStatus) {
+  Future<void> updateSessionStatus(String sessionId, SessionStatus newStatus) async {
     final index = _sessions.indexWhere((s) => s.id == sessionId);
     if (index != -1) {
       _sessions[index] = _sessions[index].copyWith(status: newStatus);
       notifyListeners();
     }
+
+    try {
+      await _api.post('update_therapy_session', {
+        'id': sessionId,
+        'status': newStatus.name,
+      });
+      NotificationService().fetchNotifications(silent: true);
+      await syncWithBackend();
+    } catch (e) {
+      debugPrint('ScheduleService updateSessionStatus error: $e');
+    }
   }
 
-  void deleteTherapySession(String sessionId) {
+  Future<void> deleteTherapySession(String sessionId) async {
     _sessions.removeWhere((s) => s.id == sessionId);
     notifyListeners();
+
+    try {
+      await _api.post('delete_therapy_session', {
+        'id': sessionId,
+      });
+      await syncWithBackend();
+    } catch (e) {
+      debugPrint('ScheduleService deleteTherapySession error: $e');
+    }
   }
 
   // ──────────────────────────────────────────────────────────────────────────

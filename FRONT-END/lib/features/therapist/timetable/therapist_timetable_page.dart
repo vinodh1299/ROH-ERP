@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:roh_erp/core/constants/app_colors.dart';
 import 'package:roh_erp/core/models/schedule_model.dart';
 import 'package:roh_erp/core/services/schedule_service.dart';
+import 'package:roh_erp/core/services/web_storage/web_storage.dart';
 import 'package:roh_erp/features/auth/auth_service.dart';
 
 class TherapistTimetablePage extends StatefulWidget {
@@ -26,7 +27,9 @@ class _TherapistTimetablePageState extends State<TherapistTimetablePage> {
     final clinicianName = auth.currentUser?.name.isNotEmpty == true
         ? auth.currentUser!.name
         : (ScheduleService.centerTherapists.isNotEmpty ? ScheduleService.centerTherapists.first['name']! : 'Clinician');
-    final therapistId = auth.currentUser?.id.toString() ?? 'T1';
+    final therapistId = (auth.currentUser?.id != null && auth.currentUser!.id > 0)
+        ? auth.currentUser!.id.toString()
+        : (getWebStorage('user_id') ?? '3');
 
     final scheduleService = context.watch<ScheduleService>();
     final sessions = scheduleService.getSessionsForTherapist(therapistId, date: _selectedDate);

@@ -8,3 +8,9 @@ String? getWebStorage(String key) => null;
 void removeWebStorage(String key) {}
 
 void clearAllWebStorage() {}
+
+void playWebNotificationSound() {}
+
+void requestWebNotificationPermission() {}
+
+void showWebSystemNotification(String title, String body, void Function() onClick) {}

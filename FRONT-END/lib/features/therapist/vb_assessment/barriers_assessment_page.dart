@@ -1,5 +1,7 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:roh_erp/core/constants/app_colors.dart';
+import '../../../core/services/db_queries.dart';
 import '../widgets/student_card_grid.dart';
 import '../widgets/student_assessment_banner.dart';
 
@@ -12,7 +14,32 @@ class BarriersAssessmentPage extends StatefulWidget {
 
 class _BarriersAssessmentPageState extends State<BarriersAssessmentPage> {
   String? _selectedStudent;
+  int? _selectedStudentId;
   int _activeTab = 0; // 0: Assessment, 1: Graph
+  List<Map<String, dynamic>> _barrierRecords = [];
+
+  int _resolveStudentId(String name) {
+    final lower = name.toLowerCase();
+    if (lower.contains('alex')) return 1;
+    if (lower.contains('aarav')) return 2;
+    if (lower.contains('emma')) return 3;
+    if (lower.contains('matt')) return 4;
+    if (lower.contains('rahul')) return 5;
+    if (lower.contains('sophia')) return 6;
+    return 1;
+  }
+
+  Future<void> _loadBarriersData() async {
+    if (_selectedStudentId == null) return;
+    try {
+      final res = await BarriersAssessmentQueries.fetchForStudent(_selectedStudentId.toString());
+      if (mounted) {
+        setState(() {
+          _barrierRecords = res;
+        });
+      }
+    } catch (_) {}
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -20,10 +47,12 @@ class _BarriersAssessmentPageState extends State<BarriersAssessmentPage> {
       return StudentCardGrid(
         title: 'Students VB MAPP Barriers Assessment',
         buttonLabel: 'Add',
-        onStudentAction: (student) {
+        onStudentAction: (student, studentId) {
           setState(() {
             _selectedStudent = student;
+            _selectedStudentId = studentId ?? _resolveStudentId(student);
             _activeTab = 0;
+            _loadBarriersData();
           });
         },
       );
@@ -372,7 +401,7 @@ class _BarriersAssessmentPageState extends State<BarriersAssessmentPage> {
                 childAspectRatio: 0.8,
               ),
               itemBuilder: (context, index) {
-                return _buildBarrierChartCard(chartTitles[index], index);
+                return _buildBarrierChartCard(chartTitles[index], index, chartTitles);
               },
             );
           },
@@ -382,7 +411,7 @@ class _BarriersAssessmentPageState extends State<BarriersAssessmentPage> {
     );
   }
 
-  Widget _buildBarrierChartCard(String title, int chartIndex) {
+  Widget _buildBarrierChartCard(String title, int chartIndex, List<String> chartTitles) {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -406,16 +435,16 @@ class _BarriersAssessmentPageState extends State<BarriersAssessmentPage> {
           ),
           const SizedBox(height: 8),
           Expanded(
-            child: _buildBarrierGrid(chartIndex),
+            child: _buildBarrierGrid(chartIndex, chartTitles),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildBarrierGrid(int chartIndex) {
-    // 5 rows (0 to 4), 4 columns (1st to 4th test)
-    // Row 4 is top, Row 0 is bottom
+  Widget _buildBarrierGrid(int chartIndex, List<String> chartTitles) {
+    final title = chartIndex < chartTitles.length ? chartTitles[chartIndex] : '';
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final cellWidth = constraints.maxWidth / 4;
@@ -423,18 +452,40 @@ class _BarriersAssessmentPageState extends State<BarriersAssessmentPage> {
 
         return Column(
           children: List.generate(5, (rowIndex) {
-            // rowIndex 0 is level 4, rowIndex 4 is level 0
-            final level = 4 - rowIndex;
+            // Row 0 is rating 4 (top), Row 4 is rating 0 (bottom)
+            final rating = 4 - rowIndex;
+
             return Row(
               children: List.generate(4, (colIndex) {
-                // colIndex 0 = 1st test (Green), 1 = 2nd test (Orange), 2 = 3rd (Red), 3 = 4th (Blue)
+                final testNum = colIndex + 1;
                 Color cellColor = Colors.transparent;
 
-                // Color simulation based on Figma
-                if (colIndex == 0 && level <= 1) {
-                  cellColor = const Color(0xFF10B981); // Green
-                } else if (colIndex == 1 && level == 0) {
-                  cellColor = const Color(0xFFF59E0B); // Orange
+                for (final r in _barrierRecords) {
+                  final tNum = int.tryParse(r['test_number']?.toString() ?? '1') ?? 1;
+                  if (tNum == testNum) {
+                    Map<String, dynamic> bMap = {};
+                    try {
+                      final rawScores = r['barrier_scores'];
+                      if (rawScores is Map) {
+                        bMap = Map<String, dynamic>.from(rawScores);
+                      } else if (rawScores is String && rawScores.isNotEmpty) {
+                        bMap = Map<String, dynamic>.from(jsonDecode(rawScores));
+                      }
+                    } catch (_) {}
+
+                    final score = int.tryParse(bMap[title]?.toString() ?? '0') ?? 0;
+                    if (score >= rating && rating > 0) {
+                      if (testNum == 1) {
+                        cellColor = const Color(0xFFFBBF24); // Yellow (1st Test)
+                      } else if (testNum == 2) {
+                        cellColor = const Color(0xFFF97316); // Orange (2nd Test)
+                      } else if (testNum == 3) {
+                        cellColor = const Color(0xFF10B981); // Green (3rd Test)
+                      } else if (testNum == 4) {
+                        cellColor = const Color(0xFF3B82F6); // Blue (4th Test)
+                      }
+                    }
+                  }
                 }
 
                 return Container(

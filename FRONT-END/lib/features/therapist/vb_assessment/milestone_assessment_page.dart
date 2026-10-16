@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:roh_erp/core/constants/app_colors.dart';
+import '../../../core/services/db_queries.dart';
 import '../widgets/student_card_grid.dart';
 import '../widgets/student_assessment_banner.dart';
 
@@ -12,25 +13,37 @@ class MilestoneAssessmentPage extends StatefulWidget {
 
 class _MilestoneAssessmentPageState extends State<MilestoneAssessmentPage> {
   String? _selectedStudent;
+  int? _selectedStudentId;
   int _activeTab = 0; // 0: Assessment, 1: Graph
   String _selectedAssessment = 'Assessment 1';
   int _selectedLevel = 1;
   int _activeMilestoneGraphLevel = 1;
+  List<Map<String, dynamic>> _milestoneRecords = [];
 
-  final Map<String, bool> _toggles = {
-    'l1_tact_1': true,
-    'l1_tact_2': false,
-    'l1_lr_1': true,
-    'l1_lr_2': true,
-    'l2_mand_1': true,
-    'l2_mand_2': false,
-    'l2_tact_1': true,
-    'l2_tact_2': true,
-    'l3_mand_1': true,
-    'l3_mand_2': false,
-    'l3_tact_1': true,
-    'l3_tact_2': true,
-  };
+  final Map<String, bool> _toggles = {};
+
+  int _resolveStudentId(String name) {
+    final lower = name.toLowerCase();
+    if (lower.contains('alex')) return 1;
+    if (lower.contains('aarav')) return 2;
+    if (lower.contains('emma')) return 3;
+    if (lower.contains('matt')) return 4;
+    if (lower.contains('rahul')) return 5;
+    if (lower.contains('sophia')) return 6;
+    return 1;
+  }
+
+  Future<void> _loadMilestoneData() async {
+    if (_selectedStudentId == null) return;
+    try {
+      final res = await MilestoneAssessmentQueries.fetchForStudent(_selectedStudentId.toString());
+      if (mounted) {
+        setState(() {
+          _milestoneRecords = res;
+        });
+      }
+    } catch (_) {}
+  }
 
   final List<String> _level1Columns = [
     'Mand', 'Tact', 'Listener', 'VP/ MTS', 'Play', 'Social', 'Imitation', 'Echoic', 'Vocal'
@@ -50,12 +63,14 @@ class _MilestoneAssessmentPageState extends State<MilestoneAssessmentPage> {
       return StudentCardGrid(
         title: 'Students VB MAPP Milestone Assessment',
         buttonLabel: 'Add',
-        onStudentAction: (student) {
+        onStudentAction: (student, studentId) {
           setState(() {
             _selectedStudent = student;
+            _selectedStudentId = studentId ?? _resolveStudentId(student);
             _activeTab = 0;
             _selectedLevel = 1;
             _activeMilestoneGraphLevel = 1;
+            _loadMilestoneData();
           });
         },
       );
@@ -650,6 +665,30 @@ class _MilestoneAssessmentPageState extends State<MilestoneAssessmentPage> {
   }
 
   Widget _buildBannerKeyTable() {
+    String t1Date = '—', t1Tester = '—';
+    String t2Date = '—', t2Tester = '—';
+    String t3Date = '—', t3Tester = '—';
+    String t4Date = '—', t4Tester = '—';
+
+    for (final m in _milestoneRecords) {
+      final tNum = int.tryParse(m['test_number']?.toString() ?? '1') ?? 1;
+      final d = (m['assessment_date'] ?? '').toString().split('T')[0];
+      const tName = 'Ms. Priya';
+      if (tNum == 1) {
+        t1Date = d;
+        t1Tester = tName;
+      } else if (tNum == 2) {
+        t2Date = d;
+        t2Tester = tName;
+      } else if (tNum == 3) {
+        t3Date = d;
+        t3Tester = tName;
+      } else if (tNum == 4) {
+        t4Date = d;
+        t4Tester = tName;
+      }
+    }
+
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
@@ -670,10 +709,10 @@ class _MilestoneAssessmentPageState extends State<MilestoneAssessmentPage> {
             ],
           ),
           const SizedBox(height: 4),
-          _buildKeyRow('1st Test', const Color(0xFFFBBF24), '21-03-2021', 'Kezia'),
-          _buildKeyRow('2nd Test', const Color(0xFFF97316), '21-03-2021', 'Kezia'),
-          _buildKeyRow('3rd Test', const Color(0xFF10B981), '21-03-2021', 'Kezia'),
-          _buildKeyRow('4th Test', const Color(0xFF3B82F6), '', ''),
+          _buildKeyRow('1st Test', const Color(0xFFFBBF24), t1Date, t1Tester),
+          _buildKeyRow('2nd Test', const Color(0xFFF97316), t2Date, t2Tester),
+          _buildKeyRow('3rd Test', const Color(0xFF10B981), t3Date, t3Tester),
+          _buildKeyRow('4th Test', const Color(0xFF3B82F6), t4Date, t4Tester),
         ],
       ),
     );
@@ -695,6 +734,27 @@ class _MilestoneAssessmentPageState extends State<MilestoneAssessmentPage> {
         ],
       ),
     );
+  }
+
+  double _getScoreForColumn(Map<String, dynamic> m, String colName) {
+    final lower = colName.toLowerCase();
+    if (lower.contains('mand')) return double.tryParse(m['manding_score']?.toString() ?? '0') ?? 0.0;
+    if (lower.contains('tact')) return double.tryParse(m['tacting_score']?.toString() ?? '0') ?? 0.0;
+    if (lower.contains('listener')) return double.tryParse(m['listener_score']?.toString() ?? '0') ?? 0.0;
+    if (lower.contains('vp') || lower.contains('mts')) return double.tryParse(m['vp_mts_score']?.toString() ?? '0') ?? 0.0;
+    if (lower.contains('play')) return double.tryParse(m['play_score']?.toString() ?? '0') ?? 0.0;
+    if (lower.contains('social')) return double.tryParse(m['social_score']?.toString() ?? '0') ?? 0.0;
+    if (lower.contains('imitation')) return double.tryParse(m['imitation_score']?.toString() ?? '0') ?? 0.0;
+    if (lower.contains('echoic')) return double.tryParse(m['echoic_score']?.toString() ?? '0') ?? 0.0;
+    if (lower.contains('vocal')) return double.tryParse(m['vocal_score']?.toString() ?? '0') ?? 0.0;
+    if (lower.contains('lrffc')) return double.tryParse(m['lrffc_score']?.toString() ?? '0') ?? 0.0;
+    if (lower.contains('intraverbal')) return double.tryParse(m['intraverbal_score']?.toString() ?? '0') ?? 0.0;
+    if (lower.contains('group')) return double.tryParse(m['group_score']?.toString() ?? '0') ?? 0.0;
+    if (lower.contains('linguistic')) return double.tryParse(m['linguistic_score']?.toString() ?? '0') ?? 0.0;
+    if (lower.contains('reading')) return double.tryParse(m['reading_score']?.toString() ?? '0') ?? 0.0;
+    if (lower.contains('writing')) return double.tryParse(m['writing_score']?.toString() ?? '0') ?? 0.0;
+    if (lower.contains('math')) return double.tryParse(m['math_score']?.toString() ?? '0') ?? 0.0;
+    return 0.0;
   }
 
   Widget _buildMilestoneMatrixCard(String title, List<String> columns, int maxRow, int minRow) {
@@ -738,13 +798,26 @@ class _MilestoneAssessmentPageState extends State<MilestoneAssessmentPage> {
                 for (int row = maxRow; row >= minRow; row--)
                   TableRow(
                     children: List.generate(columns.length, (colIdx) {
+                      final colName = columns[colIdx];
                       Color cellColor = Colors.white;
-                      if (row <= minRow + 1) {
-                        cellColor = const Color(0xFFFBBF24); // 1st Test (Yellow)
-                      } else if (row == minRow + 2 && colIdx % 2 == 0) {
-                        cellColor = const Color(0xFFF97316); // 2nd Test (Orange)
-                      } else if (row == minRow + 3 && colIdx % 3 == 0) {
-                        cellColor = const Color(0xFF10B981); // 3rd Test (Green)
+
+                      // Colour each milestone by the first test in which it was achieved
+                      int? firstTest;
+                      for (final m in _milestoneRecords) {
+                        final tNum = int.tryParse(m['test_number']?.toString() ?? '1') ?? 1;
+                        final score = _getScoreForColumn(m, colName);
+                        if (score >= row && (firstTest == null || tNum < firstTest)) {
+                          firstTest = tNum;
+                        }
+                      }
+                      if (firstTest == 1) {
+                        cellColor = const Color(0xFFFBBF24); // Yellow (1st Test)
+                      } else if (firstTest == 2) {
+                        cellColor = const Color(0xFFF97316); // Orange (2nd Test)
+                      } else if (firstTest == 3) {
+                        cellColor = const Color(0xFF10B981); // Green (3rd Test)
+                      } else if (firstTest == 4) {
+                        cellColor = const Color(0xFF3B82F6); // Blue (4th Test)
                       }
 
                       return Container(

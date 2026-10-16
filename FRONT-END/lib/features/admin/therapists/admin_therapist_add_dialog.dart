@@ -1,8 +1,67 @@
 import 'package:flutter/material.dart';
 import 'package:roh_erp/core/constants/app_colors.dart';
+import 'package:roh_erp/core/services/api_service.dart';
 
-class AdminTherapistAddDialog extends StatelessWidget {
+class AdminTherapistAddDialog extends StatefulWidget {
   const AdminTherapistAddDialog({super.key});
+
+  @override
+  State<AdminTherapistAddDialog> createState() => _AdminTherapistAddDialogState();
+}
+
+class _AdminTherapistAddDialogState extends State<AdminTherapistAddDialog> {
+  final _nameCtrl = TextEditingController();
+  final _emailCtrl = TextEditingController();
+  final _phoneCtrl = TextEditingController();
+  final _designationCtrl = TextEditingController(text: 'Behavior Therapist');
+  bool _isSubmitting = false;
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _emailCtrl.dispose();
+    _phoneCtrl.dispose();
+    _designationCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final name = _nameCtrl.text.trim();
+    final email = _emailCtrl.text.trim();
+    if (name.isEmpty || email.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter therapist Name and Email'), backgroundColor: Colors.orange),
+      );
+      return;
+    }
+
+    setState(() => _isSubmitting = true);
+    try {
+      final res = await ApiService().post('add_therapist', {
+        'name': name,
+        'email': email,
+        'phone': _phoneCtrl.text.trim(),
+        'designation': _designationCtrl.text.trim(),
+        'password': 'therapist123',
+      });
+      if (res is Map && res['error'] != null) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(res['error'].toString()), backgroundColor: Colors.red),
+        );
+      } else {
+        if (!mounted) return;
+        Navigator.pop(context, true);
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error adding therapist: $e'), backgroundColor: Colors.red),
+      );
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -31,63 +90,23 @@ class AdminTherapistAddDialog extends StatelessWidget {
                 ),
                 margin: const EdgeInsets.only(top: 6, bottom: 24),
               ),
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  final isNarrow = constraints.maxWidth < 420;
-                  if (isNarrow) {
-                    return Column(
-                      children: [
-                        _buildField('Name'),
-                        const SizedBox(height: 16),
-                        _buildField('Email Id'),
-                        const SizedBox(height: 16),
-                        _buildField('Phone Number'),
-                        const SizedBox(height: 16),
-                        _buildField('Date Of Birth'),
-                        const SizedBox(height: 16),
-                        _buildField('Employee Id'),
-                        const SizedBox(height: 16),
-                        _buildField('Designation'),
-                      ],
-                    );
-                  }
-                  return Column(
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(child: _buildField('Name')),
-                          const SizedBox(width: 16),
-                          Expanded(child: _buildField('Email Id')),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      Row(
-                        children: [
-                          Expanded(child: _buildField('Phone Number')),
-                          const SizedBox(width: 16),
-                          Expanded(child: _buildField('Date Of Birth')),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      Row(
-                        children: [
-                          Expanded(child: _buildField('Employee Id')),
-                          const SizedBox(width: 16),
-                          Expanded(child: _buildField('Designation')),
-                        ],
-                      ),
-                    ],
-                  );
-                },
+              Column(
+                children: [
+                  _buildField('Full Name', _nameCtrl, 'e.g. Jane Doe'),
+                  const SizedBox(height: 16),
+                  _buildField('Email Address', _emailCtrl, 'e.g. jane@rohcenter.org'),
+                  const SizedBox(height: 16),
+                  _buildField('Phone Number', _phoneCtrl, 'e.g. +1 (555) 012-3456'),
+                  const SizedBox(height: 16),
+                  _buildField('Designation', _designationCtrl, 'e.g. Behavior Therapist'),
+                ],
               ),
-              const SizedBox(height: 16),
-              _buildField('About', maxLines: 4),
               const SizedBox(height: 24),
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   OutlinedButton(
-                    onPressed: () => Navigator.pop(context),
+                    onPressed: _isSubmitting ? null : () => Navigator.pop(context),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: AppColors.textSecondary,
                       side: const BorderSide(color: AppColors.border),
@@ -97,13 +116,15 @@ class AdminTherapistAddDialog extends StatelessWidget {
                   ),
                   const SizedBox(width: 16),
                   ElevatedButton(
-                    onPressed: () => Navigator.pop(context),
+                    onPressed: _isSubmitting ? null : _submit,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primary,
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                     ),
-                    child: const Text('Submit'),
+                    child: _isSubmitting
+                        ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                        : const Text('Submit'),
                   ),
                 ],
               ),
@@ -114,16 +135,16 @@ class AdminTherapistAddDialog extends StatelessWidget {
     );
   }
 
-  Widget _buildField(String label, {int maxLines = 1}) {
+  Widget _buildField(String label, TextEditingController controller, String hint) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(label, style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500)),
         const SizedBox(height: 8),
         TextField(
-          maxLines: maxLines,
+          controller: controller,
           decoration: InputDecoration(
-            hintText: 'Enter $label',
+            hintText: hint,
             hintStyle: const TextStyle(color: AppColors.textHint, fontSize: 13),
             filled: true,
             fillColor: AppColors.background,

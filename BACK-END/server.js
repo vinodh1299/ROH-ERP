@@ -13,9 +13,17 @@ const crypto = require('crypto');
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./swagger_spec.json');
 
+// Refuse to start without real secrets — never fall back to hardcoded credentials
+for (const key of ['JWT_SECRET', 'DB_PASSWORD']) {
+  if (!process.env[key]) {
+    console.error(`❌ ${key} is not set in .env — refusing to start.`);
+    process.exit(1);
+  }
+}
+
 const app = express();
 const PORT = process.env.PORT || 8000;
-const JWT_SECRET = process.env.JWT_SECRET || 'roh_erp_super_secure_key_2026_clinical_secret';
+const JWT_SECRET = process.env.JWT_SECRET;
 
 // // ── Security Headers & Middlewares ──
 app.use(cors({
@@ -51,22 +59,38 @@ const pool = mysql.createPool({
   host: process.env.DB_HOST || '127.0.0.1',
   port: parseInt(process.env.DB_PORT || '3306'),
   user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || 'ACAdev@123',
+  password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME || 'roh_erp',
   waitForConnections: true,
   connectionLimit: 20,
   queueLimit: 0,
+  dateStrings: true,
 });
 
-// Test Database Connection
-pool.getConnection()
-  .then(conn => {
-    console.log('✅ Connected to MySQL Database (roh_erp) on 127.0.0.1:3306');
-    conn.release();
-  })
-  .catch(err => {
-    console.error('❌ MySQL Connection Error:', err.message);
-  });
+// Connect and create any missing tables from schema.sql (CREATE TABLE IF NOT EXISTS — never drops data).
+// Uses a dedicated connection so multipleStatements stays off for the request pool.
+(async () => {
+  let conn;
+  try {
+    conn = await mysql.createConnection({
+      host: process.env.DB_HOST || '127.0.0.1',
+      port: parseInt(process.env.DB_PORT || '3306'),
+      user: process.env.DB_USER || 'root',
+      password: process.env.DB_PASSWORD,
+      database: process.env.DB_NAME || 'roh_erp',
+      multipleStatements: true,
+    });
+    console.log(`✅ Connected to MySQL Database (${process.env.DB_NAME || 'roh_erp'}) on ${process.env.DB_HOST || '127.0.0.1'}`);
+    const [before] = await conn.query('SHOW TABLES');
+    await conn.query(require('fs').readFileSync(require('path').join(__dirname, 'schema.sql'), 'utf8'));
+    const [after] = await conn.query('SHOW TABLES');
+    console.log(`📦 Schema check: ${after.length - before.length} table(s) created, ${after.length} total`);
+  } catch (err) {
+    console.error('❌ MySQL connection / schema setup error:', err.message);
+  } finally {
+    if (conn) await conn.end().catch(() => {});
+  }
+})();
 
 // ── Utility Helpers ──
 async function auditLog(userId, role, action, targetEntity = null, targetId = null, ip = null, userAgent = null, details = null) {
@@ -115,20 +139,6 @@ async function verifyAuth(req) {
   try {
     const token = match[1];
 
-    // Support evaluation / demo credentials seamlessly across cross-tab sessions
-    if (token === 'demo_admin_jwt_token_2026') {
-      return { sub: 1, role: 'admin', name: 'ROH Administrator', email: 'admin@roh.com', token_version: 1 };
-    }
-    if (token === 'demo_director_jwt_token_2026') {
-      return { sub: 2, role: 'director', name: 'Dr. Sterling Vance', email: 'director@roh.com', token_version: 1 };
-    }
-    if (token === 'demo_therapist_jwt_token_2026') {
-      return { sub: 3, role: 'therapist', name: 'Dr. Sarah Lee', email: 'sarah.lee@roh.com', token_version: 1 };
-    }
-    if (token === 'demo_parent_jwt_token_2026') {
-      return { sub: 4, role: 'parent', name: 'Mr. John Wilson', email: 'parent@roh.com', token_version: 1 };
-    }
-
     const decoded = jwt.verify(token, JWT_SECRET);
     if (!decoded || !decoded.sub) return null;
 
@@ -144,6 +154,37 @@ async function verifyAuth(req) {
   } catch (err) {
     return null;
   }
+}
+
+// Student IDs the caller may read: null = unrestricted (admin/director),
+// therapist = assigned caseload, parent = their own children.
+async function accessibleStudentIds(auth) {
+  if (['admin', 'director'].includes(auth.role)) return null;
+  if (auth.role === 'therapist') {
+    const [rows] = await pool.query(
+      `SELECT id FROM students WHERE primary_therapist_id = ?
+       UNION SELECT student_id FROM student_therapists WHERE therapist_id = ? AND is_active = 1`,
+      [auth.sub, auth.sub]
+    );
+    return rows.map(r => r.id);
+  }
+  if (auth.role === 'parent') {
+    const [rows] = await pool.query('SELECT id FROM students WHERE parent_user_id = ?', [auth.sub]);
+    return rows.map(r => r.id);
+  }
+  return [];
+}
+
+// SQL condition restricting `column` to a scope returned by accessibleStudentIds()
+function studentScopeSql(column, scope) {
+  if (scope === null) return { sql: '1=1', params: [] };
+  if (!scope.length) return { sql: '1=0', params: [] };
+  return { sql: `${column} IN (?)`, params: [scope] };
+}
+
+async function canAccessStudent(auth, studentId) {
+  const scope = await accessibleStudentIds(auth);
+  return scope === null || scope.includes(studentId);
 }
 
 function requireAuth(allowedRoles = []) {
@@ -366,11 +407,29 @@ app.all(['/api.php', '/api', '/api/api.php', '/api/v1'], async (req, res) => {
       // 2. THERAPISTS & STAFF MANAGEMENT
       // ──────────────────────────────────────────────────────────────────────
       case 'get_therapists': {
+        const auth = await verifyAuth(req);
+        if (!auth) return res.status(401).json({ error: 'Unauthorized' });
+
+        // Staff see the full roster; a parent only sees their own child's therapists
+        let where = '1=1';
+        const params = [];
+        if (auth.role === 'parent') {
+          const scope = studentScopeSql('s.id', await accessibleStudentIds(auth));
+          where = `u.id IN (
+            SELECT s.primary_therapist_id FROM students s WHERE ${scope.sql} AND s.primary_therapist_id IS NOT NULL
+            UNION SELECT st.therapist_id FROM student_therapists st JOIN students s ON st.student_id = s.id
+            WHERE st.is_active = 1 AND ${scope.sql})`;
+          params.push(...scope.params, ...scope.params);
+        } else if (!['admin', 'director', 'therapist'].includes(auth.role)) {
+          return res.status(403).json({ error: 'Forbidden' });
+        }
+
         const [rows] = await pool.query(
-          `SELECT u.id, u.name, u.email, u.status, u.phone, tp.designation, tp.license_number, tp.active_caseload 
-           FROM users u 
-           LEFT JOIN therapist_profiles tp ON u.id = tp.user_id 
-           WHERE u.role = 'therapist' ORDER BY u.id DESC`
+          `SELECT u.id, u.name, u.email, u.status, u.phone, tp.designation, tp.license_number, tp.active_caseload
+           FROM users u
+           LEFT JOIN therapist_profiles tp ON u.id = tp.user_id
+           WHERE u.role = 'therapist' AND ${where} ORDER BY u.id DESC`,
+          params
         );
         return res.json(rows);
       }
@@ -401,13 +460,86 @@ app.all(['/api.php', '/api', '/api/api.php', '/api/v1'], async (req, res) => {
         return res.json({ success: true, id: newId });
       }
 
+      case 'update_therapist': {
+        const auth = await verifyAuth(req);
+        if (!auth || !['admin', 'director'].includes(auth.role)) return res.status(403).json({ error: 'Forbidden' });
+
+        const userId = parseInt(input.id || input.user_id || 0);
+        if (!userId) return res.status(400).json({ error: 'Therapist ID required' });
+
+        const name = input.name ? input.name.trim() : null;
+        const email = input.email ? input.email.trim().toLowerCase() : null;
+        const phone = input.phone || null;
+
+        if (name || email || phone !== undefined) {
+          await pool.query(
+            'UPDATE users SET name = COALESCE(?, name), email = COALESCE(?, email), phone = COALESCE(?, phone) WHERE id = ? AND role = "therapist"',
+            [name, email, phone, userId]
+          );
+        }
+
+        if (input.designation || input.license_number || input.qualification || input.specialties || input.about) {
+          await pool.query(
+            `INSERT INTO therapist_profiles (user_id, designation, license_number, qualification, specialties, about)
+             VALUES (?, ?, ?, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE
+               designation = COALESCE(VALUES(designation), designation),
+               license_number = COALESCE(VALUES(license_number), license_number),
+               qualification = COALESCE(VALUES(qualification), qualification),
+               specialties = COALESCE(VALUES(specialties), specialties),
+               about = COALESCE(VALUES(about), about)`,
+            [userId, input.designation || null, input.license_number || null, input.qualification || null, input.specialties || null, input.about || null]
+          );
+        }
+
+        await auditLog(auth.sub, auth.role, 'UPDATE_THERAPIST', 'users', userId, ip, ua, `Updated therapist ${userId}`);
+        return res.json({ success: true, id: userId });
+      }
+
+      case 'toggle_therapist_status': {
+        const auth = await verifyAuth(req);
+        if (!auth || !['admin', 'director'].includes(auth.role)) return res.status(403).json({ error: 'Forbidden' });
+
+        const userId = parseInt(input.user_id || input.id || 0);
+        if (!userId) return res.status(400).json({ error: 'Therapist ID required' });
+
+        let newStatus = input.status;
+        if (!newStatus) {
+          const [curr] = await pool.query('SELECT status FROM users WHERE id = ? AND role = "therapist"', [userId]);
+          if (!curr.length) return res.status(404).json({ error: 'Therapist not found' });
+          newStatus = curr[0].status === 'Active' ? 'De-Activated' : 'Active';
+        }
+
+        await pool.query('UPDATE users SET status = ? WHERE id = ? AND role = "therapist"', [newStatus, userId]);
+        await auditLog(auth.sub, auth.role, 'TOGGLE_THERAPIST_STATUS', 'users', userId, ip, ua, `Set therapist ${userId} status to ${newStatus}`);
+        return res.json({ success: true, id: userId, status: newStatus });
+      }
+
       case 'get_parents': {
+        const auth = await verifyAuth(req);
+        if (!auth) return res.status(401).json({ error: 'Unauthorized' });
+
+        // Admin/director see all parents; a therapist sees their caseload's parents; a parent sees only themselves
+        let where = '1=1';
+        const params = [];
+        if (auth.role === 'parent') {
+          where = 'u.id = ?';
+          params.push(auth.sub);
+        } else if (auth.role === 'therapist') {
+          const scope = studentScopeSql('s.id', await accessibleStudentIds(auth));
+          where = `u.id IN (SELECT s.parent_user_id FROM students s WHERE ${scope.sql})`;
+          params.push(...scope.params);
+        } else if (!['admin', 'director'].includes(auth.role)) {
+          return res.status(403).json({ error: 'Forbidden' });
+        }
+
         const [rows] = await pool.query(
           `SELECT u.id, u.name, u.email, u.status, u.phone, pp.secondary_phone, pp.street_address,
                   (SELECT CONCAT(s.first_name, ' ', s.last_name) FROM students s WHERE s.parent_user_id = u.id LIMIT 1) AS child_name
-           FROM users u 
-           LEFT JOIN parent_profiles pp ON u.id = pp.user_id 
-           WHERE u.role = 'parent' ORDER BY u.id DESC`
+           FROM users u
+           LEFT JOIN parent_profiles pp ON u.id = pp.user_id
+           WHERE u.role = 'parent' AND ${where} ORDER BY u.id DESC`,
+          params
         );
         return res.json(rows);
       }
@@ -438,16 +570,88 @@ app.all(['/api.php', '/api', '/api/api.php', '/api/v1'], async (req, res) => {
         return res.json({ success: true, id: newId });
       }
 
+      case 'update_parent': {
+        const auth = await verifyAuth(req);
+        if (!auth || !['admin', 'director'].includes(auth.role)) return res.status(403).json({ error: 'Forbidden' });
+
+        const userId = parseInt(input.id || input.user_id || 0);
+        if (!userId) return res.status(400).json({ error: 'Parent ID required' });
+
+        const name = input.name ? input.name.trim() : null;
+        const email = input.email ? input.email.trim().toLowerCase() : null;
+        const phone = input.phone || null;
+
+        if (name || email || phone !== undefined) {
+          await pool.query(
+            'UPDATE users SET name = COALESCE(?, name), email = COALESCE(?, email), phone = COALESCE(?, phone) WHERE id = ? AND role = "parent"',
+            [name, email, phone, userId]
+          );
+        }
+
+        if (input.secondary_phone || input.street_address || input.city || input.state || input.postal_code || input.occupation || input.preferred_communication) {
+          await pool.query(
+            `INSERT INTO parent_profiles (user_id, secondary_phone, street_address, city, state, postal_code, occupation, preferred_communication)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE
+               secondary_phone = COALESCE(VALUES(secondary_phone), secondary_phone),
+               street_address = COALESCE(VALUES(street_address), street_address),
+               city = COALESCE(VALUES(city), city),
+               state = COALESCE(VALUES(state), state),
+               postal_code = COALESCE(VALUES(postal_code), postal_code),
+               occupation = COALESCE(VALUES(occupation), occupation),
+               preferred_communication = COALESCE(VALUES(preferred_communication), preferred_communication)`,
+            [
+              userId,
+              input.secondary_phone || phone || null,
+              input.street_address || null,
+              input.city || null,
+              input.state || null,
+              input.postal_code || null,
+              input.occupation || null,
+              input.preferred_communication || 'Phone'
+            ]
+          );
+        }
+
+        await auditLog(auth.sub, auth.role, 'UPDATE_PARENT', 'users', userId, ip, ua, `Updated parent ${userId}`);
+        return res.json({ success: true, id: userId });
+      }
+
+      case 'toggle_parent_status': {
+        const auth = await verifyAuth(req);
+        if (!auth || !['admin', 'director'].includes(auth.role)) return res.status(403).json({ error: 'Forbidden' });
+
+        const userId = parseInt(input.user_id || input.id || 0);
+        if (!userId) return res.status(400).json({ error: 'Parent ID required' });
+
+        let newStatus = input.status;
+        if (!newStatus) {
+          const [curr] = await pool.query('SELECT status FROM users WHERE id = ? AND role = "parent"', [userId]);
+          if (!curr.length) return res.status(404).json({ error: 'Parent not found' });
+          newStatus = curr[0].status === 'Active' ? 'De-Activated' : 'Active';
+        }
+
+        await pool.query('UPDATE users SET status = ? WHERE id = ? AND role = "parent"', [newStatus, userId]);
+        await auditLog(auth.sub, auth.role, 'TOGGLE_PARENT_STATUS', 'users', userId, ip, ua, `Set parent ${userId} status to ${newStatus}`);
+        return res.json({ success: true, id: userId, status: newStatus });
+      }
+
       // ──────────────────────────────────────────────────────────────────────
       // 3. STUDENTS & CLINICAL ADMISSIONS
       // ──────────────────────────────────────────────────────────────────────
       case 'get_students':
       case 'get_students_full': {
+        const auth = await verifyAuth(req);
+        if (!auth) return res.status(401).json({ error: 'Unauthorized' });
+        const scope = studentScopeSql('s.id', await accessibleStudentIds(auth));
+
         const [rows] = await pool.query(
-          `SELECT s.*, CONCAT(s.first_name, ' ', s.last_name) AS name, u.name AS therapist_name 
-           FROM students s 
-           LEFT JOIN users u ON s.primary_therapist_id = u.id 
-           ORDER BY s.id DESC`
+          `SELECT s.*, CONCAT(s.first_name, ' ', s.last_name) AS name, u.name AS therapist_name
+           FROM students s
+           LEFT JOIN users u ON s.primary_therapist_id = u.id
+           WHERE ${scope.sql}
+           ORDER BY s.id DESC`,
+          scope.params
         );
         return res.json(rows);
       }
@@ -458,17 +662,23 @@ app.all(['/api.php', '/api', '/api/api.php', '/api/v1'], async (req, res) => {
 
         const name = (input.name || '').trim();
         const parts = name.split(' ');
-        const firstName = parts[0] || 'Student';
-        const lastName = parts.slice(1).join(' ') || '';
+        const firstName = input.first_name || parts[0] || 'Student';
+        const lastName = input.last_name || parts.slice(1).join(' ') || '';
+        const middleName = input.middle_name || null;
+        const gender = input.gender || 'Male';
+        const bloodGroup = input.blood_group || 'O+';
+        const program = input.program || 'Comprehensive ABA Early Intervention';
+        const primaryDiagnosis = input.primary_diagnoses || input.primary_diagnosis || 'Autism Spectrum Disorder (Level 2)';
         const dob = input.dob ? new Date(input.dob).toISOString().split('T')[0] : '2019-01-01';
 
         const [result] = await pool.query(
-          'INSERT INTO students (first_name, last_name, dob, gender, blood_group, program, primary_diagnosis, status) VALUES (?, ?, ?, "Male", "O+", "Comprehensive ABA Early Intervention", "Autism Spectrum Disorder", "Active")',
-          [firstName, lastName, dob]
+          'INSERT INTO students (first_name, last_name, middle_name, dob, gender, blood_group, program, primary_diagnosis, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, "Active")',
+          [firstName, lastName, middleName, dob, gender, bloodGroup, program, primaryDiagnosis]
         );
 
         const newId = result.insertId;
-        await auditLog(auth.sub, auth.role, 'ADD_STUDENT', 'students', newId, ip, ua, `Enrolled student: ${name}`);
+        const fullName = `${firstName} ${lastName}`.trim();
+        await auditLog(auth.sub, auth.role, 'ADD_STUDENT', 'students', newId, ip, ua, `Enrolled student: ${fullName}`);
         return res.json({ success: true, id: newId });
       }
 
@@ -504,17 +714,265 @@ app.all(['/api.php', '/api', '/api/api.php', '/api/v1'], async (req, res) => {
         return res.json({ success: true });
       }
 
+      case 'assign_student_therapist': {
+        const auth = await verifyAuth(req);
+        if (!auth || !['admin', 'director'].includes(auth.role)) return res.status(403).json({ error: 'Forbidden' });
+
+        const studentId = parseInt(input.student_id || 0);
+        const therapistId = parseInt(input.therapist_id || 0);
+        const roleTitle = input.role_title || 'Primary BCBA';
+
+        if (!studentId || !therapistId) return res.status(400).json({ error: 'student_id and therapist_id required' });
+
+        // Update student's primary therapist if applicable
+        await pool.query('UPDATE students SET primary_therapist_id = ? WHERE id = ?', [therapistId, studentId]);
+
+        // Record in student_therapists
+        await pool.query(
+          'INSERT INTO student_therapists (student_id, therapist_id, role_title, is_active) VALUES (?, ?, ?, 1)',
+          [studentId, therapistId, roleTitle]
+        );
+
+        await auditLog(auth.sub, auth.role, 'ASSIGN_THERAPIST', 'students', studentId, ip, ua, `Assigned therapist ${therapistId} to student ${studentId}`);
+        await createNotification(therapistId, 'Case Assignment', `You have been assigned to student #${studentId}`, 'clinical', '/therapist');
+        return res.json({ success: true, student_id: studentId, therapist_id: therapistId });
+      }
+
+      case 'get_student_therapists': {
+        const auth = await verifyAuth(req);
+        if (!auth) return res.status(401).json({ error: 'Unauthorized' });
+
+        const studentId = parseInt(input.student_id || req.query.student_id || 0);
+        if (!studentId) return res.status(400).json({ error: 'student_id required' });
+        if (!(await canAccessStudent(auth, studentId))) return res.status(403).json({ error: 'Forbidden' });
+
+        const [rows] = await pool.query(
+          `SELECT st.*, u.name as therapist_name, u.email as therapist_email, u.phone as therapist_phone, tp.designation 
+           FROM student_therapists st 
+           JOIN users u ON st.therapist_id = u.id 
+           LEFT JOIN therapist_profiles tp ON u.id = tp.user_id 
+           WHERE st.student_id = ? AND st.is_active = 1
+           ORDER BY st.id DESC`,
+          [studentId]
+        );
+        return res.json(rows);
+      }
+
+      case 'get_student_medical_info': {
+        const auth = await verifyAuth(req);
+        if (!auth) return res.status(401).json({ error: 'Unauthorized' });
+
+        const studentId = parseInt(input.student_id || req.query.student_id || 0);
+        if (!studentId) return res.status(400).json({ error: 'student_id required' });
+        if (!(await canAccessStudent(auth, studentId))) return res.status(403).json({ error: 'Forbidden' });
+
+        const [rows] = await pool.query('SELECT * FROM medical_histories WHERE student_id = ? LIMIT 1', [studentId]);
+        return res.json(rows[0] || null);
+      }
+
+      case 'save_student_medical_info': {
+        const auth = await verifyAuth(req);
+        if (!auth || !['admin', 'director', 'therapist'].includes(auth.role)) return res.status(403).json({ error: 'Forbidden' });
+
+        const studentId = parseInt(input.student_id || 0);
+        if (!studentId) return res.status(400).json({ error: 'student_id required' });
+
+        await pool.query(
+          `INSERT INTO medical_histories (
+             student_id, has_hospital_admissions, hospital_admission_details,
+             has_diagnosed_conditions, diagnosed_condition_details,
+             has_infectious_diseases, infectious_disease_details,
+             has_allergies, allergy_details,
+             eating_habits, sleeping_habits,
+             has_seizures, seizure_protocol,
+             pediatrician_name, pediatrician_phone
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           ON DUPLICATE KEY UPDATE
+             has_hospital_admissions = VALUES(has_hospital_admissions),
+             hospital_admission_details = VALUES(hospital_admission_details),
+             has_diagnosed_conditions = VALUES(has_diagnosed_conditions),
+             diagnosed_condition_details = VALUES(diagnosed_condition_details),
+             has_infectious_diseases = VALUES(has_infectious_diseases),
+             infectious_disease_details = VALUES(infectious_disease_details),
+             has_allergies = VALUES(has_allergies),
+             allergy_details = VALUES(allergy_details),
+             eating_habits = VALUES(eating_habits),
+             sleeping_habits = VALUES(sleeping_habits),
+             has_seizures = VALUES(has_seizures),
+             seizure_protocol = VALUES(seizure_protocol),
+             pediatrician_name = VALUES(pediatrician_name),
+             pediatrician_phone = VALUES(pediatrician_phone)`,
+          [
+            studentId,
+            input.has_hospital_admissions ? 1 : 0,
+            input.hospital_admission_details || null,
+            input.has_diagnosed_conditions ? 1 : 0,
+            input.diagnosed_condition_details || null,
+            input.has_infectious_diseases ? 1 : 0,
+            input.infectious_disease_details || null,
+            input.has_allergies ? 1 : 0,
+            input.allergy_details || null,
+            input.eating_habits || null,
+            input.sleeping_habits || null,
+            input.has_seizures ? 1 : 0,
+            input.seizure_protocol || null,
+            input.pediatrician_name || null,
+            input.pediatrician_phone || null,
+          ]
+        );
+
+        await auditLog(auth.sub, auth.role, 'SAVE_MEDICAL_INFO', 'medical_histories', studentId, ip, ua, `Saved medical info for student ${studentId}`);
+        return res.json({ success: true, student_id: studentId });
+      }
+
+      case 'get_student_medications': {
+        const auth = await verifyAuth(req);
+        if (!auth) return res.status(401).json({ error: 'Unauthorized' });
+
+        const studentId = parseInt(input.student_id || req.query.student_id || 0);
+        if (!studentId) return res.status(400).json({ error: 'student_id required' });
+        if (!(await canAccessStudent(auth, studentId))) return res.status(403).json({ error: 'Forbidden' });
+
+        const [rows] = await pool.query('SELECT * FROM medications WHERE student_id = ? ORDER BY id DESC', [studentId]);
+        return res.json(rows);
+      }
+
+      case 'add_student_medication': {
+        const auth = await verifyAuth(req);
+        if (!auth || !['admin', 'director', 'therapist'].includes(auth.role)) return res.status(403).json({ error: 'Forbidden' });
+
+        const studentId = parseInt(input.student_id || 0);
+        const medicationName = (input.medication_name || '').trim();
+        if (!studentId || !medicationName) return res.status(400).json({ error: 'student_id and medication_name required' });
+
+        const [result] = await pool.query(
+          `INSERT INTO medications (student_id, medication_name, dosage, date_prescribed, administration_timeline, used_for, prescribing_doctor, is_administered_at_center)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            studentId,
+            medicationName,
+            input.dosage || '1 dose',
+            input.date_prescribed || new Date().toISOString().split('T')[0],
+            input.administration_timeline || 'Daily',
+            input.used_for || '',
+            input.prescribing_doctor || null,
+            input.is_administered_at_center ? 1 : 0,
+          ]
+        );
+
+        await auditLog(auth.sub, auth.role, 'ADD_MEDICATION', 'medications', result.insertId, ip, ua, `Added medication ${medicationName} for student ${studentId}`);
+        return res.json({ success: true, id: result.insertId });
+      }
+
+      case 'delete_student_medication': {
+        const auth = await verifyAuth(req);
+        if (!auth || !['admin', 'director', 'therapist'].includes(auth.role)) return res.status(403).json({ error: 'Forbidden' });
+
+        const medId = parseInt(input.id || req.query.id || 0);
+        await pool.query('DELETE FROM medications WHERE id = ?', [medId]);
+        return res.json({ success: true, id: medId });
+      }
+
+      case 'get_student_guardians': {
+        const auth = await verifyAuth(req);
+        if (!auth) return res.status(401).json({ error: 'Unauthorized' });
+
+        const studentId = parseInt(input.student_id || req.query.student_id || 0);
+        if (!studentId) return res.status(400).json({ error: 'student_id required' });
+        if (!(await canAccessStudent(auth, studentId))) return res.status(403).json({ error: 'Forbidden' });
+
+        const [rows] = await pool.query('SELECT * FROM guardians WHERE student_id = ? ORDER BY guardian_priority ASC, id ASC', [studentId]);
+        return res.json(rows);
+      }
+
+      case 'add_student_guardian': {
+        const auth = await verifyAuth(req);
+        if (!auth || !['admin', 'director'].includes(auth.role)) return res.status(403).json({ error: 'Forbidden' });
+
+        const studentId = parseInt(input.student_id || 0);
+        const relationship = (input.relationship || 'Guardian').trim();
+        const firstName = (input.first_name || input.name || 'Guardian').trim();
+        const lastName = (input.last_name || '').trim();
+
+        const [result] = await pool.query(
+          `INSERT INTO guardians (student_id, guardian_priority, relationship, first_name, last_name, phone, email, street_address, city, state, postal_code, is_emergency_contact, notes)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            studentId,
+            input.guardian_priority || 1,
+            relationship,
+            firstName,
+            lastName,
+            input.phone || null,
+            input.email || null,
+            input.street_address || null,
+            input.city || null,
+            input.state || null,
+            input.postal_code || null,
+            input.is_emergency_contact ? 1 : 1,
+            input.notes || input.about || null,
+          ]
+        );
+
+        await auditLog(auth.sub, auth.role, 'ADD_GUARDIAN', 'guardians', result.insertId, ip, ua, `Added guardian ${firstName} for student ${studentId}`);
+        return res.json({ success: true, id: result.insertId });
+      }
+
+      case 'delete_student_guardian': {
+        const auth = await verifyAuth(req);
+        if (!auth || !['admin', 'director'].includes(auth.role)) return res.status(403).json({ error: 'Forbidden' });
+
+        const guardianId = parseInt(input.id || req.query.id || 0);
+        await pool.query('DELETE FROM guardians WHERE id = ?', [guardianId]);
+        return res.json({ success: true, id: guardianId });
+      }
+
+      case 'get_student_emergency_contacts': {
+        const auth = await verifyAuth(req);
+        if (!auth) return res.status(401).json({ error: 'Unauthorized' });
+
+        const studentId = parseInt(input.student_id || req.query.student_id || 0);
+        if (!studentId) return res.status(400).json({ error: 'student_id required' });
+        if (!(await canAccessStudent(auth, studentId))) return res.status(403).json({ error: 'Forbidden' });
+
+        const [rows] = await pool.query('SELECT * FROM guardians WHERE student_id = ? AND is_emergency_contact = 1 ORDER BY guardian_priority ASC', [studentId]);
+        return res.json(rows);
+      }
+
+      case 'save_student_emergency_contact': {
+        const auth = await verifyAuth(req);
+        if (!auth || !['admin', 'director'].includes(auth.role)) return res.status(403).json({ error: 'Forbidden' });
+
+        const studentId = parseInt(input.student_id || 0);
+        const contactName = (input.contact_name || 'Emergency Contact').trim();
+        const message = input.message || '';
+
+        const [result] = await pool.query(
+          `INSERT INTO guardians (student_id, guardian_priority, relationship, first_name, last_name, is_emergency_contact, notes)
+           VALUES (?, 1, 'Emergency Contact', ?, '', 1, ?)`,
+          [studentId, contactName, message]
+        );
+
+        return res.json({ success: true, id: result.insertId });
+      }
+
       // ──────────────────────────────────────────────────────────────────────
       // 4. IEP REPORTS & CLINICAL GOVERNANCE
       // ──────────────────────────────────────────────────────────────────────
       case 'get_iep_reports': {
+        const auth = await verifyAuth(req);
+        if (!auth) return res.status(401).json({ error: 'Unauthorized' });
+        const scope = studentScopeSql('i.student_id', await accessibleStudentIds(auth));
+
         const [rows] = await pool.query(
-          `SELECT i.*, CONCAT(s.first_name, ' ', s.last_name) AS student_name, u.name AS therapist_name, du.name AS director_signer_name 
-           FROM iep_reports i 
-           LEFT JOIN students s ON i.student_id = s.id 
-           LEFT JOIN users u ON i.therapist_id = u.id 
-           LEFT JOIN users du ON i.director_signed_by = du.id 
-           ORDER BY i.id DESC`
+          `SELECT i.*, CONCAT(s.first_name, ' ', s.last_name) AS student_name, u.name AS therapist_name, du.name AS director_signer_name
+           FROM iep_reports i
+           LEFT JOIN students s ON i.student_id = s.id
+           LEFT JOIN users u ON i.therapist_id = u.id
+           LEFT JOIN users du ON i.director_signed_by = du.id
+           WHERE ${scope.sql}
+           ORDER BY i.id DESC`,
+          scope.params
         );
         return res.json(rows);
       }
@@ -617,20 +1075,31 @@ app.all(['/api.php', '/api', '/api/api.php', '/api/v1'], async (req, res) => {
       // 5. DAILY DATA SHEETS & DISCRETE TRIALS (OFFLINE READY)
       // ──────────────────────────────────────────────────────────────────────
       case 'get_daily_data': {
-        const [rows] = await pool.query(
-          `SELECT d.*, CONCAT(s.first_name, ' ', s.last_name) AS student_name, u.name AS therapist_name 
-           FROM daily_data_sheets d 
-           LEFT JOIN students s ON d.student_id = s.id 
-           LEFT JOIN users u ON d.therapist_id = u.id 
-           ORDER BY d.id DESC`
-        );
+        const auth = await verifyAuth(req);
+        if (!auth) return res.status(401).json({ error: 'Unauthorized' });
+        const scope = studentScopeSql('d.student_id', await accessibleStudentIds(auth));
+
+        const studentId = req.query.student_id;
+        let query = `SELECT d.*, CONCAT(s.first_name, ' ', s.last_name) AS student_name, u.name AS therapist_name
+           FROM daily_data_sheets d
+           LEFT JOIN students s ON d.student_id = s.id
+           LEFT JOIN users u ON d.therapist_id = u.id
+           WHERE ${scope.sql} `;
+        const params = [...scope.params];
+        if (studentId) {
+          query += ` AND d.student_id = ? `;
+          params.push(studentId);
+        }
+        query += ` ORDER BY d.session_date ASC, d.id ASC`;
+        const [rows] = await pool.query(query, params);
         return res.json(rows);
       }
 
       case 'save_daily_data':
       case 'save_daily_data_sheet': {
         const auth = await verifyAuth(req);
-        const therapistId = auth ? auth.sub : 3;
+        if (!auth || !['therapist', 'director', 'admin'].includes(auth.role)) return res.status(403).json({ error: 'Forbidden' });
+        const therapistId = auth.sub;
 
         const [result] = await pool.query(
           `INSERT INTO daily_data_sheets (student_id, therapist_id, session_date, domain, target_skill, prompt_level, trials_completed, trials_successful, notes) 
@@ -652,62 +1121,391 @@ app.all(['/api.php', '/api', '/api/api.php', '/api/v1'], async (req, res) => {
       }
 
       // ──────────────────────────────────────────────────────────────────────
-      // 6. VB-MAPP ASSESSMENTS
+      // 6. DEDICATED CLINICAL ASSESSMENTS (Milestones, Barriers, Transitions, EESA)
       // ──────────────────────────────────────────────────────────────────────
-      case 'get_vb_assessments': {
-        const [rows] = await pool.query(
-          `SELECT v.*, CONCAT(s.first_name, ' ', s.last_name) AS student_name 
-           FROM vb_assessments v 
-           LEFT JOIN students s ON v.student_id = s.id 
-           ORDER BY v.id DESC`
-        );
+
+      // 6A. VB-MAPP MILESTONES
+      case 'get_milestone_assessments': {
+        const auth = await verifyAuth(req);
+        if (!auth) return res.status(401).json({ error: 'Unauthorized' });
+        const scope = studentScopeSql('m.student_id', await accessibleStudentIds(auth));
+
+        const studentId = req.query.student_id ? parseInt(req.query.student_id) : null;
+        let query = `SELECT m.*, CONCAT(s.first_name, ' ', s.last_name) AS student_name 
+                     FROM milestone_assessments m 
+                     LEFT JOIN students s ON m.student_id = s.id
+                     WHERE ${scope.sql}`;
+        const params = [...scope.params];
+        if (studentId) {
+          query += ` AND m.student_id = ?`;
+          params.push(studentId);
+        }
+        query += ` ORDER BY m.test_number ASC, m.assessment_date DESC`;
+        const [rows] = await pool.query(query, params);
         return res.json(rows);
       }
 
-      case 'save_vb_assessment': {
+      case 'save_milestone_assessment': {
         const auth = await verifyAuth(req);
-        const therapistId = auth ? auth.sub : 3;
+        if (!auth || !['therapist', 'director', 'admin'].includes(auth.role)) return res.status(403).json({ error: 'Forbidden' });
+        const therapistId = auth.sub;
 
         const [result] = await pool.query(
-          'INSERT INTO vb_assessments (student_id, therapist_id, level, score, max_score, milestones_data) VALUES (?, ?, ?, ?, ?, ?)',
+          `INSERT INTO milestone_assessments 
+           (student_id, therapist_id, test_number, level, assessment_date, total_score, max_score, 
+            manding_score, tacting_score, listener_score, echoic_score, vocal_score, vp_mts_score, 
+            play_score, social_score, imitation_score, lrffc_score, intraverbal_score, group_score, 
+            linguistic_score, reading_score, writing_score, math_score, scores_detail, therapist_notes) 
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             parseInt(input.student_id || 1),
             therapistId,
+            parseInt(input.test_number || 1),
             input.level || 'Level 1',
-            parseFloat(input.score || 0),
+            input.assessment_date || new Date().toISOString().slice(0, 10),
+            parseFloat(input.total_score || input.score || 0),
             parseFloat(input.max_score || 170),
-            JSON.stringify(input.milestones_data || {}),
+            parseFloat(input.manding_score || 0),
+            parseFloat(input.tacting_score || 0),
+            parseFloat(input.listener_score || 0),
+            parseFloat(input.echoic_score || 0),
+            parseFloat(input.vocal_score || 0),
+            parseFloat(input.vp_mts_score || 0),
+            parseFloat(input.play_score || 0),
+            parseFloat(input.social_score || 0),
+            parseFloat(input.imitation_score || 0),
+            parseFloat(input.lrffc_score || 0),
+            parseFloat(input.intraverbal_score || 0),
+            parseFloat(input.group_score || 0),
+            parseFloat(input.linguistic_score || 0),
+            parseFloat(input.reading_score || 0),
+            parseFloat(input.writing_score || 0),
+            parseFloat(input.math_score || 0),
+            JSON.stringify(input.scores_detail || input.milestones_data || {}),
+            input.therapist_notes || null,
           ]
         );
-
         return res.json({ success: true, id: result.insertId });
+      }
+
+      // 6B. VB-MAPP BARRIERS
+      case 'get_barriers_assessments': {
+        const auth = await verifyAuth(req);
+        if (!auth) return res.status(401).json({ error: 'Unauthorized' });
+        const scope = studentScopeSql('b.student_id', await accessibleStudentIds(auth));
+
+        const studentId = req.query.student_id ? parseInt(req.query.student_id) : null;
+        let query = `SELECT b.*, CONCAT(s.first_name, ' ', s.last_name) AS student_name 
+                     FROM barriers_assessments b 
+                     LEFT JOIN students s ON b.student_id = s.id
+                     WHERE ${scope.sql}`;
+        const params = [...scope.params];
+        if (studentId) {
+          query += ` AND b.student_id = ?`;
+          params.push(studentId);
+        }
+        query += ` ORDER BY b.test_number ASC, b.assessment_date DESC`;
+        const [rows] = await pool.query(query, params);
+        return res.json(rows);
+      }
+
+      case 'save_barriers_assessment': {
+        const auth = await verifyAuth(req);
+        if (!auth || !['therapist', 'director', 'admin'].includes(auth.role)) return res.status(403).json({ error: 'Forbidden' });
+        const therapistId = auth.sub;
+
+        const [result] = await pool.query(
+          `INSERT INTO barriers_assessments 
+           (student_id, therapist_id, test_number, assessment_date, total_score, max_score, barrier_scores, therapist_notes) 
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            parseInt(input.student_id || 1),
+            therapistId,
+            parseInt(input.test_number || 1),
+            input.assessment_date || new Date().toISOString().slice(0, 10),
+            parseFloat(input.total_score || 0),
+            parseFloat(input.max_score || 96),
+            JSON.stringify(input.barrier_scores || {}),
+            input.therapist_notes || null,
+          ]
+        );
+        return res.json({ success: true, id: result.insertId });
+      }
+
+      // 6C. VB-MAPP TRANSITIONS
+      case 'get_transition_assessments': {
+        const auth = await verifyAuth(req);
+        if (!auth) return res.status(401).json({ error: 'Unauthorized' });
+        const scope = studentScopeSql('t.student_id', await accessibleStudentIds(auth));
+
+        const studentId = req.query.student_id ? parseInt(req.query.student_id) : null;
+        let query = `SELECT t.*, CONCAT(s.first_name, ' ', s.last_name) AS student_name 
+                     FROM transition_assessments t 
+                     LEFT JOIN students s ON t.student_id = s.id
+                     WHERE ${scope.sql}`;
+        const params = [...scope.params];
+        if (studentId) {
+          query += ` AND t.student_id = ?`;
+          params.push(studentId);
+        }
+        query += ` ORDER BY t.test_number ASC, t.assessment_date DESC`;
+        const [rows] = await pool.query(query, params);
+        return res.json(rows);
+      }
+
+      case 'save_transition_assessment': {
+        const auth = await verifyAuth(req);
+        if (!auth || !['therapist', 'director', 'admin'].includes(auth.role)) return res.status(403).json({ error: 'Forbidden' });
+        const therapistId = auth.sub;
+
+        const [result] = await pool.query(
+          `INSERT INTO transition_assessments 
+           (student_id, therapist_id, test_number, assessment_date, total_score, max_score, area_scores, therapist_notes) 
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            parseInt(input.student_id || 1),
+            therapistId,
+            parseInt(input.test_number || 1),
+            input.assessment_date || new Date().toISOString().slice(0, 10),
+            parseFloat(input.total_score || 0),
+            parseFloat(input.max_score || 90),
+            JSON.stringify(input.area_scores || {}),
+            input.therapist_notes || null,
+          ]
+        );
+        return res.json({ success: true, id: result.insertId });
+      }
+
+      // 6D. VB-MAPP EESA
+      case 'get_eesa_assessments': {
+        const auth = await verifyAuth(req);
+        if (!auth) return res.status(401).json({ error: 'Unauthorized' });
+        const scope = studentScopeSql('e.student_id', await accessibleStudentIds(auth));
+
+        const studentId = req.query.student_id ? parseInt(req.query.student_id) : null;
+        let query = `SELECT e.*, CONCAT(s.first_name, ' ', s.last_name) AS student_name 
+                     FROM eesa_assessments e 
+                     LEFT JOIN students s ON e.student_id = s.id
+                     WHERE ${scope.sql}`;
+        const params = [...scope.params];
+        if (studentId) {
+          query += ` AND e.student_id = ?`;
+          params.push(studentId);
+        }
+        query += ` ORDER BY e.test_number ASC, e.assessment_date DESC`;
+        const [rows] = await pool.query(query, params);
+        return res.json(rows);
+      }
+
+      case 'save_eesa_assessment': {
+        const auth = await verifyAuth(req);
+        if (!auth || !['therapist', 'director', 'admin'].includes(auth.role)) return res.status(403).json({ error: 'Forbidden' });
+        const therapistId = auth.sub;
+
+        const [result] = await pool.query(
+          `INSERT INTO eesa_assessments 
+           (student_id, therapist_id, test_number, assessment_date, group1_score, group2_score, total_score, responses, therapist_notes) 
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            parseInt(input.student_id || 1),
+            therapistId,
+            parseInt(input.test_number || 1),
+            input.assessment_date || new Date().toISOString().slice(0, 10),
+            parseFloat(input.group1_score || 0),
+            parseFloat(input.group2_score || 0),
+            parseFloat(input.total_score || 0),
+            JSON.stringify(input.responses || {}),
+            input.therapist_notes || null,
+          ]
+        );
+        return res.json({ success: true, id: result.insertId });
+      }
+
+      // Backward-compatibility bridge for generic get_vb_assessments
+      case 'get_vb_assessments': {
+        const auth = await verifyAuth(req);
+        if (!auth) return res.status(401).json({ error: 'Unauthorized' });
+        const scope = studentScopeSql('m.student_id', await accessibleStudentIds(auth));
+
+        const studentId = req.query.student_id ? parseInt(req.query.student_id) : null;
+        let query = `SELECT m.*, CONCAT(s.first_name, ' ', s.last_name) AS student_name 
+                     FROM milestone_assessments m 
+                     LEFT JOIN students s ON m.student_id = s.id
+                     WHERE ${scope.sql}`;
+        const params = [...scope.params];
+        if (studentId) {
+          query += ` AND m.student_id = ?`;
+          params.push(studentId);
+        }
+        query += ` ORDER BY m.id DESC`;
+        const [rows] = await pool.query(query, params);
+        return res.json(rows);
       }
 
       // ──────────────────────────────────────────────────────────────────────
       // 7. SESSIONS & DIRECTOR APPOINTMENTS
       // ──────────────────────────────────────────────────────────────────────
       case 'get_sessions': {
-        const [rows] = await pool.query(
-          `SELECT ts.*, CONCAT(s.first_name, ' ', s.last_name) AS student_name, u.name AS therapist_name 
-           FROM therapy_sessions ts 
-           LEFT JOIN students s ON ts.student_id = s.id 
-           LEFT JOIN users u ON ts.therapist_id = u.id 
-           WHERE ts.session_date = CURRENT_DATE() 
-           ORDER BY ts.start_time ASC`
-        );
+        const auth = await verifyAuth(req);
+        if (!auth) return res.status(401).json({ error: 'Unauthorized' });
+        const scope = studentScopeSql('ts.student_id', await accessibleStudentIds(auth));
+
+        const dateFilter = input.date || req.query.date;
+        let query = `SELECT ts.*,
+            CONCAT(s.first_name, ' ', s.last_name) AS student_name,
+            s.dob AS student_dob,
+            u.name AS therapist_name
+           FROM therapy_sessions ts
+           LEFT JOIN students s ON ts.student_id = s.id
+           LEFT JOIN users u ON ts.therapist_id = u.id
+           WHERE (${scope.sql}${auth.role === 'therapist' ? ' OR ts.therapist_id = ?' : ''}) `;
+        let params = [...scope.params];
+        if (auth.role === 'therapist') params.push(auth.sub);
+        if (dateFilter && dateFilter !== 'all') {
+          query += ` AND ts.session_date = ? `;
+          params.push(dateFilter);
+        }
+        query += ` ORDER BY ts.session_date ASC, ts.start_time ASC`;
+        const [rows] = await pool.query(query, params);
         return res.json(rows);
       }
 
+      case 'save_therapy_session': {
+        const auth = await verifyAuth(req);
+        if (!auth || !['admin', 'director'].includes(auth.role)) return res.status(403).json({ error: 'Forbidden' });
+
+        const therapistId = parseInt(input.therapist_id || 0);
+        const studentId = parseInt(input.student_id || 0);
+        const sessionDate = input.session_date || input.date || new Date().toISOString().split('T')[0];
+        const startTime = (input.start_time || '09:00 AM').trim();
+        const endTime = (input.end_time || '10:00 AM').trim();
+        const room = (input.room || 'Sensory Room A').trim();
+        const programTitle = (input.program_title || 'ABA Therapy Session').trim();
+        const status = input.status || 'upcoming';
+        const notes = input.clinical_notes || input.notes || '';
+
+        if (!therapistId || !studentId) {
+          return res.status(400).json({ error: 'therapist_id and student_id are required' });
+        }
+
+        // 1. Conflict Check: Therapist schedule collision
+        const [therapistConflict] = await pool.query(
+          `SELECT id FROM therapy_sessions 
+           WHERE therapist_id = ? AND session_date = ? AND start_time = ? AND status != 'cancelled'
+           LIMIT 1`,
+          [therapistId, sessionDate, startTime]
+        );
+        if (therapistConflict.length > 0) {
+          return res.status(409).json({ 
+            conflict: true, 
+            error: 'Therapist Schedule Conflict: The selected clinician already has an active session scheduled at this date and time.' 
+          });
+        }
+
+        // 2. Conflict Check: Room collision
+        if (room) {
+          const [roomConflict] = await pool.query(
+            `SELECT id FROM therapy_sessions 
+             WHERE room = ? AND session_date = ? AND start_time = ? AND status != 'cancelled'
+             LIMIT 1`,
+            [room, sessionDate, startTime]
+          );
+          if (roomConflict.length > 0) {
+            return res.status(409).json({ 
+              conflict: true, 
+              error: `Room Conflict: ${room} is already booked at ${startTime} on ${sessionDate}.` 
+            });
+          }
+        }
+
+        const [result] = await pool.query(
+          `INSERT INTO therapy_sessions (therapist_id, student_id, session_date, start_time, end_time, room, program_title, status, clinical_notes)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [therapistId, studentId, sessionDate, startTime, endTime, room, programTitle, status, notes]
+        );
+
+        const newId = result.insertId;
+
+        // Dispatch Notification to Therapist
+        await createNotification(
+          therapistId, 
+          'SESSION_SCHEDULED',
+          'New Therapy Session Scheduled', 
+          `You have a session scheduled with student #${studentId} on ${sessionDate} at ${startTime} in ${room}.`,
+          { session_id: newId, student_id: studentId, date: sessionDate }
+        );
+
+        await auditLog(auth.sub, auth.role, 'SCHEDULE_SESSION', 'therapy_sessions', newId, ip, ua, `Scheduled therapy session ${newId} for therapist ${therapistId} with student ${studentId}`);
+        return res.json({ success: true, id: newId });
+      }
+
+      case 'update_therapy_session': {
+        const auth = await verifyAuth(req);
+        if (!auth) return res.status(401).json({ error: 'Unauthorized' });
+
+        const sessionId = parseInt(input.id || input.session_id || 0);
+        if (!sessionId) return res.status(400).json({ error: 'Session ID required' });
+
+        const status = input.status || null;
+        const notes = input.clinical_notes !== undefined ? input.clinical_notes : (input.notes !== undefined ? input.notes : null);
+        const room = input.room || null;
+        const startTime = input.start_time || null;
+        const endTime = input.end_time || null;
+        const programTitle = input.program_title || null;
+
+        await pool.query(
+          `UPDATE therapy_sessions SET 
+             status = COALESCE(?, status),
+             clinical_notes = COALESCE(?, clinical_notes),
+             room = COALESCE(?, room),
+             start_time = COALESCE(?, start_time),
+             end_time = COALESCE(?, end_time),
+             program_title = COALESCE(?, program_title)
+           WHERE id = ?`,
+          [status, notes, room, startTime, endTime, programTitle, sessionId]
+        );
+
+        await auditLog(auth.sub, auth.role, 'UPDATE_SESSION', 'therapy_sessions', sessionId, ip, ua, `Updated therapy session ${sessionId}`);
+        return res.json({ success: true, id: sessionId });
+      }
+
+      case 'delete_therapy_session': {
+        const auth = await verifyAuth(req);
+        if (!auth || !['admin', 'director'].includes(auth.role)) return res.status(403).json({ error: 'Forbidden' });
+
+        const sessionId = parseInt(input.id || input.session_id || req.query.id || 0);
+        if (!sessionId) return res.status(400).json({ error: 'Session ID required' });
+
+        await pool.query('DELETE FROM therapy_sessions WHERE id = ?', [sessionId]);
+        await auditLog(auth.sub, auth.role, 'DELETE_SESSION', 'therapy_sessions', sessionId, ip, ua, `Deleted therapy session ${sessionId}`);
+        return res.json({ success: true, id: sessionId });
+      }
+
       case 'get_director_appointments': {
-        const [rows] = await pool.query('SELECT * FROM director_appointments ORDER BY date ASC, start_time ASC');
+        const auth = await verifyAuth(req);
+        if (!auth) return res.status(401).json({ error: 'Unauthorized' });
+
+        // Admin/director see the whole calendar; others only appointments booked for them
+        if (['admin', 'director'].includes(auth.role)) {
+          const [rows] = await pool.query('SELECT * FROM director_appointments ORDER BY date ASC, start_time ASC');
+          return res.json(rows);
+        }
+        const [rows] = await pool.query(
+          'SELECT * FROM director_appointments WHERE LOWER(attendee_email) = LOWER(?) ORDER BY date ASC, start_time ASC',
+          [auth.email || '']
+        );
         return res.json(rows);
       }
 
       case 'save_director_appointment': {
         const auth = await verifyAuth(req);
-        const userId = auth ? auth.sub : 1;
-        const userName = auth ? auth.name : 'Administrator';
-        const userRole = auth ? auth.role : 'admin';
+        if (!auth) return res.status(401).json({ error: 'Unauthorized' });
+        const userId = auth.sub;
+        const userName = auth.name;
+        const userRole = auth.role;
+
+        // Parents/therapists book for themselves, so their own email is what scopes get_director_appointments
+        if (!['admin', 'director'].includes(userRole)) input.attendee_email = auth.email;
 
         const attendeeName = (input.attendee_name || userName).trim();
         const attendeeRole = (input.attendee_role || 'Parent').trim();
@@ -792,15 +1590,9 @@ app.all(['/api.php', '/api', '/api/api.php', '/api/v1'], async (req, res) => {
 
       case 'get_notifications': {
         const auth = await verifyAuth(req);
-        let recipientId = auth ? auth.sub : null;
-        if (!recipientId && (input.role || req.query.role)) {
-          const roleParam = (input.role || req.query.role || '').toLowerCase();
-          if (roleParam === 'director') recipientId = 2;
-          else if (roleParam === 'therapist') recipientId = 3;
-          else if (roleParam === 'parent') recipientId = 4;
-          else if (roleParam === 'admin') recipientId = 1;
-        }
-        if (!recipientId) recipientId = 2; // Default to Director for seamless preview
+        if (!auth) return res.status(401).json({ error: 'Unauthorized' });
+        // Always the caller's own inbox; user_id/role params from the client are ignored
+        const recipientId = auth.sub;
 
         const [rows] = await pool.query('SELECT * FROM notifications WHERE recipient_user_id = ? ORDER BY id DESC LIMIT 50', [recipientId]);
         const [countRow] = await pool.query('SELECT COUNT(*) as unread FROM notifications WHERE recipient_user_id = ? AND is_read = 0', [recipientId]);
@@ -814,12 +1606,13 @@ app.all(['/api.php', '/api', '/api/api.php', '/api/v1'], async (req, res) => {
       case 'mark_notification_read': {
         const auth = await verifyAuth(req);
         if (!auth) return res.status(401).json({ error: 'Unauthorized' });
+        const recipientId = auth.sub;
 
         const notifId = parseInt(input.notification_id || 0);
         if (notifId > 0) {
-          await pool.query('UPDATE notifications SET is_read = 1 WHERE id = ? AND recipient_user_id = ?', [notifId, auth.sub]);
+          await pool.query('UPDATE notifications SET is_read = 1 WHERE id = ? AND recipient_user_id = ?', [notifId, recipientId]);
         } else {
-          await pool.query('UPDATE notifications SET is_read = 1 WHERE recipient_user_id = ?', [auth.sub]);
+          await pool.query('UPDATE notifications SET is_read = 1 WHERE recipient_user_id = ?', [recipientId]);
         }
         return res.json({ success: true });
       }
@@ -829,7 +1622,10 @@ app.all(['/api.php', '/api', '/api/api.php', '/api/v1'], async (req, res) => {
       // ──────────────────────────────────────────────────────────────────────
       case 'record_parental_consent': {
         const auth = await verifyAuth(req);
-        const studentId = parseInt(input.student_id || 1);
+        if (!auth) return res.status(401).json({ error: 'Unauthorized' });
+        const studentId = parseInt(input.student_id || 0);
+        if (!studentId) return res.status(400).json({ error: 'student_id required' });
+        if (!(await canAccessStudent(auth, studentId))) return res.status(403).json({ error: 'Forbidden' });
         const version = input.consent_version || 'DPDP-2023-V1';
 
         const [result] = await pool.query(

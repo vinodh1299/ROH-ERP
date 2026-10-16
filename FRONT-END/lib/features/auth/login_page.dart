@@ -219,16 +219,6 @@ class _LoginPageState extends State<LoginPage> {
                   : const Text('Sign In'),
             ),
           ),
-          const SizedBox(height: 32),
-
-          // Demo credentials hint
-          _DemoCredentials(
-            onSelect: (email, pass) {
-              _emailCtrl.text = email;
-              _passCtrl.text = pass;
-              _handleLogin();
-            },
-          ),
         ],
       ),
     );
@@ -287,90 +277,6 @@ class _BrandingPanel extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-// ── Demo credentials hint ─────────────────────────────────────────────────────
-class _DemoCredentials extends StatelessWidget {
-  final void Function(String email, String password)? onSelect;
-  const _DemoCredentials({this.onSelect});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.primary.withValues(alpha: 0.05),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Row(
-            children: [
-              Icon(Icons.bolt, size: 16, color: AppColors.primary),
-              SizedBox(width: 6),
-              Text('One-Click Demo Sign In (Quick Testing)',
-                  style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.primary)),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              _CredPill('Admin', AppConstants.adminEmail, AppConstants.adminPassword, onSelect),
-              _CredPill('Director', AppConstants.directorEmail, AppConstants.directorPassword, onSelect),
-              _CredPill('Therapist', AppConstants.therapistEmail, AppConstants.therapistPassword, onSelect),
-              _CredPill('Parent', AppConstants.parentEmail, AppConstants.parentPassword, onSelect),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _CredPill extends StatelessWidget {
-  final String role;
-  final String email;
-  final String pass;
-  final void Function(String email, String password)? onSelect;
-  const _CredPill(this.role, this.email, this.pass, this.onSelect);
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: () => onSelect?.call(email, pass),
-      borderRadius: BorderRadius.circular(8),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 8,
-              height: 8,
-              decoration: const BoxDecoration(color: AppColors.primary, shape: BoxShape.circle),
-            ),
-            const SizedBox(width: 6),
-            Text(
-              role,
-              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.primary),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

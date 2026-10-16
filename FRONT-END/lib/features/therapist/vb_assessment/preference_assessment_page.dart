@@ -15,27 +15,16 @@ class _PreferenceAssessmentPageState extends State<PreferenceAssessmentPage> {
 
   final Map<String, List<String>> _reinforcers = {
     'EDIBLE REINFORCERS': [
-      'Apple', 'Apple', 'Apple', 'Apple', 'Apple', 'Apple',
-      'Apple', 'Apple', 'Apple', 'Apple', 'Apple', 'Apple',
-      'Apple', 'Apple', 'Apple', 'Apple', 'Apple', 'Apple',
-      'Apple', 'Apple', 'Apple', 'Apple', 'Apple', 'Apple',
+      'Apple Slices', 'Gummy Bears', 'Pretzels', 'Fruit Snacks', 'Juice Box', 'Crackers',
     ],
-    'TOYS MATERIAL REINFORCERS': [
-      'Apple', 'Apple', 'Apple', 'Apple', 'Apple', 'Apple',
-      'Apple', 'Apple', 'Apple', 'Apple', 'Apple', 'Apple',
-      'Apple', 'Apple', 'Apple', 'Apple', 'Apple', 'Apple',
-      'Apple', 'Apple', 'Apple', 'Apple', 'Apple', 'Apple',
+    'TOYS & MATERIAL REINFORCERS': [
+      'Bubbles', 'Spinning Top', 'Light-Up Toy', 'Play-Doh', 'Kinetic Sand', 'Puzzles',
     ],
     'SOCIAL REINFORCERS': [
-      'Apple', 'Apple', 'Apple', 'Apple', 'Apple', 'Apple',
-      'Apple', 'Apple', 'Apple', 'Apple', 'Apple', 'Apple',
-      'Apple', 'Apple', 'Apple', 'Apple', 'Apple', 'Apple',
-      'Apple', 'Apple', 'Apple', 'Apple', 'Apple', 'Apple',
+      'High-Five', 'Verbal Praise', 'Tickles', 'Clapping Cheer', 'Singing Song',
     ],
-    'OTHER REINFORCERS': [
-      'Apple', 'Apple', 'Apple', 'Apple', 'Apple', 'Apple',
-      'Apple', 'Apple', 'Apple', 'Apple', 'Apple', 'Apple',
-      'Apple', 'Apple', 'Apple', 'Apple', 'Apple', 'Apple',
+    'ACTIVITY REINFORCERS': [
+      'Trampoline Jump', 'Swing', 'Tablet (2 min)', 'Ball Bounce', 'Dance Break',
     ],
   };
 
@@ -45,12 +34,6 @@ class _PreferenceAssessmentPageState extends State<PreferenceAssessmentPage> {
   @override
   void initState() {
     super.initState();
-    // Pre-check all to match Figma visual
-    _reinforcers.forEach((cat, list) {
-      for (int i = 0; i < list.length; i++) {
-        _checkedItems.add('${cat}_$i');
-      }
-    });
   }
 
   void _showAddItemDialog(String category) {
@@ -155,7 +138,7 @@ class _PreferenceAssessmentPageState extends State<PreferenceAssessmentPage> {
       return StudentCardGrid(
         title: 'Students VB MAPP Preference Assessment',
         buttonLabel: 'Add',
-        onStudentAction: (student) {
+        onStudentAction: (student, studentId) {
           setState(() {
             _selectedStudent = student;
           });

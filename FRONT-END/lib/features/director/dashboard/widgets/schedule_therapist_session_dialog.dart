@@ -111,7 +111,7 @@ class _ScheduleTherapistSessionDialogState
     }
   }
 
-  void _saveSession() {
+  Future<void> _saveSession() async {
     if (!_formKey.currentState!.validate()) return;
     if (_selectedTherapistId == null || _selectedStudentId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -156,7 +156,8 @@ class _ScheduleTherapistSessionDialogState
       notes: _notesController.text.trim(),
     );
 
-    final success = scheduleService.scheduleTherapySession(newSession);
+    final success = await scheduleService.scheduleTherapySession(newSession);
+    if (!mounted) return;
 
     if (success) {
       Navigator.of(context).pop(true);

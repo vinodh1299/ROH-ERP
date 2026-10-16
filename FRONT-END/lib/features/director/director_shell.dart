@@ -14,6 +14,7 @@ import '../../core/widgets/animated_top_bar_title.dart';
 import '../../core/widgets/two_step_logout_dialog.dart';
 import '../../core/widgets/notification_center_drawer.dart';
 import '../../core/services/notification_service.dart';
+import '../../core/services/system_notifications.dart';
 import '../auth/auth_service.dart';
 import '../auth/widgets/forced_password_change_dialog.dart';
 import 'approvals/director_password_resets_view.dart';
@@ -26,19 +27,21 @@ import 'iep_reports_section/iep_reports_section_page.dart';
 import 'settings_section/settings_section_page.dart';
 
 class DirectorShell extends StatefulWidget {
-  const DirectorShell({super.key});
+  final int initialTab;
+  const DirectorShell({super.key, this.initialTab = 0});
 
   @override
   State<DirectorShell> createState() => _DirectorShellState();
 }
 
 class _DirectorShellState extends State<DirectorShell> {
-  int _selectedIndex = 0;
+  late int _selectedIndex;
   bool _sidebarExpanded = true;
 
   @override
   void initState() {
     super.initState();
+    _selectedIndex = widget.initialTab;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final auth = Provider.of<AuthService>(context, listen: false);
       if (!auth.isLoggedIn || auth.currentUser?.role != 'director') {
@@ -50,6 +53,7 @@ class _DirectorShellState extends State<DirectorShell> {
       }
       ForcedPasswordChangeDialog.showIfNeeded(context);
       NotificationService().fetchNotifications();
+      SystemNotifications.requestPermission();
     });
   }
 
@@ -244,8 +248,7 @@ class _Sidebar extends StatelessWidget {
                     ),
                     if (onToggle != null)
                       IconButton(icon: const Icon(Icons.menu, size: 20), onPressed: onToggle, color: AppColors.textSecondary),
-                  ] else if (onToggle != null)
-                    IconButton(icon: const Icon(Icons.menu, size: 20), onPressed: onToggle, color: AppColors.textSecondary),
+                  ],
                 ],
               ),
             ),

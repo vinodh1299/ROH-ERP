@@ -16,6 +16,8 @@ build/
 
 # Environment — NEVER commit real credentials
 .env
+.env.*
+!.env.example
 
 # OS
 .DS_Store
@@ -34,3 +36,11 @@ yarn-error.log*
 # Test output
 test-results/
 *.log
+
+# Deployment packages (contain production credentials)
+deploy/
+
+# Local tooling / generated deliverables
+.claude/worktrees/
+Teams-Update-*/
+BACK-END/login_mounted.png

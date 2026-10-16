@@ -69,7 +69,7 @@ class _IepReportsSectionPageState extends State<IepReportsSectionPage> {
           final tName = r['therapist_name'] ?? 'Clinician';
           final cycle = r['cycle_term'] ?? 'Q3 2026 Treatment Plan';
           final goals = r['goals_summary'] ?? 'Clinical Protocol & Behavioral Milestones';
-          final subDate = r['created_at'] != null ? r['created_at'].toString().split('T')[0] : '2026-09-11';
+          final subDate = r['created_at'] != null ? r['created_at'].toString().split('T')[0] : '—';
           final statusStr = (r['status'] ?? 'Pending Approval').toString().toLowerCase();
 
           IepStatus status;
@@ -217,11 +217,8 @@ class _IepReportsSectionPageState extends State<IepReportsSectionPage> {
 
                             // Proposed Goals & Target Breakdown
                             const Text('Clinical Objectives & Target Breakdown', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.textPrimary)),
-                            const SizedBox(height: 10),
-                            _buildTargetRow('Manding', 'Spontaneous vocal manding for 20 distinct missing items without prompting.', 'Mastered 6/20'),
-                            _buildTargetRow('Tacting', 'Tact 50 community items and common objects in natural environment.', 'Mastered 32/50'),
-                            _buildTargetRow('Echoic Skills', 'Repeat 3-syllable functional phrases with 90% consonant-vowel clarity.', 'Baseline: 40%'),
-                            _buildTargetRow('Behavior Intervention Plan (BIP)', 'Reduce task-refusal elopement via functional communication training (FCT).', 'Target: < 2 daily'),
+                            _buildTargetRow('Treatment Focus', report.targetDomains, 'Assigned Targets'),
+                            _buildTargetRow('Reporting Cycle', report.cycle, report.status.label),
 
                             const SizedBox(height: 20),
                             // Director Review Notes
@@ -276,7 +273,7 @@ class _IepReportsSectionPageState extends State<IepReportsSectionPage> {
                                       borderRadius: BorderRadius.circular(8),
                                       color: Colors.white,
                                     ),
-                                    child: const Text('Dr. Vincent Sterling, BCBA-D ✍️', style: TextStyle(fontFamily: 'serif', fontStyle: FontStyle.italic, fontWeight: FontWeight.bold, color: AppColors.primary)),
+                                    child: const Text('Clinical Director, BCBA-D ✍️', style: TextStyle(fontFamily: 'serif', fontStyle: FontStyle.italic, fontWeight: FontWeight.bold, color: AppColors.primary)),
                                   ),
                                 ],
                               ),

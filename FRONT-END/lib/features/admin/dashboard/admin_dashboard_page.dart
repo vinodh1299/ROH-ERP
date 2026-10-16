@@ -186,7 +186,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                   else
                     ...pendingIeps.take(4).map((iep) {
                       final sName = iep['student_name'] ?? 'Student';
-                      final createdDate = iep['created_at'] != null ? iep['created_at'].toString().split('T')[0] : '2026-09-11';
+                      final createdDate = iep['created_at'] != null ? iep['created_at'].toString().split('T')[0] : '—';
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 12.0),
                         child: Row(
@@ -341,10 +341,10 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                         itemBuilder: (context, index) {
                           final s = _students[index];
                           final name = s['name'] ?? '${s['first_name']} ${s['last_name']}';
-                          final email = '${(s['first_name'] ?? 'student').toString().toLowerCase()}@rohcenter.org';
-                          final phone = s['phone'] ?? '+1 (555) 019-2834';
+                          final email = s['email']?.toString().isNotEmpty == true ? s['email'].toString() : 'Not provided';
+                          final phone = s['phone']?.toString().isNotEmpty == true ? s['phone'].toString() : 'Not provided';
                           final age = _calculateAge(s['dob']);
-                          final createdDate = s['created_at'] != null ? s['created_at'].toString().split('T')[0] : '2026-09-11';
+                          final createdDate = s['created_at'] != null ? s['created_at'].toString().split('T')[0] : '—';
                           final isActive = (s['status'] ?? 'Active') == 'Active';
 
                           return Padding(

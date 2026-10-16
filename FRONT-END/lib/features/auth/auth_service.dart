@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:roh_erp/core/constants/app_constants.dart';
 import '../../core/models/user_model.dart';
 import '../../core/services/api_service.dart';
+import '../../core/services/notification_service.dart';
 import '../../core/services/web_storage/web_storage.dart';
 
 class AuthService extends ChangeNotifier {
@@ -90,34 +91,6 @@ class AuthService extends ChangeNotifier {
       debugPrint('Login connection failed: $e');
     }
 
-    // ── Resilient Fallback for Demo / Evaluation Credentials ──
-    // Enables seamless sign-in even if browser sandbox or network policy intercepts direct localhost calls
-    if (cleanEmail == AppConstants.adminEmail.toLowerCase() && cleanPass == AppConstants.adminPassword) {
-      final demoAdmin = UserModel(id: 1, name: AppConstants.adminName, email: AppConstants.adminEmail, role: AppConstants.adminRole);
-      await _setSession(demoAdmin, 'demo_admin_jwt_token_2026');
-      _isLoading = false;
-      notifyListeners();
-      return AppConstants.adminRole;
-    } else if (cleanEmail == AppConstants.directorEmail.toLowerCase() && cleanPass == AppConstants.directorPassword) {
-      final demoDirector = UserModel(id: 2, name: AppConstants.directorName, email: AppConstants.directorEmail, role: AppConstants.directorRole);
-      await _setSession(demoDirector, 'demo_director_jwt_token_2026');
-      _isLoading = false;
-      notifyListeners();
-      return AppConstants.directorRole;
-    } else if (cleanEmail == AppConstants.therapistEmail.toLowerCase() && cleanPass == AppConstants.therapistPassword) {
-      final demoTherapist = UserModel(id: 3, name: AppConstants.therapistName, email: AppConstants.therapistEmail, role: AppConstants.therapistRole);
-      await _setSession(demoTherapist, 'demo_therapist_jwt_token_2026');
-      _isLoading = false;
-      notifyListeners();
-      return AppConstants.therapistRole;
-    } else if (cleanEmail == AppConstants.parentEmail.toLowerCase() && cleanPass == AppConstants.parentPassword) {
-      final demoParent = UserModel(id: 4, name: AppConstants.parentName, email: AppConstants.parentEmail, role: AppConstants.parentRole);
-      await _setSession(demoParent, 'demo_parent_jwt_token_2026');
-      _isLoading = false;
-      notifyListeners();
-      return AppConstants.parentRole;
-    }
-
     _isLoading = false;
     notifyListeners();
     return null; // invalid credentials or connection failure
@@ -125,6 +98,7 @@ class AuthService extends ChangeNotifier {
 
   Future<void> _setSession(UserModel user, [String? token]) async {
     _currentUser = user;
+    NotificationService().reset();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(AppConstants.prefIsLoggedIn, true);
     await prefs.setInt(AppConstants.prefUserId, user.id);
@@ -194,6 +168,7 @@ class AuthService extends ChangeNotifier {
     await prefs.remove('jwt_token');
     clearAllWebStorage();
     ApiService().setAuthToken(null);
+    NotificationService().reset();
     notifyListeners();
   }
 }

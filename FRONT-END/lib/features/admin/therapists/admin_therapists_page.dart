@@ -181,11 +181,11 @@ class _AdminTherapistsPageState extends State<AdminTherapistsPage> {
                                           child: Column(
                                             mainAxisAlignment: MainAxisAlignment.center,
                                             children: [
-                                              AppImages.therapistImage(
-                                                width: 80,
-                                                height: 80,
-                                                borderRadius: BorderRadius.circular(16),
-                                              ),
+                                               CircleAvatar(
+                                                 radius: 36,
+                                                 backgroundColor: AppColors.primary.withValues(alpha: 0.15),
+                                                 child: const Icon(Icons.person, size: 40, color: AppColors.primary),
+                                               ),
                                               const SizedBox(height: 14),
                                               Text(
                                                 name,

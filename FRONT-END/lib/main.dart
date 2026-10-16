@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -11,6 +10,11 @@ import 'features/admin/admin_shell.dart';
 import 'features/director/director_shell.dart';
 import 'features/therapist/therapist_shell.dart';
 import 'features/parent/parent_shell.dart';
+import 'core/widgets/in_app_notification_banner.dart';
+import 'core/widgets/first_launch_permissions_gate.dart';
+import 'core/widgets/notification_center_drawer.dart';
+import 'core/services/notification_service.dart';
+import 'core/services/system_notifications.dart';
 
 void main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -22,20 +26,22 @@ void main(List<String> args) async {
   final authService = AuthService();
   await authService.loadSession();
 
+  // Clicking an OS notification brings the app forward (see
+  // SystemNotifications) and opens the notification drawer.
+  SystemNotifications.onTap = () {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final ctx = RohApp.navigatorKey.currentContext;
+      if (ctx == null || !authService.isLoggedIn) return;
+      NotificationService().fetchNotifications(silent: true);
+      NotificationCenterDrawer.show(ctx);
+    });
+    WidgetsBinding.instance.scheduleFrame();
+  };
+  await SystemNotifications.init();
+
   int initialTab = 0;
   for (final arg in args) {
-    if (arg.startsWith('--role=')) {
-      final role = arg.split('=')[1].trim().toLowerCase();
-      if (role == 'admin') {
-        await authService.login(AppConstants.adminEmail, AppConstants.adminPassword);
-      } else if (role == 'director') {
-        await authService.login(AppConstants.directorEmail, AppConstants.directorPassword);
-      } else if (role == 'therapist') {
-        await authService.login(AppConstants.therapistEmail, AppConstants.therapistPassword);
-      } else if (role == 'parent') {
-        await authService.login(AppConstants.parentEmail, AppConstants.parentPassword);
-      }
-    } else if (arg.startsWith('--tab=')) {
+    if (arg.startsWith('--tab=')) {
       initialTab = int.tryParse(arg.split('=')[1].trim()) ?? 0;
     }
   }
@@ -53,6 +59,7 @@ void main(List<String> args) async {
 }
 
 class RohApp extends StatelessWidget {
+  static final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
   final int initialTab;
   const RohApp({super.key, this.initialTab = 0});
 
@@ -61,10 +68,16 @@ class RohApp extends StatelessWidget {
     return Consumer<AuthService>(
       builder: (context, auth, _) {
         return MaterialApp(
+          navigatorKey: navigatorKey,
           title: AppConstants.appName,
           debugShowCheckedModeBanner: false,
           theme: AppTheme.light,
           initialRoute: _getInitialRoute(auth),
+          builder: (context, child) => FirstLaunchPermissionsGate(
+            child: InAppNotificationOverlay(
+              child: child ?? const SizedBox(),
+            ),
+          ),
           onGenerateRoute: (settings) => _generateGuardedRoute(context, auth, settings),
           onUnknownRoute: (settings) => _generateGuardedRoute(context, auth, settings),
         );
@@ -149,46 +162,49 @@ class RohApp extends StatelessWidget {
     }
 
     // 4. Authorized access: return the appropriate shell
+    final tabParam = int.tryParse(Uri.tryParse(rawName)?.queryParameters['tab'] ?? '');
+    final tab = tabParam ?? initialTab;
+
     switch (cleanRoute) {
       case AppConstants.routeAdmin:
         return MaterialPageRoute(
           settings: settings,
-          builder: (_) => const AdminShell(),
+          builder: (_) => AdminShell(initialTab: tab),
         );
       case AppConstants.routeDirector:
         return MaterialPageRoute(
           settings: settings,
-          builder: (_) => const DirectorShell(),
+          builder: (_) => DirectorShell(initialTab: tab),
         );
       case AppConstants.routeTherapist:
         return MaterialPageRoute(
           settings: settings,
-          builder: (_) => const TherapistShell(),
+          builder: (_) => TherapistShell(initialTab: tab),
         );
       case AppConstants.routeParent:
         return MaterialPageRoute(
           settings: settings,
-          builder: (_) => ParentShell(initialTab: initialTab),
+          builder: (_) => ParentShell(initialTab: tab),
         );
       default:
         final fallback = auth.isLoggedIn ? _roleHome(userRole) : AppConstants.routeLogin;
         return MaterialPageRoute(
           settings: RouteSettings(name: fallback),
-          builder: (_) => auth.isLoggedIn ? _buildRoleShell(userRole) : const LoginPage(),
+          builder: (_) => auth.isLoggedIn ? _buildRoleShell(userRole, tab) : const LoginPage(),
         );
     }
   }
 
-  Widget _buildRoleShell(String? role) {
+  Widget _buildRoleShell(String? role, [int tab = 0]) {
     switch (role?.toLowerCase()) {
       case 'admin':
-        return const AdminShell();
+        return AdminShell(initialTab: tab);
       case 'director':
-        return const DirectorShell();
+        return DirectorShell(initialTab: tab);
       case 'therapist':
-        return const TherapistShell();
+        return TherapistShell(initialTab: tab);
       case 'parent':
-        return ParentShell(initialTab: initialTab);
+        return ParentShell(initialTab: tab);
       default:
         return const LoginPage();
     }

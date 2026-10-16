@@ -4,6 +4,8 @@ import 'package:roh_erp/core/constants/app_colors.dart';
 import 'package:roh_erp/core/models/schedule_model.dart';
 import 'package:roh_erp/core/services/schedule_service.dart';
 import 'package:roh_erp/core/services/api_service.dart';
+import 'package:roh_erp/core/services/web_storage/web_storage.dart';
+import 'package:roh_erp/features/auth/auth_service.dart';
 
 class TherapistDashboardPage extends StatefulWidget {
   final Function(int)? onNavigateTab;
@@ -22,23 +24,30 @@ class _TherapistDashboardPageState extends State<TherapistDashboardPage> {
   @override
   void initState() {
     super.initState();
-    _loadData();
+    _fetchRealData();
   }
 
-  Future<void> _loadData() async {
+  Future<void> _fetchRealData() async {
     try {
-      final sRes = await ApiService().get('get_students');
-      final iRes = await ApiService().get('get_iep_reports');
+      final api = ApiService();
+      final studentsRes = await api.get('get_students');
+      final iepRes = await api.get('get_iep_reports');
 
       if (mounted) {
         setState(() {
-          if (sRes is List) _students = List<Map<String, dynamic>>.from(sRes);
-          if (iRes is List) _iepReports = List<Map<String, dynamic>>.from(iRes);
+          if (studentsRes is List) {
+            _students = List<Map<String, dynamic>>.from(studentsRes);
+          }
+          if (iepRes is List) {
+            _iepReports = List<Map<String, dynamic>>.from(iepRes);
+          }
           _isLoading = false;
         });
       }
     } catch (_) {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -60,8 +69,12 @@ class _TherapistDashboardPageState extends State<TherapistDashboardPage> {
 
   @override
   Widget build(BuildContext context) {
+    final auth = context.watch<AuthService>();
     final scheduleService = context.watch<ScheduleService>();
-    final todaySessions = scheduleService.getSessionsForTherapist('T1');
+    final therapistId = (auth.currentUser?.id != null && auth.currentUser!.id > 0)
+        ? auth.currentUser!.id.toString()
+        : (getWebStorage('user_id') ?? '3');
+    final todaySessions = scheduleService.getSessionsForTherapist(therapistId);
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -224,10 +237,10 @@ class _TherapistDashboardPageState extends State<TherapistDashboardPage> {
                           else
                             ..._students.take(5).map((s) {
                               final name = s['name'] ?? '${s['first_name']} ${s['last_name']}';
-                              final email = '${(s['first_name'] ?? 'student').toString().toLowerCase()}@rohcenter.org';
-                              final phone = s['phone'] ?? '+1 (555) 019-2834';
+                              final email = s['email']?.toString().isNotEmpty == true ? s['email'].toString() : 'Not provided';
+                              final phone = s['phone']?.toString().isNotEmpty == true ? s['phone'].toString() : 'Not provided';
                               final age = _calculateAge(s['dob']).toString();
-                              final createdDate = s['created_at'] != null ? s['created_at'].toString().split('T')[0] : '2026-09-11';
+                              final createdDate = s['created_at'] != null ? s['created_at'].toString().split('T')[0] : '—';
                               final status = s['status'] ?? 'Active';
 
                               return Column(

@@ -17,23 +17,23 @@ class _EesAssessmentPageState extends State<EesAssessmentPage> {
   final Map<String, int> _responses = {};
 
   final List<String> _group1Items = [
-    'ah', 'ah', 'ah', 'ah',
-    'wow', 'wow', 'wow', 'wow',
-    'bee', 'bee', 'bee', 'bee',
-    'knee', 'knee', 'knee', 'knee',
-    'oo', 'oo', 'oo', 'oo',
-    'ah',
-    'wow',
-    'bee',
-    'knee',
-    'oo',
+    'ah', 'ee', 'oo', 'oh',
+    'ay', 'm', 'b', 'p',
+    'w', 'h', 'mama', 'bye',
+    'uh-oh', 'baby', 'pup', 'moo',
+    'neigh', 'night', 'hi', 'me',
+    'cookie',
+    'bubble',
+    'open',
+    'bottle',
+    'happy',
   ];
 
   final List<String> _group2Items = [
-    'ah', 'ah', 'ah', 'ah',
-    'wow', 'wow', 'wow', 'wow',
-    'bee', 'bee', 'bee', 'bee',
-    'knee', 'knee', 'knee', 'knee',
+    'no-no', 'dada', 'kitty', 'ball',
+    'go', 'eat', 'shoe', 'car',
+    'up', 'hot', 'two', 'key',
+    'see', 'light', 'cup', 'boat',
   ];
 
   @override
@@ -42,7 +42,7 @@ class _EesAssessmentPageState extends State<EesAssessmentPage> {
       return StudentCardGrid(
         title: 'Students VB MAPP Early Echoic Skill Assessment (EESA)',
         buttonLabel: 'Add',
-        onStudentAction: (student) {
+        onStudentAction: (student, studentId) {
           setState(() {
             _selectedStudent = student;
           });
@@ -322,7 +322,7 @@ class _EesAssessmentPageState extends State<EesAssessmentPage> {
   }
 
   Widget _buildSyllableItem(String key, String word) {
-    final currentVal = _responses[key] ?? 2; // Default to Yes (2) to match Figma visual
+    final currentVal = _responses[key] ?? 0; // Starts unselected (0) until therapist administers probe
 
     return Row(
       mainAxisSize: MainAxisSize.min,

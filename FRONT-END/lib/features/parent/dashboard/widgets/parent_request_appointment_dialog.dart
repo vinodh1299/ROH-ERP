@@ -30,7 +30,7 @@ class _ParentRequestAppointmentDialogState
   String? _selectedSlot;
 
   final _titleController = TextEditingController();
-  final _phoneController = TextEditingController(text: '+1 (555) 382-9912');
+  final _phoneController = TextEditingController();
   final _notesController = TextEditingController();
 
   @override

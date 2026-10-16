@@ -53,6 +53,87 @@
         }
       });
     }
+
+    // Shared Web Audio context with automated user gesture unlocking
+    let _audioCtx = null;
+    function getAudioContext() {
+      try {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (!AudioCtx) return null;
+        if (!_audioCtx) {
+          _audioCtx = new AudioCtx();
+        }
+        if (_audioCtx.state === 'suspended') {
+          _audioCtx.resume();
+        }
+        return _audioCtx;
+      } catch (e) {
+        return null;
+      }
+    }
+
+    // Auto unlock on first user interaction anywhere in the window
+    function unlockAudio() {
+      const ctx = getAudioContext();
+      if (ctx && ctx.state === 'running') {
+        window.removeEventListener('click', unlockAudio);
+        window.removeEventListener('keydown', unlockAudio);
+        window.removeEventListener('touchstart', unlockAudio);
+      }
+    }
+    window.addEventListener('click', unlockAudio, { passive: true });
+    window.addEventListener('keydown', unlockAudio, { passive: true });
+    window.addEventListener('touchstart', unlockAudio, { passive: true });
+
+    // Premium dual-tone chime notification sound
+    window.playNotificationSound = function() {
+      try {
+        const ctx = getAudioContext();
+        if (!ctx) return;
+        const now = ctx.currentTime;
+
+        // Tone 1: 587.33 Hz (D5) - soft bell attack
+        const osc1 = ctx.createOscillator();
+        const gain1 = ctx.createGain();
+        osc1.type = 'sine';
+        osc1.frequency.setValueAtTime(587.33, now);
+        gain1.gain.setValueAtTime(0.001, now);
+        gain1.gain.exponentialRampToValueAtTime(0.25, now + 0.02);
+        gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+        osc1.connect(gain1);
+        gain1.connect(ctx.destination);
+        osc1.start(now);
+        osc1.stop(now + 0.4);
+
+        // Tone 2: 880.0 Hz (A5) - bell ring harmonic
+        const osc2 = ctx.createOscillator();
+        const gain2 = ctx.createGain();
+        osc2.type = 'sine';
+        osc2.frequency.setValueAtTime(880.0, now + 0.09);
+        gain2.gain.setValueAtTime(0.001, now + 0.09);
+        gain2.gain.exponentialRampToValueAtTime(0.3, now + 0.11);
+        gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.65);
+        osc2.connect(gain2);
+        gain2.connect(ctx.destination);
+        osc2.start(now + 0.09);
+        osc2.stop(now + 0.65);
+
+        // Tone 3: 1174.66 Hz (D6) - subtle sparkle finish
+        const osc3 = ctx.createOscillator();
+        const gain3 = ctx.createGain();
+        osc3.type = 'sine';
+        osc3.frequency.setValueAtTime(1174.66, now + 0.18);
+        gain3.gain.setValueAtTime(0.001, now + 0.18);
+        gain3.gain.exponentialRampToValueAtTime(0.2, now + 0.20);
+        gain3.gain.exponentialRampToValueAtTime(0.001, now + 0.75);
+        osc3.connect(gain3);
+        gain3.connect(ctx.destination);
+        osc3.start(now + 0.18);
+        osc3.stop(now + 0.75);
+      } catch (e) {
+        console.warn('Notification audio playback error:', e);
+      }
+    };
   </script>
 </head>
 <body>

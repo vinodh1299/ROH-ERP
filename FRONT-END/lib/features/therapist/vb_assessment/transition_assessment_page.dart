@@ -1,5 +1,7 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:roh_erp/core/constants/app_colors.dart';
+import '../../../core/services/db_queries.dart';
 import '../widgets/student_card_grid.dart';
 import '../widgets/student_assessment_banner.dart';
 
@@ -12,7 +14,32 @@ class TransitionAssessmentPage extends StatefulWidget {
 
 class _TransitionAssessmentPageState extends State<TransitionAssessmentPage> {
   String? _selectedStudent;
+  int? _selectedStudentId;
   int _activeTab = 0; // 0: Assessment, 1: Graph
+  List<Map<String, dynamic>> _transitionRecords = [];
+
+  int _resolveStudentId(String name) {
+    final lower = name.toLowerCase();
+    if (lower.contains('alex')) return 1;
+    if (lower.contains('aarav')) return 2;
+    if (lower.contains('emma')) return 3;
+    if (lower.contains('matt')) return 4;
+    if (lower.contains('rahul')) return 5;
+    if (lower.contains('sophia')) return 6;
+    return 1;
+  }
+
+  Future<void> _loadTransitionData() async {
+    if (_selectedStudentId == null) return;
+    try {
+      final res = await TransitionAssessmentQueries.fetchForStudent(_selectedStudentId.toString());
+      if (mounted) {
+        setState(() {
+          _transitionRecords = res;
+        });
+      }
+    } catch (_) {}
+  }
 
   final List<Map<String, dynamic>> _transitionAreas = [
     {
@@ -93,9 +120,11 @@ class _TransitionAssessmentPageState extends State<TransitionAssessmentPage> {
       return StudentCardGrid(
         title: 'Students VB MAPP Transition Assessment',
         buttonLabel: 'Add',
-        onStudentAction: (student) {
+        onStudentAction: (student, studentId) {
           setState(() {
             _selectedStudent = student;
+            _selectedStudentId = studentId ?? _resolveStudentId(student);
+            _loadTransitionData();
           });
         },
       );
@@ -282,48 +311,70 @@ class _TransitionAssessmentPageState extends State<TransitionAssessmentPage> {
               ),
               const SizedBox(height: 20),
               for (int i = 0; i < _transitionAreas.length; i++) ...[
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 12.0),
-                  child: Row(
-                    children: [
-                      SizedBox(
-                        width: 280,
-                        child: Text(
-                          _transitionAreas[i]['title'] as String,
-                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Row(
-                          children: List.generate(5, (scoreIdx) {
-                            final score = scoreIdx + 1;
-                            final isAchieved = score <= 3; // sample score rating
-                            return Expanded(
-                              child: Container(
-                                height: 28,
-                                margin: const EdgeInsets.symmetric(horizontal: 2),
-                                decoration: BoxDecoration(
-                                  color: isAchieved ? AppColors.primary : const Color(0xFFF3F4F6),
-                                  borderRadius: BorderRadius.circular(4),
-                                  border: Border.all(color: AppColors.divider),
-                                ),
-                                alignment: Alignment.center,
-                                child: Text(
-                                  '$score',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.bold,
-                                    color: isAchieved ? Colors.white : AppColors.textSecondary,
+                Builder(
+                  builder: (context) {
+                    int activeScore = 0;
+                    if (_transitionRecords.isNotEmpty) {
+                      // API returns tests in ascending test_number order; show the most recent one
+                      final lastRecord = _transitionRecords.last;
+                      final rawArea = lastRecord['area_scores'];
+                      Map<String, dynamic> areaMap = {};
+                      if (rawArea is Map) {
+                        areaMap = Map<String, dynamic>.from(rawArea);
+                      } else if (rawArea is String && rawArea.isNotEmpty) {
+                        try {
+                          areaMap = Map<String, dynamic>.from(jsonDecode(rawArea));
+                        } catch (_) {}
+                      }
+                      activeScore = int.tryParse(areaMap['${i + 1}']?.toString() ?? '0') ?? 0;
+                    }
+
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 12.0),
+                      child: Row(
+                        children: [
+                          SizedBox(
+                            width: 280,
+                            child: Text(
+                              _transitionAreas[i]['title'] as String,
+                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Row(
+                              children: List.generate(5, (scoreIdx) {
+                                final score = scoreIdx + 1;
+                                final isAchieved = activeScore >= score;
+                                return Expanded(
+                                  child: Container(
+                                    height: 28,
+                                    margin: const EdgeInsets.symmetric(horizontal: 2),
+                                    decoration: BoxDecoration(
+                                      color: isAchieved ? AppColors.primary : const Color(0xFFF3F4F6),
+                                      borderRadius: BorderRadius.circular(4),
+                                      border: Border.all(
+                                        color: isAchieved ? AppColors.primary : AppColors.divider,
+                                      ),
+                                    ),
+                                    alignment: Alignment.center,
+                                    child: Text(
+                                      '$score',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.bold,
+                                        color: isAchieved ? Colors.white : AppColors.textSecondary,
+                                      ),
+                                    ),
                                   ),
-                                ),
-                              ),
-                            );
-                          }),
-                        ),
+                                );
+                              }),
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
+                    );
+                  },
                 ),
               ],
             ],

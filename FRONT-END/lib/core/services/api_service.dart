@@ -44,6 +44,11 @@ class ApiService {
 
   // ── Base URL from .env ──────────────────────────────────────────────────
   String get baseUrl {
+    // Build-time override for deployments: --dart-define=API_BASE_URL=https://...
+    const defined = String.fromEnvironment('API_BASE_URL');
+    if (defined.isNotEmpty) {
+      return defined.endsWith('/') ? defined : '$defined/';
+    }
     try {
       if (dotenv.isInitialized) {
         final url = dotenv.env['API_BASE_URL'];

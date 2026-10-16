@@ -1,12 +1,13 @@
+require('dotenv').config();
 const mysql = require('mysql2/promise');
 const bcrypt = require('bcryptjs');
 
 const DB_CONFIG = {
-  host: '127.0.0.1',
-  port: 3306,
-  user: 'root',
-  password: 'ACAdev@123',
-  database: 'roh_erp'
+  host: process.env.DB_HOST || '127.0.0.1',
+  port: parseInt(process.env.DB_PORT || '3306'),
+  user: process.env.DB_USER || 'root',
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME || 'roh_erp'
 };
 
 async function cleanForDemo() {
@@ -59,10 +60,10 @@ async function cleanForDemo() {
 
     await conn.query(
       `INSERT INTO users (id, name, email, password, role, status, phone) VALUES 
-       (1, 'System Administrator', 'admin@roh.com', ?, 'admin', 'Active', '+1 (555) 010-0001'),
-       (2, 'Dr. Sterling Vance (BCBA-D)', 'director@roh.com', ?, 'director', 'Active', '+1 (555) 010-0002'),
-       (3, 'Dr. Sarah Lee (Lead BCBA)', 'therapist@roh.com', ?, 'therapist', 'Active', '+1 (555) 010-0003'),
-       (4, 'Mr. John Wilson', 'parent@roh.com', ?, 'parent', 'Active', '+1 (555) 010-0004')`,
+       (1, 'System Administrator', 'admin@roh.com', ?, 'admin', 'Active', '+1 (800) 234-0101'),
+       (2, 'Dr. Sterling Vance (BCBA-D)', 'director@roh.com', ?, 'director', 'Active', '+1 (800) 234-0102'),
+       (3, 'Dr. Sarah Lee (Lead BCBA)', 'therapist@roh.com', ?, 'therapist', 'Active', '+1 (800) 234-0103'),
+       (4, 'Mr. John Wilson', 'parent@roh.com', ?, 'parent', 'Active', '+1 (800) 234-0104')`,
       [adminPass, directorPass, therapistPass, parentPass]
     );
     console.log('  ✓ Preserved baseline accounts:');

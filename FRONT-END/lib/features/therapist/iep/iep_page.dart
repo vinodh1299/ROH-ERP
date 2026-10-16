@@ -13,26 +13,8 @@ class IepPage extends StatefulWidget {
 class _IepPageState extends State<IepPage> {
   String? _selectedStudent;
 
-  final List<Map<String, dynamic>> _mandingGoals = [
-    {
-      'label': 'A',
-      'goal': 'Rithvik will mands for 20 different items missing without prompts (example: if child likes juice and drinks it with a straw, give him juice box without a straw and test if he mands for straw) as measured by 3 consecutive first trial probes within 6 months.',
-      'baseline': 'Rithvik will emit or request 11 different mands without any prompts and doesn\'t emit any mands for missing different items independently.',
-    },
-    {
-      'label': 'B',
-      'goal': 'Rithvik will mands for 20 different items missing without prompts (example: if child likes juice and drinks it with a straw, give him juice box without a straw and test if he mands for straw) as measured by 3 consecutive first trial probes within 6 months.',
-      'baseline': 'Rithvik will emit or request 11 different mands without any prompts and doesn\'t emit any mands for missing different items independently.',
-    },
-  ];
-
-  final List<Map<String, dynamic>> _tactingGoals = [
-    {
-      'label': 'A',
-      'goal': 'Rithvik will mands for 20 different items missing without prompts (example: if child likes juice and drinks it with a straw, give him juice box without a straw and test if he mands for straw) as measured by 3 consecutive first trial probes within 6 months.',
-      'baseline': 'Rithvik will emit or request 11 different mands without any prompts and doesn\'t emit any mands for missing different items independently.',
-    },
-  ];
+  final List<Map<String, dynamic>> _mandingGoals = [];
+  final List<Map<String, dynamic>> _tactingGoals = [];
 
   void _showAddItemDialog() {
     final textController = TextEditingController();
@@ -140,7 +122,7 @@ class _IepPageState extends State<IepPage> {
       return StudentCardGrid(
         title: 'Students Individualized Education Plan (IEP)',
         buttonLabel: 'Add',
-        onStudentAction: (student) {
+        onStudentAction: (student, studentId) {
           setState(() {
             _selectedStudent = student;
           });
@@ -289,13 +271,13 @@ class _IepPageState extends State<IepPage> {
               ),
               const SizedBox(height: 8),
               const Text(
-                'Date of Birth : 16-02-2020',
-                style: TextStyle(fontSize: 12, color: Colors.white),
+                'Date of Birth : —',
+                style: TextStyle(fontSize: 12, color: Colors.white70),
               ),
               const SizedBox(height: 4),
               const Text(
-                'Age : 13',
-                style: TextStyle(fontSize: 12, color: Colors.white),
+                'Age : —',
+                style: TextStyle(fontSize: 12, color: Colors.white70),
               ),
             ],
           ),
@@ -314,7 +296,7 @@ class _IepPageState extends State<IepPage> {
               children: [
                 Center(
                   child: Text(
-                    'ASSESSMENT DATE',
+                    'ASSESSMENT SCHEDULE',
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 11,
@@ -324,10 +306,10 @@ class _IepPageState extends State<IepPage> {
                   ),
                 ),
                 Divider(color: Colors.white24, height: 12),
-                _DateRow('1st Progress Report:', '23/8/2024'),
-                _DateRow('2nd Progress Report:', '4/10/2024'),
-                _DateRow('3rd Progress Report:', '15/11/2024'),
-                _DateRow('4th Progress Report:', '27/12/2024'),
+                _DateRow('1st Progress Report:', 'Scheduled (Q1)'),
+                _DateRow('2nd Progress Report:', 'Scheduled (Q2)'),
+                _DateRow('3rd Progress Report:', 'Scheduled (Q3)'),
+                _DateRow('4th Progress Report:', 'Scheduled (Q4)'),
               ],
             ),
           ),
@@ -357,10 +339,22 @@ class _IepPageState extends State<IepPage> {
             ),
           ),
           const SizedBox(height: 16),
-          for (final item in goals) ...[
-            _buildGoalCard(item['label'] as String, item['goal'] as String, item['baseline'] as String),
-            const SizedBox(height: 16),
-          ],
+          if (goals.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 24.0),
+              child: Center(
+                child: Text(
+                  'No individualized goals recorded for this domain yet.\nClick "+ Add" to document a clinical target.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: AppColors.textSecondary, fontSize: 13, height: 1.5),
+                ),
+              ),
+            )
+          else
+            for (final item in goals) ...[
+              _buildGoalCard(item['label'] as String, item['goal'] as String, item['baseline'] as String),
+              const SizedBox(height: 16),
+            ],
         ],
       ),
     );

@@ -34,7 +34,7 @@ class StudProgressSectionPage extends StatefulWidget {
 
 class _StudProgressSectionPageState extends State<StudProgressSectionPage> {
   int _selectedViewTab = 0; // 0: Overview & Domains, 1: VB-MAPP Cohort Heatmap, 2: Stagnation Alerts
-  int _totalStudents = 6;
+  int _totalStudents = 0;
   final List<StagnationAlert> _alerts = [];
   bool _isLoading = true;
 
@@ -51,27 +51,8 @@ class _StudProgressSectionPageState extends State<StudProgressSectionPage> {
         setState(() {
           _totalStudents = res.length;
           _alerts.clear();
-          for (int i = 0; i < res.length && i < 4; i++) {
-            final st = res[i];
-            final name = st['name'] ?? '${st['first_name'] ?? ''} ${st['last_name'] ?? ''}'.trim();
-            final thName = st['therapist_name'] ?? 'Assigned Clinician';
-            final domains = ['Echoic (Vocal)', 'Tacting (Labeling)', 'Manding (Requests)', 'Listener Responding'];
-            final targets = [
-              'Target 8M: Repeats 3-syllable phrases with distinct consonant sounds.',
-              'Target 11M: Tacts 4 different prepositional relationships (in, on, under).',
-              'Target 7M: Mands for actions using 2-word carrier phrases ("push swing").',
-              'Target 9M: Spontaneously discriminates auditory items in natural setting.'
-            ];
-            _alerts.add(StagnationAlert(
-              id: 'STAG-0${i + 1}',
-              studentName: name.isNotEmpty ? name : 'Student ${i + 1}',
-              domain: domains[i % domains.length],
-              targetDescription: targets[i % targets.length],
-              therapistName: thName,
-              daysStagnant: 21 + (i * 2),
-              trend: i == 0 ? 'Flat (0% change)' : (i == 1 ? '-15% Regression' : 'Flat (prompt drift)'),
-            ));
-          }
+          // Stagnation alerts will be populated from real clinical data
+          // when backend stagnation-detection endpoint is implemented
           _isLoading = false;
         });
         return;
@@ -216,10 +197,10 @@ class _StudProgressSectionPageState extends State<StudProgressSectionPage> {
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 children: [
-                  _buildProgressKpiItem('Mastery Velocity', '248 Targets', '+18.4% vs Q2', Icons.trending_up, Colors.green),
-                  _buildProgressKpiItem('Avg Acquisition Speed', '3.8 Days', 'per discrete skill target', Icons.speed_outlined, Colors.purple),
-                  _buildProgressKpiItem('VB-MAPP Milestone Rate', '74.2%', 'Center-wide average', Icons.military_tech_outlined, Colors.blue),
-                  _buildProgressKpiItem('Stagnation Alerts', '$unresolvedCount Flags', 'Targets >21d flat', Icons.warning_amber_rounded, Colors.orange),
+                  _buildProgressKpiItem('Mastery Velocity', _totalStudents > 0 ? '0 Targets' : '0 Targets', 'No targets mastered yet', Icons.trending_up, Colors.green),
+                  _buildProgressKpiItem('Avg Acquisition Speed', '0.0 Days', 'per discrete skill target', Icons.speed_outlined, Colors.purple),
+                  _buildProgressKpiItem('VB-MAPP Milestone Rate', '0.0%', 'Center-wide average', Icons.military_tech_outlined, Colors.blue),
+                  _buildProgressKpiItem('Stagnation Alerts', '$unresolvedCount Flags', unresolvedCount > 0 ? 'Targets >21d flat' : 'No stagnant targets', Icons.warning_amber_rounded, Colors.orange),
                 ],
               );
             },
@@ -277,11 +258,26 @@ class _StudProgressSectionPageState extends State<StudProgressSectionPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                Text(
+                  label,
+                  style: const TextStyle(fontSize: 12, color: AppColors.textSecondary, fontWeight: FontWeight.w500),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  value,
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
                 const SizedBox(height: 2),
-                Text(value, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-                const SizedBox(height: 2),
-                Text(subtext, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w600)),
+                Text(
+                  subtext,
+                  style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w600),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ],
             ),
           ),
@@ -295,14 +291,19 @@ class _StudProgressSectionPageState extends State<StudProgressSectionPage> {
     return InkWell(
       onTap: () => setState(() => _selectedViewTab = index),
       borderRadius: BorderRadius.circular(10),
-      child: Container(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
           color: isSelected ? AppColors.primary : Colors.white,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(color: isSelected ? AppColors.primary : AppColors.divider),
+          boxShadow: isSelected
+              ? [BoxShadow(color: AppColors.primary.withValues(alpha: 0.25), blurRadius: 6, offset: const Offset(0, 2))]
+              : null,
         ),
         child: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
             Icon(icon, size: 16, color: isSelected ? Colors.white : AppColors.textSecondary),
             const SizedBox(width: 8),
@@ -322,84 +323,40 @@ class _StudProgressSectionPageState extends State<StudProgressSectionPage> {
 
   // ── Tab 0: Domain Mastery ──────────────────────────────────────────────────
   Widget _buildDomainMasterySection() {
-    final domains = [
-      {'name': 'Manding (Expressive Requests)', 'rate': 0.88, 'count': '420 / 477 targets mastered', 'color': const Color(0xFF7B2FBE)},
-      {'name': 'Tacting (Labeling & Vocabulary)', 'rate': 0.82, 'count': '390 / 475 targets mastered', 'color': const Color(0xFF4A89DC)},
-      {'name': 'Listener Responding (Receptive Language)', 'rate': 0.78, 'count': '320 / 410 targets mastered', 'color': const Color(0xFF00BCD4)},
-      {'name': 'Motor Imitation (Fine & Gross)', 'rate': 0.85, 'count': '340 / 400 targets mastered', 'color': const Color(0xFF4CAF50)},
-      {'name': 'Echoic (Vocal Imitation & Clarity)', 'rate': 0.71, 'count': '285 / 400 targets mastered', 'color': const Color(0xFFFF9800)},
-      {'name': 'Social Behavior & Naturalistic Play', 'rate': 0.65, 'count': '260 / 400 targets mastered', 'color': const Color(0xFFE53935)},
-    ];
-
     return Container(
-      padding: const EdgeInsets.all(22),
+      width: double.infinity,
+      padding: const EdgeInsets.all(32),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.divider),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final isNarrow = constraints.maxWidth < 600;
-              final standardChip = Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(color: AppColors.primary.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
-                child: const Text('Mastery Standard: 80% with 2 Clinicians', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.primary)),
-              );
-
-              if (isNarrow) {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('Center-Wide Clinical Domain Velocity', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-                    const SizedBox(height: 8),
-                    standardChip,
-                  ],
-                );
-              }
-              return Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('Center-Wide Clinical Domain Velocity', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-                  standardChip,
-                ],
-              );
-            },
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: 0.08),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.insights_outlined, size: 48, color: AppColors.primary),
           ),
-          const SizedBox(height: 18),
-          ...domains.map((d) {
-            final rate = d['rate'] as double;
-            final color = d['color'] as Color;
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(child: Text(d['name'] as String, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary))),
-                      const SizedBox(width: 8),
-                      Text('${(rate * 100).toInt()}% • ${d['count']}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color)),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(6),
-                    child: LinearProgressIndicator(
-                      value: rate,
-                      backgroundColor: color.withValues(alpha: 0.12),
-                      valueColor: AlwaysStoppedAnimation<Color>(color),
-                      minHeight: 12,
-                    ),
-                  ),
-                ],
-              ),
-            );
-          }),
+          const SizedBox(height: 16),
+          const Text(
+            'No Clinical Domain Data Available',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+          ),
+          const SizedBox(height: 8),
+          const SizedBox(
+            width: 500,
+            child: Text(
+              'Domain mastery velocity and target percentages will automatically calculate and display here once therapists log discrete trial data sheets for students.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 13, color: AppColors.textSecondary, height: 1.5),
+            ),
+          ),
         ],
       ),
     );
@@ -407,170 +364,42 @@ class _StudProgressSectionPageState extends State<StudProgressSectionPage> {
 
   // ── Tab 1: VB-MAPP Cohort Heatmap ──────────────────────────────────────────
   Widget _buildVbMappCohortHeatmapSection() {
-    final cohortData = [
-      {
-        'cohort': 'Level 1 Cohort (0 - 18 Months)',
-        'students': '${_totalStudents > 2 ? 3 : 1} Students enrolled',
-        'scores': [
-          {'domain': 'Mand', 'score': 92},
-          {'domain': 'Tact', 'score': 84},
-          {'domain': 'Listener', 'score': 88},
-          {'domain': 'Visual Perc.', 'score': 90},
-          {'domain': 'Indep. Play', 'score': 80},
-          {'domain': 'Social', 'score': 74},
-          {'domain': 'Motor Imitation', 'score': 86},
-          {'domain': 'Echoic', 'score': 78},
-        ],
-      },
-      {
-        'cohort': 'Level 2 Cohort (18 - 30 Months)',
-        'students': '${_totalStudents > 3 ? 2 : 1} Students enrolled',
-        'scores': [
-          {'domain': 'Mand', 'score': 80},
-          {'domain': 'Tact', 'score': 76},
-          {'domain': 'Listener', 'score': 72},
-          {'domain': 'Visual Perc.', 'score': 82},
-          {'domain': 'Play', 'score': 68},
-          {'domain': 'Social', 'score': 62},
-          {'domain': 'Motor Imitation', 'score': 75},
-          {'domain': 'Echoic', 'score': 69},
-          {'domain': 'Intraverbal', 'score': 58},
-          {'domain': 'Classroom', 'score': 64},
-        ],
-      },
-      {
-        'cohort': 'Level 3 Cohort (30 - 48 Months)',
-        'students': '5 Students enrolled',
-        'scores': [
-          {'domain': 'Mand', 'score': 65},
-          {'domain': 'Tact', 'score': 68},
-          {'domain': 'Listener', 'score': 62},
-          {'domain': 'Visual Perc.', 'score': 72},
-          {'domain': 'Social', 'score': 54},
-          {'domain': 'Reading', 'score': 48},
-          {'domain': 'Writing', 'score': 42},
-          {'domain': 'Math', 'score': 38},
-          {'domain': 'Intraverbal', 'score': 52},
-        ],
-      },
-    ];
-
     return Container(
-      padding: const EdgeInsets.all(22),
+      width: double.infinity,
+      padding: const EdgeInsets.all(32),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.divider),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final isNarrow = constraints.maxWidth < 650;
-              final legendWrap = Wrap(
-                spacing: 8,
-                runSpacing: 6,
-                children: [
-                  _legendPill('>80% High Mastery', const Color(0xFF4CAF50)),
-                  _legendPill('60-80% Moderate', const Color(0xFF00BCD4)),
-                  _legendPill('40-60% Developing', const Color(0xFFFF9800)),
-                  _legendPill('<40% Intensive Need', const Color(0xFFE53935)),
-                ],
-              );
-
-              if (isNarrow) {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('VB-MAPP Milestone Cohort Heatmap', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-                    const SizedBox(height: 10),
-                    legendWrap,
-                  ],
-                );
-              }
-
-              return Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('VB-MAPP Milestone Cohort Heatmap', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-                  legendWrap,
-                ],
-              );
-            },
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: 0.08),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.grid_view_outlined, size: 48, color: AppColors.primary),
           ),
-          const SizedBox(height: 20),
-          ...cohortData.map((cohort) {
-            final scores = cohort['scores'] as List<Map<String, dynamic>>;
-            return Container(
-              margin: const EdgeInsets.only(bottom: 20),
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFAF8FD),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.divider),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(cohort['cohort'] as String, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.primary)),
-                      Text(cohort['students'] as String, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
-                  Wrap(
-                    spacing: 10,
-                    runSpacing: 10,
-                    children: scores.map((s) {
-                      final score = s['score'] as int;
-                      Color bg;
-                      Color fg;
-                      if (score >= 80) {
-                        bg = const Color(0xFFE8F5E9);
-                        fg = const Color(0xFF2E7D32);
-                      } else if (score >= 60) {
-                        bg = const Color(0xFFE0F7FA);
-                        fg = const Color(0xFF00838F);
-                      } else if (score >= 40) {
-                        bg = const Color(0xFFFFF3E0);
-                        fg = const Color(0xFFE65100);
-                      } else {
-                        bg = const Color(0xFFFFEBEE);
-                        fg = const Color(0xFFC62828);
-                      }
-                      return Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(8)),
-                        child: Column(
-                          children: [
-                            Text(s['domain'] as String, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: fg)),
-                            const SizedBox(height: 2),
-                            Text('$score%', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: fg)),
-                          ],
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                ],
-              ),
-            );
-          }),
+          const SizedBox(height: 16),
+          const Text(
+            'No Cohort Assessment Heatmap Data',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+          ),
+          const SizedBox(height: 8),
+          const SizedBox(
+            width: 500,
+            child: Text(
+              'Center-wide VB-MAPP milestone cohort heatmaps will render here once milestone scoring forms are completed by clinical staff.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 13, color: AppColors.textSecondary, height: 1.5),
+            ),
+          ),
         ],
       ),
-    );
-  }
-
-  Widget _legendPill(String text, Color color) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(width: 10, height: 10, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
-        const SizedBox(width: 4),
-        Text(text, style: const TextStyle(fontSize: 10, color: AppColors.textSecondary)),
-      ],
     );
   }
 

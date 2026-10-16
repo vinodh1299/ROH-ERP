@@ -80,7 +80,7 @@ class _VbMappReportPageState extends State<VbMappReportPage> {
             ),
           ],
         ),
-        onStudentAction: (student) {
+        onStudentAction: (student, studentId) {
           setState(() {
             _selectedStudent = student;
           });
@@ -300,28 +300,6 @@ class _VbMappReportPageState extends State<VbMappReportPage> {
   }
 
   Color _getSampleMilestoneColor(int r, int c) {
-    if (_activeMilestoneLevel == 1) {
-      if (r == 4 && c == 0) return const Color(0xFF10B981);
-      if (r == 3 && c == 0) return const Color(0xFF10B981);
-      if (r == 4 && c == 1) return const Color(0xFF10B981);
-      if (r == 4 && c == 2) return const Color(0xFFF59E0B);
-      if (c == 3 && r >= 2) return const Color(0xFFF59E0B);
-      if (c == 5 && (r == 3 || r == 4)) return const Color(0xFFEF4444);
-      if (c == 7 && (r == 3 || r == 4)) return const Color(0xFF1D4ED8);
-    } else if (_activeMilestoneLevel == 2) {
-      if (r == 4 && (c == 0 || c == 1)) return const Color(0xFF10B981);
-      if (r == 3 && c == 0) return const Color(0xFF10B981);
-      if (r == 4 && c == 2) return const Color(0xFFF59E0B);
-      if (c == 3 && r >= 2) return const Color(0xFFF59E0B);
-      if (c == 5 && (r == 3 || r == 4)) return const Color(0xFFEF4444);
-      if (c == 7 && (r == 3 || r == 4)) return const Color(0xFF1D4ED8);
-    } else {
-      if (r == 4 && (c == 0 || c == 1)) return const Color(0xFF10B981);
-      if (r == 4 && c == 2) return const Color(0xFFF59E0B);
-      if (c == 3 && r >= 2) return const Color(0xFFF59E0B);
-      if (c == 5 && (r == 3 || r == 4)) return const Color(0xFFEF4444);
-      if (c == 7 && (r == 3 || r == 4)) return const Color(0xFF1D4ED8);
-    }
     return Colors.transparent;
   }
 
@@ -386,16 +364,10 @@ class _VbMappReportPageState extends State<VbMappReportPage> {
         final cellHeight = constraints.maxHeight / 5;
 
         return Column(
-          children: List.generate(5, (rowIndex) {
-            final level = 4 - rowIndex;
+          children: List.generate(5, (_) {
             return Row(
               children: List.generate(4, (colIndex) {
                 Color cellColor = Colors.transparent;
-                if (colIndex == 0 && level <= 1) {
-                  cellColor = const Color(0xFF10B981);
-                } else if (colIndex == 1 && level == 0) {
-                  cellColor = const Color(0xFFF59E0B);
-                }
 
                 return Container(
                   width: cellWidth,

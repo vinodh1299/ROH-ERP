@@ -21,8 +21,8 @@ class _ProfilePageState extends State<ProfilePage> {
   Widget build(BuildContext context) {
     final auth = context.watch<AuthService>();
     final user = auth.currentUser;
-    final parentName = user?.name.isNotEmpty == true ? user!.name : 'Parent User';
-    final parentEmail = user?.email.isNotEmpty == true ? user!.email : 'parent@roh.com';
+    final parentName = user?.name.isNotEmpty == true ? user!.name : 'User';
+    final parentEmail = user?.email.isNotEmpty == true ? user!.email : 'Not provided';
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24.0),
@@ -104,12 +104,12 @@ class _ProfilePageState extends State<ProfilePage> {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'Email: $parentEmail  •  Mobile: +1 (555) 019-2831',
+                        'Email: $parentEmail',
                         style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
                       ),
                       const SizedBox(height: 4),
                       const Text(
-                        'Address: 742 Evergreen Terrace, Springfield, OR 97477',
+                        'Contact your center administrator to update profile details.',
                         style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
                       ),
                     ],
