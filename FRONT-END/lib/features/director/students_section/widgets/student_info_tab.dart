@@ -68,7 +68,8 @@ class StudentInfoTabState extends State<StudentInfoTab> {
       lastDate: DateTime.now(),
     );
     if (picked != null) {
-      ctrl.text = '${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
+      ctrl.text =
+          '${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
     }
   }
 
@@ -81,31 +82,66 @@ class StudentInfoTabState extends State<StudentInfoTab> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _row3(
-              _Field(ctrl: _firstName, label: 'First Name', hint: 'Value', required: true),
+              _Field(
+                  ctrl: _firstName,
+                  label: 'First Name',
+                  hint: 'Value',
+                  required: true),
               _Field(ctrl: _lastName, label: 'Last Name', hint: 'Value'),
               _Field(ctrl: _middleName, label: 'Middle Name', hint: 'Value'),
             ),
             const SizedBox(height: 14),
             _row3(
-              _Field(ctrl: _phone, label: 'Phone Number', hint: 'Value', keyboardType: TextInputType.phone),
-              _Field(ctrl: _email, label: 'Email Id', hint: 'Value', keyboardType: TextInputType.emailAddress),
-              _GenderField(value: _gender, onChanged: (v) => setState(() => _gender = v)),
+              _Field(
+                  ctrl: _phone,
+                  label: 'Phone Number',
+                  hint: 'Value',
+                  keyboardType: TextInputType.phone),
+              _Field(
+                  ctrl: _email,
+                  label: 'Email Id',
+                  hint: 'Value',
+                  keyboardType: TextInputType.emailAddress),
+              _GenderField(
+                  value: _gender,
+                  onChanged: (v) => setState(() => _gender = v)),
             ),
             const SizedBox(height: 14),
             _row3(
-              _Field(ctrl: _dob, label: 'Date Of Birth', hint: 'Value', required: true, readOnly: true, onTap: () => _pickDate(_dob)),
+              _Field(
+                  ctrl: _dob,
+                  label: 'Date Of Birth',
+                  hint: 'Value',
+                  required: true,
+                  readOnly: true,
+                  onTap: () => _pickDate(_dob)),
               _Field(ctrl: _bloodGroup, label: 'Blood Group', hint: 'Value'),
-              _Field(ctrl: _dateOfApplication, label: 'Date of Application', hint: 'Value', readOnly: true, onTap: () => _pickDate(_dateOfApplication)),
+              _Field(
+                  ctrl: _dateOfApplication,
+                  label: 'Date of Application',
+                  hint: 'Value',
+                  readOnly: true,
+                  onTap: () => _pickDate(_dateOfApplication)),
             ),
             const SizedBox(height: 14),
-            _Field(ctrl: _address, label: 'Address', hint: 'Value', maxLines: 2),
+            _Field(
+                ctrl: _address, label: 'Address', hint: 'Value', maxLines: 2),
             const SizedBox(height: 14),
-            _Field(ctrl: _primaryDx, label: 'Primary Diagnoses', hint: 'Value', maxLines: 2),
+            _Field(
+                ctrl: _primaryDx,
+                label: 'Primary Diagnoses',
+                hint: 'Value',
+                maxLines: 2),
             const SizedBox(height: 14),
-            _Field(ctrl: _secondaryDx, label: 'Secondary Diagnoses', hint: 'Value', maxLines: 2),
+            _Field(
+                ctrl: _secondaryDx,
+                label: 'Secondary Diagnoses',
+                hint: 'Value',
+                maxLines: 2),
             const SizedBox(height: 14),
             _row3(
-              const _ReadOnlyNote(label: 'Medical Documents (multiple)', hint: 'Value'),
+              const _ReadOnlyNote(
+                  label: 'Medical Documents (multiple)', hint: 'Value'),
               const _ReadOnlyNote(label: 'Aadhar Card', hint: 'Value'),
               const _ReadOnlyNote(label: 'Birth Certificate', hint: 'Value'),
             ),
@@ -122,15 +158,32 @@ class StudentInfoTabState extends State<StudentInfoTab> {
   }
 
   Widget _row3(Widget a, Widget b, Widget c) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(child: a),
-        const SizedBox(width: 12),
-        Expanded(child: b),
-        const SizedBox(width: 12),
-        Expanded(child: c),
-      ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Narrow (phone dialog): one field per line.
+        if (constraints.maxWidth < 520) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              a,
+              const SizedBox(height: 14),
+              b,
+              const SizedBox(height: 14),
+              c
+            ],
+          );
+        }
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: a),
+            const SizedBox(width: 12),
+            Expanded(child: b),
+            const SizedBox(width: 12),
+            Expanded(child: c),
+          ],
+        );
+      },
     );
   }
 }
@@ -162,7 +215,11 @@ class _Field extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+        Text(label,
+            style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary)),
         const SizedBox(height: 6),
         TextFormField(
           controller: ctrl,
@@ -170,17 +227,28 @@ class _Field extends StatelessWidget {
           onTap: onTap,
           maxLines: maxLines,
           keyboardType: keyboardType,
-          validator: required ? (v) => v == null || v.isEmpty ? 'Required' : null : null,
+          validator: required
+              ? (v) => v == null || v.isEmpty ? 'Required' : null
+              : null,
           decoration: InputDecoration(
             hintText: hint,
             hintStyle: TextStyle(fontSize: 12, color: Colors.grey.shade400),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             filled: true,
             fillColor: const Color(0xFFF9FAFB),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: Colors.grey.shade300)),
-            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: Colors.grey.shade300)),
-            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: AppColors.primary)),
-            errorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Colors.red)),
+            border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide(color: Colors.grey.shade300)),
+            enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide(color: Colors.grey.shade300)),
+            focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: const BorderSide(color: AppColors.primary)),
+            errorBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: const BorderSide(color: Colors.red)),
           ),
         ),
       ],
@@ -199,7 +267,11 @@ class _GenderField extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Gender', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+        const Text('Gender',
+            style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary)),
         const SizedBox(height: 6),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -213,9 +285,15 @@ class _GenderField extends StatelessWidget {
               value: value,
               isExpanded: true,
               items: const [
-                DropdownMenuItem(value: 'Male', child: Text('Male', style: TextStyle(fontSize: 13))),
-                DropdownMenuItem(value: 'Female', child: Text('Female', style: TextStyle(fontSize: 13))),
-                DropdownMenuItem(value: 'Other', child: Text('Other', style: TextStyle(fontSize: 13))),
+                DropdownMenuItem(
+                    value: 'Male',
+                    child: Text('Male', style: TextStyle(fontSize: 13))),
+                DropdownMenuItem(
+                    value: 'Female',
+                    child: Text('Female', style: TextStyle(fontSize: 13))),
+                DropdownMenuItem(
+                    value: 'Other',
+                    child: Text('Other', style: TextStyle(fontSize: 13))),
               ],
               onChanged: (v) => onChanged(v ?? 'Male'),
             ),
@@ -237,7 +315,11 @@ class _ReadOnlyNote extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+        Text(label,
+            style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary)),
         const SizedBox(height: 6),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -248,9 +330,11 @@ class _ReadOnlyNote extends StatelessWidget {
           ),
           child: Row(
             children: [
-              Icon(Icons.upload_file_outlined, size: 14, color: Colors.grey.shade400),
+              Icon(Icons.upload_file_outlined,
+                  size: 14, color: Colors.grey.shade400),
               const SizedBox(width: 6),
-              Text(hint, style: TextStyle(fontSize: 12, color: Colors.grey.shade400)),
+              Text(hint,
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade400)),
             ],
           ),
         ),

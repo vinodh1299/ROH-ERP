@@ -6,7 +6,8 @@ class AdminTherapistAddDialog extends StatefulWidget {
   const AdminTherapistAddDialog({super.key});
 
   @override
-  State<AdminTherapistAddDialog> createState() => _AdminTherapistAddDialogState();
+  State<AdminTherapistAddDialog> createState() =>
+      _AdminTherapistAddDialogState();
 }
 
 class _AdminTherapistAddDialogState extends State<AdminTherapistAddDialog> {
@@ -30,7 +31,9 @@ class _AdminTherapistAddDialogState extends State<AdminTherapistAddDialog> {
     final email = _emailCtrl.text.trim();
     if (name.isEmpty || email.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter therapist Name and Email'), backgroundColor: Colors.orange),
+        const SnackBar(
+            content: Text('Please enter therapist Name and Email'),
+            backgroundColor: Colors.orange),
       );
       return;
     }
@@ -47,7 +50,9 @@ class _AdminTherapistAddDialogState extends State<AdminTherapistAddDialog> {
       if (res is Map && res['error'] != null) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(res['error'].toString()), backgroundColor: Colors.red),
+          SnackBar(
+              content: Text(res['error'].toString()),
+              backgroundColor: Colors.red),
         );
       } else {
         if (!mounted) return;
@@ -56,7 +61,9 @@ class _AdminTherapistAddDialogState extends State<AdminTherapistAddDialog> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error adding therapist: $e'), backgroundColor: Colors.red),
+        SnackBar(
+            content: Text('Error adding therapist: $e'),
+            backgroundColor: Colors.red),
       );
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
@@ -65,7 +72,12 @@ class _AdminTherapistAddDialogState extends State<AdminTherapistAddDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final isPhone = MediaQuery.sizeOf(context).width < 600;
     return Dialog(
+      // Near full-width on phones.
+      insetPadding: isPhone
+          ? const EdgeInsets.symmetric(horizontal: 12, vertical: 24)
+          : const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Container(
         width: 500,
@@ -74,13 +86,17 @@ class _AdminTherapistAddDialogState extends State<AdminTherapistAddDialog> {
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: AppColors.border),
         ),
-        padding: const EdgeInsets.all(24),
+        padding: EdgeInsets.all(isPhone ? 18 : 24),
         child: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text('Add Therapist', style: TextStyle(color: AppColors.textPrimary, fontSize: 20, fontWeight: FontWeight.bold)),
+              const Text('Add Therapist',
+                  style: TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold)),
               Container(
                 width: 60,
                 height: 3,
@@ -94,11 +110,14 @@ class _AdminTherapistAddDialogState extends State<AdminTherapistAddDialog> {
                 children: [
                   _buildField('Full Name', _nameCtrl, 'e.g. Jane Doe'),
                   const SizedBox(height: 16),
-                  _buildField('Email Address', _emailCtrl, 'e.g. jane@rohcenter.org'),
+                  _buildField(
+                      'Email Address', _emailCtrl, 'e.g. jane@rohcenter.org'),
                   const SizedBox(height: 16),
-                  _buildField('Phone Number', _phoneCtrl, 'e.g. +1 (555) 012-3456'),
+                  _buildField(
+                      'Phone Number', _phoneCtrl, 'e.g. +1 (555) 012-3456'),
                   const SizedBox(height: 16),
-                  _buildField('Designation', _designationCtrl, 'e.g. Behavior Therapist'),
+                  _buildField('Designation', _designationCtrl,
+                      'e.g. Behavior Therapist'),
                 ],
               ),
               const SizedBox(height: 24),
@@ -106,11 +125,13 @@ class _AdminTherapistAddDialogState extends State<AdminTherapistAddDialog> {
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   OutlinedButton(
-                    onPressed: _isSubmitting ? null : () => Navigator.pop(context),
+                    onPressed:
+                        _isSubmitting ? null : () => Navigator.pop(context),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: AppColors.textSecondary,
                       side: const BorderSide(color: AppColors.border),
-                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 24, vertical: 12),
                     ),
                     child: const Text('Cancel'),
                   ),
@@ -120,10 +141,15 @@ class _AdminTherapistAddDialogState extends State<AdminTherapistAddDialog> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primary,
                       foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 24, vertical: 12),
                     ),
                     child: _isSubmitting
-                        ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                                color: Colors.white, strokeWidth: 2))
                         : const Text('Submit'),
                   ),
                 ],
@@ -135,11 +161,16 @@ class _AdminTherapistAddDialogState extends State<AdminTherapistAddDialog> {
     );
   }
 
-  Widget _buildField(String label, TextEditingController controller, String hint) {
+  Widget _buildField(
+      String label, TextEditingController controller, String hint) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500)),
+        Text(label,
+            style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 13,
+                fontWeight: FontWeight.w500)),
         const SizedBox(height: 8),
         TextField(
           controller: controller,
@@ -156,7 +187,8 @@ class _AdminTherapistAddDialogState extends State<AdminTherapistAddDialog> {
               borderRadius: BorderRadius.circular(10),
               borderSide: const BorderSide(color: AppColors.border),
             ),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           ),
         ),
       ],

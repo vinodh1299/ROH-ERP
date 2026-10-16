@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:roh_erp/core/constants/app_colors.dart';
 import 'package:intl/intl.dart';
+import '../../../core/layout/responsive.dart';
 import '../../../core/services/db_queries.dart';
 import '../widgets/student_card_grid.dart';
 import 'widgets/incident_stopwatch.dart';
@@ -16,7 +18,8 @@ class DailyDataSheetPage extends StatefulWidget {
 class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
   String? _selectedStudent;
   int? _selectedStudentId;
-  int _activeTab = 0; // 0: Manding, 1: Manding Graph, 2: Daily Data Sheet, 3: Skill Tracking Sheet, 4: Acquisition Graph, 5: ABC Data, 6: BRP, 7: PB Graph, 8: IEP Report
+  int _activeTab =
+      0; // 0: Manding, 1: Manding Graph, 2: Daily Data Sheet, 3: Skill Tracking Sheet, 4: Acquisition Graph, 5: ABC Data, 6: BRP, 7: PB Graph, 8: IEP Report
 
   // Manding Filters & State
   late String _mandingDate;
@@ -24,7 +27,18 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
   late String _mandingTimeOut;
 
   // Manding Grid Counters
-  final List<String> _mandingColumns = ['FP', 'PP', 'FM/FV', 'PM/PV', 'F3', 'F5', 'F6', 'F6', 'Error', 'Vocal'];
+  final List<String> _mandingColumns = [
+    'FP',
+    'PP',
+    'FM/FV',
+    'PM/PV',
+    'F3',
+    'F5',
+    'F6',
+    'F6',
+    'Error',
+    'Vocal'
+  ];
   final List<Map<String, dynamic>> _mandingRows = [];
 
   // Daily Data Sheet DTT Filters & State
@@ -73,13 +87,47 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
     'IEP Report',
   ];
 
+  // Keys for each tab item so the selected tab can be scrolled into view on
+  // narrow screens where the tab bar scrolls sideways.
+  late final List<GlobalKey> _tabKeys =
+      List.generate(_tabs.length, (_) => GlobalKey());
+
+  final ScrollController _tabScroll = ScrollController();
+
+  /// Selects a tab and scrolls only the horizontal tab strip (not the page)
+  /// so the selected tab sits in view.
+  void _selectTab(int index) {
+    setState(() => _activeTab = index);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final box = _tabKeys[index].currentContext?.findRenderObject();
+      if (box == null || !_tabScroll.hasClients) return;
+      final pos = _tabScroll.position;
+      final target = RenderAbstractViewport.of(box)
+          .getOffsetToReveal(box, 0.5)
+          .offset
+          .clamp(pos.minScrollExtent, pos.maxScrollExtent);
+      _tabScroll.animateTo(
+        target,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOut,
+      );
+    });
+  }
+
+  @override
+  void dispose() {
+    _tabScroll.dispose();
+    super.dispose();
+  }
+
   @override
   void initState() {
     super.initState();
     final now = DateTime.now();
     final dFormat = DateFormat('MM/dd/yyyy').format(now);
     final tFormat = DateFormat('hh:mm a').format(now);
-    final tOutFormat = DateFormat('hh:mm a').format(now.add(const Duration(hours: 1)));
+    final tOutFormat =
+        DateFormat('hh:mm a').format(now.add(const Duration(hours: 1)));
 
     _mandingDate = dFormat;
     _mandingTimeIn = tFormat;
@@ -119,7 +167,8 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
   Future<void> _loadStudentData() async {
     if (_selectedStudentId == null) return;
     try {
-      final records = await DailyDataQueries.fetchForStudent(_selectedStudentId.toString());
+      final records =
+          await DailyDataQueries.fetchForStudent(_selectedStudentId.toString());
       if (mounted) {
         setState(() {
           _mandingRows.clear();
@@ -145,9 +194,12 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
               }
             } catch (_) {}
 
-            final completed = int.tryParse(r['trials_completed']?.toString() ?? '0') ?? 0;
-            final successful = int.tryParse(r['trials_successful']?.toString() ?? '0') ?? 0;
-            final targetSkill = (r['target_skill'] ?? 'Target Skill').toString();
+            final completed =
+                int.tryParse(r['trials_completed']?.toString() ?? '0') ?? 0;
+            final successful =
+                int.tryParse(r['trials_successful']?.toString() ?? '0') ?? 0;
+            final targetSkill =
+                (r['target_skill'] ?? 'Target Skill').toString();
             final prompt = (r['prompt_level'] ?? 'Independent').toString();
             final notes = (r['notes'] ?? '').toString();
 
@@ -173,7 +225,8 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
             }
 
             // 2. DTT Targets & Skill Acquisition (All instructional skill domains)
-            if (!domainLower.contains('abc') && !domainLower.contains('problem behavior')) {
+            if (!domainLower.contains('abc') &&
+                !domainLower.contains('problem behavior')) {
               _dttTargets.add({
                 'domain': domain,
                 'target': targetSkill,
@@ -199,9 +252,12 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
             }
 
             // 3. ABC Incidents & Behavior Duration / Deceleration
-            if (domainLower.contains('abc') || domainLower.contains('behavior')) {
+            if (domainLower.contains('abc') ||
+                domainLower.contains('behavior')) {
               int durMins = 0;
-              final durMatch = RegExp(r'Duration\s+(\d+)\s+mins', caseSensitive: false).firstMatch(notes);
+              final durMatch =
+                  RegExp(r'Duration\s+(\d+)\s+mins', caseSensitive: false)
+                      .firstMatch(notes);
               if (durMatch != null) {
                 durMins = int.tryParse(durMatch.group(1) ?? '0') ?? 0;
               } else {
@@ -213,12 +269,16 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
                 'date': sessionDateRaw.split('T')[0],
                 'time': '10:00 AM',
                 'setting': 'Classroom 1A',
-                'antecedent': notes.contains('Antecedent:') ? notes.split('Antecedent:')[1].split('.')[0].trim() : 'Work Demand',
+                'antecedent': notes.contains('Antecedent:')
+                    ? notes.split('Antecedent:')[1].split('.')[0].trim()
+                    : 'Work Demand',
                 'antecedentNote': '',
                 'behavior': targetSkill,
                 'count': completed > 0 ? completed : 1,
                 'timeMins': durMins,
-                'consequence': notes.contains('Consequence:') ? notes.split('Consequence:')[1].trim() : 'Prompted redirect',
+                'consequence': notes.contains('Consequence:')
+                    ? notes.split('Consequence:')[1].trim()
+                    : 'Prompted redirect',
                 'consequenceNote': '',
                 'isExpanded': false,
               });
@@ -231,15 +291,33 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
               final bUpper = targetSkill.toUpperCase();
               _pbMultiBehaviorData.add({
                 'date': formattedDate,
-                'FLOP': bUpper.contains('FLOP') ? (completed > 0 ? completed : 1) : 0,
-                'HIT': bUpper.contains('HIT') ? (completed > 0 ? completed : 1) : 0,
-                'KICK': bUpper.contains('KICK') ? (completed > 0 ? completed : 1) : 0,
-                'BOLT': bUpper.contains('BOLT') ? (completed > 0 ? completed : 1) : 0,
-                'GRAB': bUpper.contains('GRAB') ? (completed > 0 ? completed : 1) : 0,
-                'CRYING': bUpper.contains('CRY') ? (completed > 0 ? completed : 1) : 0,
-                'WHINE': bUpper.contains('WHINE') ? (completed > 0 ? completed : 1) : 0,
-                'Throwing': bUpper.contains('THROW') ? (completed > 0 ? completed : 1) : 0,
-                'Bite': bUpper.contains('BITE') ? (completed > 0 ? completed : 1) : 0,
+                'FLOP': bUpper.contains('FLOP')
+                    ? (completed > 0 ? completed : 1)
+                    : 0,
+                'HIT': bUpper.contains('HIT')
+                    ? (completed > 0 ? completed : 1)
+                    : 0,
+                'KICK': bUpper.contains('KICK')
+                    ? (completed > 0 ? completed : 1)
+                    : 0,
+                'BOLT': bUpper.contains('BOLT')
+                    ? (completed > 0 ? completed : 1)
+                    : 0,
+                'GRAB': bUpper.contains('GRAB')
+                    ? (completed > 0 ? completed : 1)
+                    : 0,
+                'CRYING': bUpper.contains('CRY')
+                    ? (completed > 0 ? completed : 1)
+                    : 0,
+                'WHINE': bUpper.contains('WHINE')
+                    ? (completed > 0 ? completed : 1)
+                    : 0,
+                'Throwing': bUpper.contains('THROW')
+                    ? (completed > 0 ? completed : 1)
+                    : 0,
+                'Bite': bUpper.contains('BITE')
+                    ? (completed > 0 ? completed : 1)
+                    : 0,
               });
             }
           }
@@ -283,7 +361,8 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
       return StudentCardGrid(
         title: 'Students Daily Data Analysis',
         buttonLabel: 'View',
-        onStudentAction: (student, studentId) => _onStudentSelected(student, studentId),
+        onStudentAction: (student, studentId) =>
+            _onStudentSelected(student, studentId),
       );
     }
 
@@ -300,23 +379,31 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
                 tooltip: 'Back to students',
               ),
               const SizedBox(width: 8),
-              RichText(
-                text: TextSpan(
-                  style: const TextStyle(fontFamily: 'Poppins', fontSize: 18),
-                  children: [
-                    TextSpan(
-                      text: '$_selectedStudent ',
-                      style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary),
-                    ),
-                    TextSpan(
-                      text: _activeTab == 5
-                          ? 'ABC Data Sheet'
-                          : (_activeTab == 6
-                              ? 'BRP'
-                              : (_activeTab == 7 ? 'PBH Graph' : 'Daily Data Analysis')),
-                      style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary),
-                    ),
-                  ],
+              Expanded(
+                child: RichText(
+                  text: TextSpan(
+                    style: const TextStyle(fontFamily: 'Poppins', fontSize: 18),
+                    children: [
+                      TextSpan(
+                        text: '$_selectedStudent ',
+                        style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.primary),
+                      ),
+                      TextSpan(
+                        text: _activeTab == 5
+                            ? 'ABC Data Sheet'
+                            : (_activeTab == 6
+                                ? 'BRP'
+                                : (_activeTab == 7
+                                    ? 'PBH Graph'
+                                    : 'Daily Data Analysis')),
+                        style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textPrimary),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],
@@ -331,7 +418,7 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
               color: const Color(0xFFF3E8FF),
               borderRadius: BorderRadius.circular(24),
             ),
-            padding: const EdgeInsets.all(20),
+            padding: EdgeInsets.all(Breakpoints.isCompact(context) ? 12 : 20),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -343,10 +430,12 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
                     borderRadius: BorderRadius.circular(14),
                   ),
                   child: SingleChildScrollView(
+                    controller: _tabScroll,
                     scrollDirection: Axis.horizontal,
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
-                      children: List.generate(_tabs.length, (index) => _buildTabItem(_tabs[index], index)),
+                      children: List.generate(_tabs.length,
+                          (index) => _buildTabItem(_tabs[index], index)),
                     ),
                   ),
                 ),
@@ -366,8 +455,9 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
   Widget _buildTabItem(String label, int index) {
     final isSelected = _activeTab == index;
     return GestureDetector(
+      key: _tabKeys[index],
       behavior: HitTestBehavior.opaque,
-      onTap: () => setState(() => _activeTab = index),
+      onTap: () => _selectTab(index),
       child: Container(
         height: 48,
         padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -445,35 +535,24 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // Top Filter Bar
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFFC084FC), Color(0xFFD8B4FE)],
+        _buildFilterBar(
+          wideAt: 740,
+          leading: [
+            _buildFilterPill('Date:', _mandingDate, 140),
+            _buildFilterPill('Time In:', _mandingTimeIn, 130),
+            _buildFilterPill('Time Out:', _mandingTimeOut, 130),
+          ],
+          trailing: ElevatedButton.icon(
+            onPressed: _addNewMandRow,
+            icon: const Icon(Icons.add, size: 14),
+            label: const Text('Add Row'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF9333EA),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8)),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
             ),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Row(
-            children: [
-              _buildFilterPill('Date:', _mandingDate, 140),
-              const SizedBox(width: 16),
-              _buildFilterPill('Time In:', _mandingTimeIn, 130),
-              const SizedBox(width: 16),
-              _buildFilterPill('Time Out:', _mandingTimeOut, 130),
-              const Spacer(),
-              ElevatedButton.icon(
-                onPressed: _addNewMandRow,
-                icon: const Icon(Icons.add, size: 14),
-                label: const Text('Add Row'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF9333EA),
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                ),
-              ),
-            ],
           ),
         ),
         const SizedBox(height: 16),
@@ -491,197 +570,273 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
               child: Text(
                 'No manding trial records logged for this session.\nClick "+ Add Row" above to begin recording.',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: Color(0xFF6B7280), fontFamily: 'Poppins', fontSize: 13),
+                style: TextStyle(
+                    color: Color(0xFF6B7280),
+                    fontFamily: 'Poppins',
+                    fontSize: 13),
               ),
             ),
           )
-        else ...[
-          // Grid Table Header
-          Container(
-            height: 40,
-            decoration: BoxDecoration(
-              color: const Color(0xFFD8B4FE),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Row(
+        else
+          // Min width: 120 label + 10 prompt columns x 56 + 70 vocal + gaps.
+          ScrollableMinWidth(
+            minWidth: 120 + 8 + _mandingColumns.length * 56 + 8 + 70,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // Grid Table Header
                 Container(
-                  width: 120,
-                  alignment: Alignment.center,
+                  height: 40,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFC084FC),
+                    color: const Color(0xFFD8B4FE),
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: const Text('Mands', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.black87)),
-                ),
-                Expanded(
                   child: Row(
-                    children: _mandingColumns.map((col) {
-                      return Expanded(
-                        child: Center(
-                          child: Text(col, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.black87)),
+                    children: [
+                      Container(
+                        width: 120,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFC084FC),
+                          borderRadius: BorderRadius.circular(8),
                         ),
-                      );
-                    }).toList(),
+                        child: const Text('Mands',
+                            style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                                color: Colors.black87)),
+                      ),
+                      Expanded(
+                        child: Row(
+                          children: _mandingColumns.map((col) {
+                            return Expanded(
+                              child: Center(
+                                child: Text(col,
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 12,
+                                        color: Colors.black87)),
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                      Container(
+                        width: 70,
+                        alignment: Alignment.center,
+                        child: const Text('Vocal',
+                            style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                                color: Colors.black87)),
+                      ),
+                    ],
                   ),
                 ),
-                Container(
-                  width: 70,
-                  alignment: Alignment.center,
-                  child: const Text('Vocal', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.black87)),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 10),
+                const SizedBox(height: 10),
 
-          // Manding Rows
-          ..._mandingRows.asMap().entries.map((entry) {
-            final idx = entry.key;
-            final row = entry.value;
-            final counts = row['counts'] as List<int>;
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Row(
-                children: [
-                  Container(
-                    width: 120,
-                    height: 38,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: const Color(0xFFE9D5FF)),
-                    ),
+                // Manding Rows
+                ..._mandingRows.asMap().entries.map((entry) {
+                  final idx = entry.key;
+                  final row = entry.value;
+                  final counts = row['counts'] as List<int>;
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
                     child: Row(
                       children: [
                         Container(
-                          width: 26,
+                          width: 120,
+                          height: 38,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: const Color(0xFFE9D5FF)),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 26,
+                                height: 38,
+                                alignment: Alignment.center,
+                                decoration: const BoxDecoration(
+                                  color: Color(0xFFC084FC),
+                                  borderRadius: BorderRadius.only(
+                                      topLeft: Radius.circular(8),
+                                      bottomLeft: Radius.circular(8)),
+                                ),
+                                child: Text('${idx + 1}',
+                                    style: const TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 12)),
+                              ),
+                              Expanded(
+                                child: Center(
+                                  child: Text(row['label'] ?? 'Mand',
+                                      style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 13,
+                                          color: Colors.black87)),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Row(
+                            children: List.generate(counts.length, (colIdx) {
+                              return Expanded(
+                                child: Container(
+                                  height: 38,
+                                  margin:
+                                      const EdgeInsets.symmetric(horizontal: 2),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(19),
+                                    border: Border.all(
+                                        color: const Color(0xFFE9D5FF)),
+                                  ),
+                                  child: Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceEvenly,
+                                    children: [
+                                      GestureDetector(
+                                        onTap: () {
+                                          if (counts[colIdx] > 0) {
+                                            setState(() => counts[colIdx]--);
+                                          }
+                                        },
+                                        child: Container(
+                                          width: 16,
+                                          height: 16,
+                                          decoration: const BoxDecoration(
+                                              color: Color(0xFFE9D5FF),
+                                              shape: BoxShape.circle),
+                                          child: const Center(
+                                              child: Text('-',
+                                                  style: TextStyle(
+                                                      fontSize: 12,
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                      color:
+                                                          Color(0xFF7E22CE)))),
+                                        ),
+                                      ),
+                                      Text('${counts[colIdx]}',
+                                          style: const TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 12)),
+                                      GestureDetector(
+                                        onTap: () {
+                                          setState(() => counts[colIdx]++);
+                                        },
+                                        child: Container(
+                                          width: 16,
+                                          height: 16,
+                                          decoration: const BoxDecoration(
+                                              color: Color(0xFFE9D5FF),
+                                              shape: BoxShape.circle),
+                                          child: const Center(
+                                              child: Text('+',
+                                                  style: TextStyle(
+                                                      fontSize: 12,
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                      color:
+                                                          Color(0xFF7E22CE)))),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            }),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          width: 70,
                           height: 38,
                           alignment: Alignment.center,
-                          decoration: const BoxDecoration(
-                            color: Color(0xFFC084FC),
-                            borderRadius: BorderRadius.only(topLeft: Radius.circular(8), bottomLeft: Radius.circular(8)),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: const Color(0xFFE9D5FF)),
                           ),
-                          child: Text('${idx + 1}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
-                        ),
-                        Expanded(
-                          child: Center(
-                            child: Text(row['label'] ?? 'Mand', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.black87)),
-                          ),
+                          child: Text(row['label'] ?? 'Vocal',
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                  color: Colors.black87)),
                         ),
                       ],
                     ),
-                  ),
-                  const SizedBox(width: 8),
-
-                  Expanded(
-                    child: Row(
-                      children: List.generate(counts.length, (colIdx) {
-                        return Expanded(
-                          child: Container(
-                            height: 38,
-                            margin: const EdgeInsets.symmetric(horizontal: 2),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(19),
-                              border: Border.all(color: const Color(0xFFE9D5FF)),
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                              children: [
-                                GestureDetector(
-                                  onTap: () {
-                                    if (counts[colIdx] > 0) {
-                                      setState(() => counts[colIdx]--);
-                                    }
-                                  },
-                                  child: Container(
-                                    width: 16,
-                                    height: 16,
-                                    decoration: const BoxDecoration(color: Color(0xFFE9D5FF), shape: BoxShape.circle),
-                                    child: const Center(child: Text('-', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF7E22CE)))),
-                                  ),
-                                ),
-                                Text('${counts[colIdx]}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                                GestureDetector(
-                                  onTap: () {
-                                    setState(() => counts[colIdx]++);
-                                  },
-                                  child: Container(
-                                    width: 16,
-                                    height: 16,
-                                    decoration: const BoxDecoration(color: Color(0xFFE9D5FF), shape: BoxShape.circle),
-                                    child: const Center(child: Text('+', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF7E22CE)))),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
-                      }),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-
-                  Container(
-                    width: 70,
-                    height: 38,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: const Color(0xFFE9D5FF)),
-                    ),
-                    child: Text(row['label'] ?? 'Vocal', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.black87)),
-                  ),
-                ],
-              ),
-            );
-          }),
-        ],
+                  );
+                }),
+              ],
+            ),
+          ),
         const SizedBox(height: 20),
 
         // Dynamic Summary Bar
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            _buildSummaryBox('Prompted', '$totalPrompted'),
-            _buildSummaryBox('Unprompted', '$totalUnprompted'),
-            _buildSummaryBox('Total', '$grandTotal'),
-          ],
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final boxes = [
+              _buildSummaryBox('Prompted', '$totalPrompted'),
+              _buildSummaryBox('Unprompted', '$totalUnprompted'),
+              _buildSummaryBox('Total', '$grandTotal'),
+            ];
+            if (constraints.maxWidth >= 3 * 180 + 24) {
+              return Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: boxes,
+              );
+            }
+            return Wrap(spacing: 12, runSpacing: 8, children: boxes);
+          },
         ),
         const SizedBox(height: 24),
 
-        Row(
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            OutlinedButton(
-              onPressed: () {},
-              style: OutlinedButton.styleFrom(
-                backgroundColor: const Color(0xFFE9D5FF),
-                foregroundColor: const Color(0xFF7E22CE),
-                side: BorderSide.none,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+        SizedBox(
+          width: double.infinity,
+          child: Wrap(
+            alignment: WrapAlignment.end,
+            spacing: 12,
+            runSpacing: 10,
+            children: [
+              OutlinedButton(
+                onPressed: () {},
+                style: OutlinedButton.styleFrom(
+                  backgroundColor: const Color(0xFFE9D5FF),
+                  foregroundColor: const Color(0xFF7E22CE),
+                  side: BorderSide.none,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8)),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                ),
+                child: const Text('Cancel'),
               ),
-              child: const Text('Cancel'),
-            ),
-            const SizedBox(width: 12),
-            ElevatedButton(
-              onPressed: () async {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Session data saved successfully.')),
-                );
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF9333EA),
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 12),
+              ElevatedButton(
+                onPressed: () async {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                        content: Text('Session data saved successfully.')),
+                  );
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF9333EA),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8)),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 28, vertical: 12),
+                ),
+                child: const Text('Save'),
               ),
-              child: const Text('Save'),
-            ),
-          ],
+            ],
+          ),
         ),
       ],
     );
@@ -694,53 +849,47 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFFC084FC), Color(0xFFD8B4FE)],
+        _buildFilterBar(
+          wideAt: 700,
+          leading: [
+            _buildFilterPill('From Date:', _mgFromDate, 140),
+            _buildFilterPill('To Date:', _mgToDate, 140),
+            ElevatedButton(
+              onPressed: () {},
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF9333EA),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8)),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              ),
+              child: const Text('Search'),
             ),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Row(
-            children: [
-              _buildFilterPill('From Date:', _mgFromDate, 140),
-              const SizedBox(width: 16),
-              _buildFilterPill('To Date:', _mgToDate, 140),
-              const SizedBox(width: 16),
-              ElevatedButton(
-                onPressed: () {},
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF9333EA),
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                ),
-                child: const Text('Search'),
-              ),
-              const Spacer(),
-              Container(
-                height: 32,
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: const Color(0xFFC084FC)),
-                ),
-                child: const Row(
-                  children: [
-                    CircleAvatar(radius: 6, backgroundColor: Color(0xFF9333EA)),
-                    SizedBox(width: 6),
-                    Text('Line Graph', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF7E22CE))),
-                  ],
-                ),
-              ),
-            ],
+          ],
+          trailing: Container(
+            height: 32,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFFC084FC)),
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircleAvatar(radius: 6, backgroundColor: Color(0xFF9333EA)),
+                SizedBox(width: 6),
+                Text('Line Graph',
+                    style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF7E22CE))),
+              ],
+            ),
           ),
         ),
         const SizedBox(height: 24),
-
         Container(
           height: 340,
           width: double.infinity,
@@ -752,7 +901,6 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
           child: MandingLineChart(data: _mandingGraphData),
         ),
         const SizedBox(height: 24),
-
         if (_mandingGraphData.isEmpty)
           Container(
             width: double.infinity,
@@ -765,44 +913,90 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
             child: const Center(
               child: Text(
                 'No recorded session data found for this date range.',
-                style: TextStyle(color: Color(0xFF6B7280), fontSize: 13, fontFamily: 'Poppins'),
+                style: TextStyle(
+                    color: Color(0xFF6B7280),
+                    fontSize: 13,
+                    fontFamily: 'Poppins'),
               ),
             ),
           )
         else
-          Container(
-            width: double.infinity,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: const Color(0xFFC084FC)),
-            ),
-            child: Table(
-              border: TableBorder.all(color: const Color(0xFFE9D5FF)),
-              children: [
-                TableRow(
-                  decoration: const BoxDecoration(color: Color(0xFFFAF5FF)),
-                  children: [
-                    const Padding(padding: EdgeInsets.all(8), child: Text('Date', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
-                    ..._mandingGraphData.map((d) => Padding(padding: const EdgeInsets.all(8), child: Text(d['date'] ?? '', textAlign: TextAlign.center, style: const TextStyle(fontSize: 12)))),
-                  ],
-                ),
-                TableRow(
-                  children: [
-                    const Padding(padding: EdgeInsets.all(8), child: Text('Prompted', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
-                    ..._mandingGraphData.map((d) => Padding(padding: const EdgeInsets.all(8), child: Text('${d['prompted'] ?? 0}', textAlign: TextAlign.center, style: const TextStyle(fontSize: 12)))),
-                  ],
-                ),
-                TableRow(
-                  children: [
-                    const Padding(padding: EdgeInsets.all(8), child: Text('Unprompted', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
-                    ..._mandingGraphData.map((d) => Padding(padding: const EdgeInsets.all(8), child: Text('${d['unprompted'] ?? 0}', textAlign: TextAlign.center, style: const TextStyle(fontSize: 12)))),
-                  ],
-                ),
-              ],
-            ),
-          ),
+          _buildMandingSessionTable(),
       ],
+    );
+  }
+
+  /// Date / Prompted / Unprompted table with one column per session. On narrow
+  /// widths each session column keeps a readable 60px and the table scrolls
+  /// sideways; the row-label column stays 96px wide.
+  Widget _buildMandingSessionTable() {
+    const labelColWidth = 96.0;
+    const dataColWidth = 60.0;
+    final minWidth = labelColWidth + _mandingGraphData.length * dataColWidth;
+
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFC084FC)),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final narrow = constraints.maxWidth < minWidth;
+          final table = Table(
+            border: TableBorder.all(color: const Color(0xFFE9D5FF)),
+            columnWidths:
+                narrow ? const {0: FixedColumnWidth(labelColWidth)} : null,
+            children: [
+              TableRow(
+                decoration: const BoxDecoration(color: Color(0xFFFAF5FF)),
+                children: [
+                  const Padding(
+                      padding: EdgeInsets.all(8),
+                      child: Text('Date',
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 12))),
+                  ..._mandingGraphData.map((d) => Padding(
+                      padding: const EdgeInsets.all(8),
+                      child: Text(d['date'] ?? '',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(fontSize: 12)))),
+                ],
+              ),
+              TableRow(
+                children: [
+                  const Padding(
+                      padding: EdgeInsets.all(8),
+                      child: Text('Prompted',
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 12))),
+                  ..._mandingGraphData.map((d) => Padding(
+                      padding: const EdgeInsets.all(8),
+                      child: Text('${d['prompted'] ?? 0}',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(fontSize: 12)))),
+                ],
+              ),
+              TableRow(
+                children: [
+                  const Padding(
+                      padding: EdgeInsets.all(8),
+                      child: Text('Unprompted',
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 12))),
+                  ..._mandingGraphData.map((d) => Padding(
+                      padding: const EdgeInsets.all(8),
+                      child: Text('${d['unprompted'] ?? 0}',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(fontSize: 12)))),
+                ],
+              ),
+            ],
+          );
+          return ScrollableMinWidth(minWidth: minWidth, child: table);
+        },
+      ),
     );
   }
 
@@ -813,82 +1007,82 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFFC084FC), Color(0xFFD8B4FE)],
+        _buildFilterBar(
+          wideAt: 720,
+          leading: [
+            _buildFilterPill('Date:', _ddsDate, 130),
+            _buildFilterPill('Time In:', _ddsTimeIn, 110),
+            _buildFilterPill('Time Out:', _ddsTimeOut, 110),
+          ],
+          trailing: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFED7AA),
+              borderRadius: BorderRadius.circular(8),
             ),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Row(
-            children: [
-              _buildFilterPill('Date:', _ddsDate, 130),
-              const SizedBox(width: 16),
-              _buildFilterPill('Time In:', _ddsTimeIn, 110),
-              const SizedBox(width: 16),
-              _buildFilterPill('Time Out:', _ddsTimeOut, 110),
-              const Spacer(),
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFED7AA),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Row(
-                      children: [
-                        const Text('Date Introduced: ', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-                        Container(width: 40, height: 10, color: const Color(0xFFB91C1C)),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        const Text('Date Mastered:   ', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-                        Container(width: 40, height: 10, color: const Color(0xFF15803D)),
-                      ],
-                    ),
+                    const Text('Date Introduced: ',
+                        style: TextStyle(
+                            fontSize: 11, fontWeight: FontWeight.bold)),
+                    Container(
+                        width: 40, height: 10, color: const Color(0xFFB91C1C)),
                   ],
                 ),
-              ),
-            ],
+                const SizedBox(height: 4),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('Date Mastered:   ',
+                        style: TextStyle(
+                            fontSize: 11, fontWeight: FontWeight.bold)),
+                    Container(
+                        width: 40, height: 10, color: const Color(0xFF15803D)),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
         const SizedBox(height: 16),
-
         _buildAccordionSection(
           title: 'MANDING GOALS',
           isExpanded: _mandingGoalsExpanded,
-          onToggle: () => setState(() => _mandingGoalsExpanded = !_mandingGoalsExpanded),
-          child: _buildDttDomainTargets('mand', 'No active manding targets logged for this student.'),
+          onToggle: () =>
+              setState(() => _mandingGoalsExpanded = !_mandingGoalsExpanded),
+          child: _buildDttDomainTargets(
+              'mand', 'No active manding targets logged for this student.'),
         ),
         const SizedBox(height: 12),
-
         _buildAccordionSection(
           title: 'LISTENER RESPONDING GOALS',
           isExpanded: _listenerGoalsExpanded,
-          onToggle: () => setState(() => _listenerGoalsExpanded = !_listenerGoalsExpanded),
-          child: _buildDttDomainTargets('listener', 'No active listener responding targets logged for this student.'),
+          onToggle: () =>
+              setState(() => _listenerGoalsExpanded = !_listenerGoalsExpanded),
+          child: _buildDttDomainTargets('listener',
+              'No active listener responding targets logged for this student.'),
         ),
         const SizedBox(height: 12),
-
         _buildAccordionSection(
           title: 'TACTING GOALS',
           isExpanded: _tactingGoalsExpanded,
-          onToggle: () => setState(() => _tactingGoalsExpanded = !_tactingGoalsExpanded),
-          child: _buildDttDomainTargets('tact', 'No active tacting targets logged for this student.'),
+          onToggle: () =>
+              setState(() => _tactingGoalsExpanded = !_tactingGoalsExpanded),
+          child: _buildDttDomainTargets(
+              'tact', 'No active tacting targets logged for this student.'),
         ),
         const SizedBox(height: 12),
-
         _buildAccordionSection(
           title: 'VISUAL PERCEPTUAL SKILLS AND MATCHING-TO-SAMPLE',
           isExpanded: _vpGoalsExpanded,
           onToggle: () => setState(() => _vpGoalsExpanded = !_vpGoalsExpanded),
-          child: _buildDttDomainTargets('vp', 'No active VP/MTS targets logged for this student.'),
+          child: _buildDttDomainTargets(
+              'vp', 'No active VP/MTS targets logged for this student.'),
         ),
       ],
     );
@@ -898,6 +1092,53 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
   // 4. SKILL TRACKING SHEET TAB
   // ════════════════════════════════════════════════════════════════════════════
   Widget _buildSkillTrackingTab() {
+    Widget domainDropdown() => Container(
+          height: 36,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          decoration: BoxDecoration(
+              color: Colors.white, borderRadius: BorderRadius.circular(8)),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              value: _skillDomain,
+              items: ['Manding', 'Tacting', 'Listener', 'Echoic']
+                  .map((d) => DropdownMenuItem(
+                      value: d,
+                      child: Text(d,
+                          style: const TextStyle(
+                              fontSize: 12, fontWeight: FontWeight.w600))))
+                  .toList(),
+              onChanged: (val) => setState(() => _skillDomain = val!),
+            ),
+          ),
+        );
+    Widget goalDropdown({bool expanded = false}) => Container(
+          height: 36,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          decoration: BoxDecoration(
+              color: Colors.white, borderRadius: BorderRadius.circular(8)),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              value: _skillGoal,
+              isExpanded: expanded,
+              items: [
+                'emit 10 different mands without prompts',
+                'label 20 common household objects',
+              ]
+                  .map((g) => DropdownMenuItem(
+                      value: g,
+                      child: Text(g,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              fontSize: 12, fontWeight: FontWeight.w600))))
+                  .toList(),
+              onChanged: (val) => setState(() => _skillGoal = val!),
+            ),
+          ),
+        );
+    const goalLabel = Text('ITP GOAL: ',
+        style: TextStyle(
+            fontWeight: FontWeight.bold, color: Colors.white, fontSize: 13));
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -910,46 +1151,36 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
             ),
             borderRadius: BorderRadius.circular(12),
           ),
-          child: Row(
-            children: [
-              Container(
-                height: 36,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8)),
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<String>(
-                    value: _skillDomain,
-                    items: ['Manding', 'Tacting', 'Listener', 'Echoic'].map((d) => DropdownMenuItem(value: d, child: Text(d, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)))).toList(),
-                    onChanged: (val) => setState(() => _skillDomain = val!),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 20),
-              const Text('ITP GOAL: ', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 13)),
-              const SizedBox(width: 8),
-              Container(
-                height: 36,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8)),
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<String>(
-                    value: _skillGoal,
-                    items: [
-                      'emit 10 different mands without prompts',
-                      'label 20 common household objects',
-                    ].map((g) => DropdownMenuItem(value: g, child: Text(g, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)))).toList(),
-                    onChanged: (val) => setState(() => _skillGoal = val!),
-                  ),
-                ),
-              ),
-            ],
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              if (constraints.maxWidth >= 560) {
+                return Row(
+                  children: [
+                    domainDropdown(),
+                    const SizedBox(width: 20),
+                    goalLabel,
+                    const SizedBox(width: 8),
+                    goalDropdown(),
+                  ],
+                );
+              }
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  domainDropdown(),
+                  const SizedBox(height: 10),
+                  goalLabel,
+                  const SizedBox(height: 6),
+                  goalDropdown(expanded: true),
+                ],
+              );
+            },
           ),
         ),
         const SizedBox(height: 24),
-
         Container(
           width: double.infinity,
-          padding: const EdgeInsets.all(20),
+          padding: EdgeInsets.all(Breakpoints.isCompact(context) ? 12 : 20),
           decoration: BoxDecoration(
             color: const Color(0xFFE2E8F0),
             borderRadius: BorderRadius.circular(16),
@@ -958,19 +1189,42 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
               ? const Padding(
                   padding: EdgeInsets.all(24),
                   child: Center(
-                    child: Text('No cumulative mastered targets logged for this student in this goal.', style: TextStyle(color: Color(0xFF6B7280), fontSize: 13)),
+                    child: Text(
+                        'No cumulative mastered targets logged for this student in this goal.',
+                        style:
+                            TextStyle(color: Color(0xFF6B7280), fontSize: 13)),
                   ),
                 )
               : Column(
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
-                      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8)),
+                      padding: const EdgeInsets.symmetric(
+                          vertical: 10, horizontal: 16),
+                      decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(8)),
                       child: const Row(
                         children: [
-                          Expanded(flex: 3, child: Text('Target', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
-                          Expanded(flex: 3, child: Text('Date Introduced', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
-                          Expanded(flex: 3, child: Text('Date Mastered', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+                          Expanded(
+                              flex: 3,
+                              child: Text('Target',
+                                  style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 12))),
+                          Expanded(
+                              flex: 3,
+                              child: Text('Date Introduced',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 12))),
+                          Expanded(
+                              flex: 3,
+                              child: Text('Date Mastered',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 12))),
                         ],
                       ),
                     ),
@@ -978,13 +1232,33 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
                     ..._skillTargets.map((t) {
                       return Container(
                         margin: const EdgeInsets.only(bottom: 6),
-                        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
-                        decoration: BoxDecoration(color: const Color(0xFFFEE2E2), borderRadius: BorderRadius.circular(8)),
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 10, horizontal: 16),
+                        decoration: BoxDecoration(
+                            color: const Color(0xFFFEE2E2),
+                            borderRadius: BorderRadius.circular(8)),
                         child: Row(
                           children: [
-                            Expanded(flex: 3, child: Text(t['target'] ?? '', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12))),
-                            Expanded(flex: 3, child: Text(t['introduced'] ?? '', textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12))),
-                            Expanded(flex: 3, child: Text(t['mastered'] ?? '', textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12))),
+                            Expanded(
+                                flex: 3,
+                                child: Text(t['target'] ?? '',
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 12))),
+                            Expanded(
+                                flex: 3,
+                                child: Text(t['introduced'] ?? '',
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 12))),
+                            Expanded(
+                                flex: 3,
+                                child: Text(t['mastered'] ?? '',
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 12))),
                           ],
                         ),
                       );
@@ -1003,38 +1277,33 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFFC084FC), Color(0xFFD8B4FE)],
-            ),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Row(
-            children: [
-              _buildFilterPill('From Date:', _acqFromDate, 140),
-              const SizedBox(width: 16),
-              _buildFilterPill('To Date:', _acqToDate, 140),
-              const Spacer(),
-              Container(
-                height: 36,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8)),
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<String>(
-                    value: _acqDomain,
-                    items: ['Manding', 'Tacting', 'Listener', 'Echoic'].map((d) => DropdownMenuItem(value: d, child: Text(d, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)))).toList(),
-                    onChanged: (val) => setState(() => _acqDomain = val!),
-                  ),
-                ),
+        _buildFilterBar(
+          wideAt: 640,
+          leading: [
+            _buildFilterPill('From Date:', _acqFromDate, 140),
+            _buildFilterPill('To Date:', _acqToDate, 140),
+          ],
+          trailing: Container(
+            height: 36,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            decoration: BoxDecoration(
+                color: Colors.white, borderRadius: BorderRadius.circular(8)),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: _acqDomain,
+                items: ['Manding', 'Tacting', 'Listener', 'Echoic']
+                    .map((d) => DropdownMenuItem(
+                        value: d,
+                        child: Text(d,
+                            style: const TextStyle(
+                                fontSize: 12, fontWeight: FontWeight.w600))))
+                    .toList(),
+                onChanged: (val) => setState(() => _acqDomain = val!),
               ),
-            ],
+            ),
           ),
         ),
         const SizedBox(height: 24),
-
         Container(
           height: 340,
           width: double.infinity,
@@ -1046,7 +1315,6 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
           child: AcquisitionLineChart(data: _acquisitionGraphData),
         ),
         const SizedBox(height: 24),
-
         if (_acquisitionGraphData.isEmpty)
           Container(
             width: double.infinity,
@@ -1059,7 +1327,10 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
             child: const Center(
               child: Text(
                 'No target acquisition count records found for this student.',
-                style: TextStyle(color: Color(0xFF6B7280), fontSize: 13, fontFamily: 'Poppins'),
+                style: TextStyle(
+                    color: Color(0xFF6B7280),
+                    fontSize: 13,
+                    fontFamily: 'Poppins'),
               ),
             ),
           )
@@ -1077,16 +1348,33 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
                 const TableRow(
                   decoration: BoxDecoration(color: Color(0xFFFAF5FF)),
                   children: [
-                    Padding(padding: EdgeInsets.all(8), child: Text('Date', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
-                    Padding(padding: EdgeInsets.all(8), child: Text('Count', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+                    Padding(
+                        padding: EdgeInsets.all(8),
+                        child: Text('Date',
+                            style: TextStyle(
+                                fontWeight: FontWeight.bold, fontSize: 12))),
+                    Padding(
+                        padding: EdgeInsets.all(8),
+                        child: Text('Count',
+                            style: TextStyle(
+                                fontWeight: FontWeight.bold, fontSize: 12))),
                   ],
                 ),
                 ..._acquisitionGraphData.map((d) => TableRow(
-                  children: [
-                    Padding(padding: const EdgeInsets.all(8), child: Text(d['date'] ?? '', style: const TextStyle(fontSize: 12))),
-                    Padding(padding: const EdgeInsets.all(8), child: Text('${d['count'] ?? 0}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Color(0xFF7E22CE)))),
-                  ],
-                )),
+                      children: [
+                        Padding(
+                            padding: const EdgeInsets.all(8),
+                            child: Text(d['date'] ?? '',
+                                style: const TextStyle(fontSize: 12))),
+                        Padding(
+                            padding: const EdgeInsets.all(8),
+                            child: Text('${d['count'] ?? 0}',
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 12,
+                                    color: Color(0xFF7E22CE)))),
+                      ],
+                    )),
               ],
             ),
           ),
@@ -1110,14 +1398,17 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
                 children: [
                   Icon(Icons.add, size: 16, color: Color(0xFF7E22CE)),
                   SizedBox(width: 4),
-                  Text('+ Add Incident', style: TextStyle(color: Color(0xFF7E22CE), fontWeight: FontWeight.bold, fontSize: 13)),
+                  Text('+ Add Incident',
+                      style: TextStyle(
+                          color: Color(0xFF7E22CE),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13)),
                 ],
               ),
             ),
           ],
         ),
         const SizedBox(height: 8),
-
         if (_abcIncidents.isEmpty)
           Container(
             width: double.infinity,
@@ -1131,7 +1422,10 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
               child: Text(
                 'No antecedent-behavior-consequence (ABC) incidents logged for this student.\nClick "+ Add Incident" above to record a live behavior event with stopwatch tracking.',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: Color(0xFF6B7280), fontFamily: 'Poppins', fontSize: 13),
+                style: TextStyle(
+                    color: Color(0xFF6B7280),
+                    fontFamily: 'Poppins',
+                    fontSize: 13),
               ),
             ),
           )
@@ -1149,161 +1443,216 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
               child: Column(
                 children: [
                   InkWell(
-                    onTap: () => setState(() => incident['isExpanded'] = !isExpanded),
+                    onTap: () =>
+                        setState(() => incident['isExpanded'] = !isExpanded),
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 12),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(
-                            incident['timeLabel'],
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.black87),
+                          Expanded(
+                            child: Text(
+                              incident['timeLabel'],
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 15,
+                                  color: Colors.black87),
+                            ),
                           ),
                           Icon(
-                            isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                            isExpanded
+                                ? Icons.keyboard_arrow_up
+                                : Icons.keyboard_arrow_down,
                             color: Colors.black87,
                           ),
                         ],
                       ),
                     ),
                   ),
-
                   if (isExpanded)
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.all(16),
                       decoration: const BoxDecoration(
                         color: Color(0xFFFAF5FF),
-                        borderRadius: BorderRadius.only(bottomLeft: Radius.circular(12), bottomRight: Radius.circular(12)),
+                        borderRadius: BorderRadius.only(
+                            bottomLeft: Radius.circular(12),
+                            bottomRight: Radius.circular(12)),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Row(
+                          Wrap(
+                            spacing: 20,
+                            runSpacing: 10,
                             children: [
                               _buildFilterPill('Date:', incident['date'], 130),
-                              const SizedBox(width: 20),
                               _buildFilterPill('Time:', incident['time'], 130),
                             ],
                           ),
                           const SizedBox(height: 14),
-
-                          const Text('Setting Events:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                          const Text('Setting Events:',
+                              style: TextStyle(
+                                  fontWeight: FontWeight.bold, fontSize: 13)),
                           const SizedBox(height: 6),
                           Container(
                             height: 38,
-                            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: const Color(0xFFE9D5FF))),
+                            decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(8),
+                                border:
+                                    Border.all(color: const Color(0xFFE9D5FF))),
                             child: TextField(
-                              decoration: const InputDecoration(border: InputBorder.none, contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10), hintText: 'Enter setting events or environmental triggers'),
+                              decoration: const InputDecoration(
+                                  border: InputBorder.none,
+                                  contentPadding: EdgeInsets.symmetric(
+                                      horizontal: 12, vertical: 10),
+                                  hintText:
+                                      'Enter setting events or environmental triggers'),
                               onChanged: (val) => incident['setting'] = val,
                             ),
                           ),
                           const SizedBox(height: 14),
-
-                          const Text('Antecedent', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                          const Text('Antecedent',
+                              style: TextStyle(
+                                  fontWeight: FontWeight.bold, fontSize: 13)),
                           const SizedBox(height: 6),
-                          Row(
-                            children: [
-                              Container(
-                                height: 38,
-                                width: 200,
-                                padding: const EdgeInsets.symmetric(horizontal: 12),
-                                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: const Color(0xFFE9D5FF))),
-                                child: DropdownButtonHideUnderline(
-                                  child: DropdownButton<String>(
-                                    value: incident['antecedent'],
-                                    items: ['Work Demand', 'Denied Access', 'Transition', 'Attention'].map((a) => DropdownMenuItem(value: a, child: Text(a, style: const TextStyle(fontSize: 12)))).toList(),
-                                    onChanged: (val) => setState(() => incident['antecedent'] = val!),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 16),
-                              const Text('Note:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Container(
-                                  height: 38,
-                                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: const Color(0xFFE9D5FF))),
-                                  child: TextField(
-                                    decoration: const InputDecoration(border: InputBorder.none, contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10)),
-                                    onChanged: (val) => incident['antecedentNote'] = val,
-                                  ),
-                                ),
-                              ),
+                          _buildDropdownWithNote(
+                            value: incident['antecedent'],
+                            options: const [
+                              'Work Demand',
+                              'Denied Access',
+                              'Transition',
+                              'Attention'
                             ],
+                            onSelected: (val) =>
+                                setState(() => incident['antecedent'] = val),
+                            onNoteChanged: (val) =>
+                                incident['antecedentNote'] = val,
                           ),
                           const SizedBox(height: 14),
-
-                          const Text('Behaviors', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                          const Text('Behaviors',
+                              style: TextStyle(
+                                  fontWeight: FontWeight.bold, fontSize: 13)),
                           const SizedBox(height: 6),
-                          Row(
-                            children: [
-                              Container(
+                          LayoutBuilder(
+                            builder: (context, constraints) {
+                              final behaviorDropdown = Container(
                                 height: 38,
                                 width: 200,
-                                padding: const EdgeInsets.symmetric(horizontal: 12),
-                                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: const Color(0xFFE9D5FF))),
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 12),
+                                decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(
+                                        color: const Color(0xFFE9D5FF))),
                                 child: DropdownButtonHideUnderline(
                                   child: DropdownButton<String>(
                                     value: incident['behavior'],
-                                    items: ['Hit', 'Scream', 'Elopement', 'Bite', 'Throwing'].map((b) => DropdownMenuItem(value: b, child: Text(b, style: const TextStyle(fontSize: 12)))).toList(),
-                                    onChanged: (val) => setState(() => incident['behavior'] = val!),
+                                    items: [
+                                      'Hit',
+                                      'Scream',
+                                      'Elopement',
+                                      'Bite',
+                                      'Throwing'
+                                    ]
+                                        .map((b) => DropdownMenuItem(
+                                            value: b,
+                                            child: Text(b,
+                                                style: const TextStyle(
+                                                    fontSize: 12))))
+                                        .toList(),
+                                    onChanged: (val) => setState(
+                                        () => incident['behavior'] = val!),
                                   ),
                                 ),
-                              ),
-                              const SizedBox(width: 16),
-                              const Text('Count: ', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                              const SizedBox(width: 6),
-                              _buildMiniCounter(incident['count'], (val) => setState(() => incident['count'] = val)),
-                              const SizedBox(width: 16),
-                              const Text('Time(mint): ', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                              const SizedBox(width: 6),
-                              _buildMiniCounter(incident['timeMins'], (val) => setState(() => incident['timeMins'] = val)),
-                              const SizedBox(width: 16),
-
+                              );
+                              const countLabel = Text('Count: ',
+                                  style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 13));
+                              final countCounter = _buildMiniCounter(
+                                  incident['count'],
+                                  (val) =>
+                                      setState(() => incident['count'] = val));
+                              const timeLabel = Text('Time(mint): ',
+                                  style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 13));
+                              final timeCounter = _buildMiniCounter(
+                                  incident['timeMins'],
+                                  (val) => setState(
+                                      () => incident['timeMins'] = val));
                               // Real Interactive Digital Stopwatch with Start/Stop/Reset
-                              IncidentStopwatch(
+                              final stopwatch = IncidentStopwatch(
                                 onMinutesUpdated: (mins) {
                                   setState(() {
                                     incident['timeMins'] = mins;
                                   });
                                 },
-                              ),
-                            ],
+                              );
+
+                              if (constraints.maxWidth >= 720) {
+                                return Row(
+                                  children: [
+                                    behaviorDropdown,
+                                    const SizedBox(width: 16),
+                                    countLabel,
+                                    const SizedBox(width: 6),
+                                    countCounter,
+                                    const SizedBox(width: 16),
+                                    timeLabel,
+                                    const SizedBox(width: 6),
+                                    timeCounter,
+                                    const SizedBox(width: 16),
+                                    stopwatch,
+                                  ],
+                                );
+                              }
+                              return Wrap(
+                                spacing: 16,
+                                runSpacing: 10,
+                                crossAxisAlignment: WrapCrossAlignment.center,
+                                children: [
+                                  behaviorDropdown,
+                                  Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        countLabel,
+                                        const SizedBox(width: 6),
+                                        countCounter
+                                      ]),
+                                  Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        timeLabel,
+                                        const SizedBox(width: 6),
+                                        timeCounter
+                                      ]),
+                                  stopwatch,
+                                ],
+                              );
+                            },
                           ),
                           const SizedBox(height: 14),
-
-                          const Text('Consequences', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                          const Text('Consequences',
+                              style: TextStyle(
+                                  fontWeight: FontWeight.bold, fontSize: 13)),
                           const SizedBox(height: 6),
-                          Row(
-                            children: [
-                              Container(
-                                height: 38,
-                                width: 200,
-                                padding: const EdgeInsets.symmetric(horizontal: 12),
-                                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: const Color(0xFFE9D5FF))),
-                                child: DropdownButtonHideUnderline(
-                                  child: DropdownButton<String>(
-                                    value: incident['consequence'],
-                                    items: ['Ignored problem behaviour', 'Redirected to task', 'Given break', 'Response block'].map((c) => DropdownMenuItem(value: c, child: Text(c, style: const TextStyle(fontSize: 12)))).toList(),
-                                    onChanged: (val) => setState(() => incident['consequence'] = val!),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 16),
-                              const Text('Note:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Container(
-                                  height: 38,
-                                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: const Color(0xFFE9D5FF))),
-                                  child: TextField(
-                                    decoration: const InputDecoration(border: InputBorder.none, contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10)),
-                                    onChanged: (val) => incident['consequenceNote'] = val,
-                                  ),
-                                ),
-                              ),
+                          _buildDropdownWithNote(
+                            value: incident['consequence'],
+                            options: const [
+                              'Ignored problem behaviour',
+                              'Redirected to task',
+                              'Given break',
+                              'Response block'
                             ],
+                            onSelected: (val) =>
+                                setState(() => incident['consequence'] = val),
+                            onNoteChanged: (val) =>
+                                incident['consequenceNote'] = val,
                           ),
                         ],
                       ),
@@ -1325,15 +1674,16 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
       children: [
         Text(
           '$_selectedStudent',
-          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.black87),
+          style: const TextStyle(
+              fontWeight: FontWeight.bold, fontSize: 15, color: Colors.black87),
         ),
         const SizedBox(height: 4),
         const Text(
           'BEHAVIOUR REDUCTION PLAN (BRP)',
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black87),
+          style: TextStyle(
+              fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black87),
         ),
         const SizedBox(height: 16),
-
         Container(
           width: double.infinity,
           height: 64,
@@ -1344,89 +1694,121 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
             border: Border.all(color: const Color(0xFFE9D5FF)),
           ),
           alignment: Alignment.topLeft,
-          child: Text(_selectedStudent ?? 'Student Name', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+          child: Text(_selectedStudent ?? 'Student Name',
+              style:
+                  const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
         ),
         const SizedBox(height: 16),
-
-        const Text('What is the form of the problem behaviors?', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+        const Text('What is the form of the problem behaviors?',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
         const SizedBox(height: 6),
         Container(
           width: double.infinity,
           height: 70,
-          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: const Color(0xFFE9D5FF))),
+          decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFFE9D5FF))),
           child: const TextField(
             maxLines: 2,
-            decoration: InputDecoration(border: InputBorder.none, contentPadding: EdgeInsets.all(12), hintText: 'Describe physical topography of observed behaviors...'),
+            decoration: InputDecoration(
+                border: InputBorder.none,
+                contentPadding: EdgeInsets.all(12),
+                hintText:
+                    'Describe physical topography of observed behaviors...'),
           ),
         ),
         const SizedBox(height: 16),
-
-        const Text('DESCRIPTION OF PROBLEM BEHAVIOURS FUNCTION OF PROBLEM BEHAVIOURS', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+        const Text(
+            'DESCRIPTION OF PROBLEM BEHAVIOURS FUNCTION OF PROBLEM BEHAVIOURS',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
         const SizedBox(height: 8),
-
-        const Text('Which variables have reinforced and continue to maintain the problem behaviours?', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+        const Text(
+            'Which variables have reinforced and continue to maintain the problem behaviours?',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
         const SizedBox(height: 6),
         Container(
           width: double.infinity,
           height: 70,
-          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: const Color(0xFFE9D5FF))),
+          decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFFE9D5FF))),
           child: const TextField(
             maxLines: 2,
-            decoration: InputDecoration(border: InputBorder.none, contentPadding: EdgeInsets.all(12), hintText: 'Identify maintaining variables and functions...'),
+            decoration: InputDecoration(
+                border: InputBorder.none,
+                contentPadding: EdgeInsets.all(12),
+                hintText: 'Identify maintaining variables and functions...'),
           ),
         ),
         const SizedBox(height: 16),
-
-        const Text('MEASUREMENT OF PROBLEM BEHAVIOURS', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+        const Text('MEASUREMENT OF PROBLEM BEHAVIOURS',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
         const SizedBox(height: 6),
         Container(
           width: double.infinity,
           height: 70,
-          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: const Color(0xFFE9D5FF))),
+          decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFFE9D5FF))),
           child: const TextField(
             maxLines: 2,
-            decoration: InputDecoration(border: InputBorder.none, contentPadding: EdgeInsets.all(12), hintText: 'Specify measurement metric (Frequency, Duration, Latency, PIR)...'),
+            decoration: InputDecoration(
+                border: InputBorder.none,
+                contentPadding: EdgeInsets.all(12),
+                hintText:
+                    'Specify measurement metric (Frequency, Duration, Latency, PIR)...'),
           ),
         ),
         const SizedBox(height: 24),
-
-        Row(
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            OutlinedButton(
-              onPressed: () {},
-              style: OutlinedButton.styleFrom(
-                backgroundColor: const Color(0xFFE9D5FF),
-                foregroundColor: const Color(0xFF7E22CE),
-                side: BorderSide.none,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        SizedBox(
+          width: double.infinity,
+          child: Wrap(
+            alignment: WrapAlignment.end,
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              OutlinedButton(
+                onPressed: () {},
+                style: OutlinedButton.styleFrom(
+                  backgroundColor: const Color(0xFFE9D5FF),
+                  foregroundColor: const Color(0xFF7E22CE),
+                  side: BorderSide.none,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8)),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                ),
+                child: const Text('Cancel'),
               ),
-              child: const Text('Cancel'),
-            ),
-            const SizedBox(width: 10),
-            ElevatedButton(
-              onPressed: () {},
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF9333EA),
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              ElevatedButton(
+                onPressed: () {},
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF9333EA),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8)),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                ),
+                child: const Text('Save'),
               ),
-              child: const Text('Save'),
-            ),
-            const SizedBox(width: 10),
-            ElevatedButton(
-              onPressed: () {},
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF15803D),
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              ElevatedButton(
+                onPressed: () {},
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF15803D),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8)),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                ),
+                child: const Text('Print'),
               ),
-              child: const Text('Print'),
-            ),
-          ],
+            ],
+          ),
         ),
       ],
     );
@@ -1458,7 +1840,13 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
                     'Problem Behaviour Duration',
                     'Problem Behaviour Duration Graph',
                     'Behavior Data Graph',
-                  ].map((t) => DropdownMenuItem(value: t, child: Text(t, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)))).toList(),
+                  ]
+                      .map((t) => DropdownMenuItem(
+                          value: t,
+                          child: Text(t,
+                              style: const TextStyle(
+                                  fontSize: 12, fontWeight: FontWeight.bold))))
+                      .toList(),
                   onChanged: (val) => setState(() => _pbGraphType = val!),
                 ),
               ),
@@ -1466,7 +1854,6 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
           ],
         ),
         const SizedBox(height: 20),
-
         if (_pbGraphType == 'Problem Behaviour Duration')
           _buildPbDurationTable()
         else if (_pbGraphType == 'Problem Behaviour Duration Graph')
@@ -1486,7 +1873,10 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
               child: Text(
                 'Problem Behavior Trend Analysis\n(Select Graph or Table view from dropdown)',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: Color(0xFF6B7280), fontFamily: 'Poppins', fontSize: 13),
+                style: TextStyle(
+                    color: Color(0xFF6B7280),
+                    fontFamily: 'Poppins',
+                    fontSize: 13),
               ),
             ),
           ),
@@ -1506,7 +1896,9 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
           ? const Padding(
               padding: EdgeInsets.all(24),
               child: Center(
-                child: Text('No problem behavior duration records logged for this student.', style: TextStyle(color: Color(0xFF6B7280), fontSize: 13)),
+                child: Text(
+                    'No problem behavior duration records logged for this student.',
+                    style: TextStyle(color: Color(0xFF6B7280), fontSize: 13)),
               ),
             )
           : Table(
@@ -1515,16 +1907,33 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
                 const TableRow(
                   decoration: BoxDecoration(color: Color(0xFFFAF5FF)),
                   children: [
-                    Padding(padding: EdgeInsets.all(8), child: Text('Date', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
-                    Padding(padding: EdgeInsets.all(8), child: Text('DURATION (MINS)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+                    Padding(
+                        padding: EdgeInsets.all(8),
+                        child: Text('Date',
+                            style: TextStyle(
+                                fontWeight: FontWeight.bold, fontSize: 12))),
+                    Padding(
+                        padding: EdgeInsets.all(8),
+                        child: Text('DURATION (MINS)',
+                            style: TextStyle(
+                                fontWeight: FontWeight.bold, fontSize: 12))),
                   ],
                 ),
                 ..._pbDurationData.map((d) => TableRow(
-                  children: [
-                    Padding(padding: const EdgeInsets.all(8), child: Text(d['date'] ?? '', style: const TextStyle(fontSize: 12))),
-                    Padding(padding: const EdgeInsets.all(8), child: Text('${d['duration'] ?? 0}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Color(0xFF7E22CE)))),
-                  ],
-                )),
+                      children: [
+                        Padding(
+                            padding: const EdgeInsets.all(8),
+                            child: Text(d['date'] ?? '',
+                                style: const TextStyle(fontSize: 12))),
+                        Padding(
+                            padding: const EdgeInsets.all(8),
+                            child: Text('${d['duration'] ?? 0}',
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 12,
+                                    color: Color(0xFF7E22CE)))),
+                      ],
+                    )),
               ],
             ),
     );
@@ -1542,7 +1951,11 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
       ),
       child: Column(
         children: [
-          const Text('DURATION (MINS)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF1E3A8A))),
+          const Text('DURATION (MINS)',
+              style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                  color: Color(0xFF1E3A8A))),
           const SizedBox(height: 12),
           Expanded(
             child: PbDurationLineChart(data: _pbDurationData),
@@ -1595,7 +2008,8 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
       children: [
         Container(width: 8, height: 8, color: color),
         const SizedBox(width: 4),
-        Text(label, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+        Text(label,
+            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
       ],
     );
   }
@@ -1614,9 +2028,12 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
       child: const Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('IEP Daily Session Takeaways & Objectives', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          Text('IEP Daily Session Takeaways & Objectives',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
           SizedBox(height: 16),
-          Text('Session summary notes and clinical objectives tracked for parent and supervisor review.', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+          Text(
+              'Session summary notes and clinical objectives tracked for parent and supervisor review.',
+              style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
         ],
       ),
     );
@@ -1625,11 +2042,55 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
   // ════════════════════════════════════════════════════════════════════════════
   // HELPER WIDGETS
   // ════════════════════════════════════════════════════════════════════════════
+  /// Gradient filter bar: a single row (leading items, then [trailing] pushed
+  /// to the end) when there is room, otherwise the items wrap onto new lines.
+  Widget _buildFilterBar({
+    required List<Widget> leading,
+    Widget? trailing,
+    double wideAt = 720,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFFC084FC), Color(0xFFD8B4FE)],
+        ),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          if (constraints.maxWidth >= wideAt) {
+            return Row(
+              children: [
+                for (int i = 0; i < leading.length; i++) ...[
+                  if (i > 0) const SizedBox(width: 16),
+                  leading[i],
+                ],
+                if (trailing != null) ...[const Spacer(), trailing],
+              ],
+            );
+          }
+          return Wrap(
+            spacing: 16,
+            runSpacing: 10,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [...leading, if (trailing != null) trailing],
+          );
+        },
+      ),
+    );
+  }
+
   Widget _buildFilterPill(String label, String value, double width) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(label, style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.bold, fontSize: 13)),
+        Text(label,
+            style: const TextStyle(
+                color: Colors.black87,
+                fontWeight: FontWeight.bold,
+                fontSize: 13)),
         const SizedBox(width: 8),
         Container(
           width: width,
@@ -1642,13 +2103,85 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
           child: Row(
             children: [
               Expanded(
-                child: Text(value, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black87)),
+                child: Text(value,
+                    style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87)),
               ),
-              const Icon(Icons.calendar_today_outlined, size: 14, color: Color(0xFF7E22CE)),
+              const Icon(Icons.calendar_today_outlined,
+                  size: 14, color: Color(0xFF7E22CE)),
             ],
           ),
         ),
       ],
+    );
+  }
+
+  /// ABC "dropdown + Note: field" row. Side by side when there is room,
+  /// otherwise the note field drops below the dropdown.
+  Widget _buildDropdownWithNote({
+    required String value,
+    required List<String> options,
+    required ValueChanged<String> onSelected,
+    required ValueChanged<String> onNoteChanged,
+  }) {
+    final dropdown = Container(
+      height: 38,
+      width: 200,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: const Color(0xFFE9D5FF))),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: value,
+          items: options
+              .map((o) => DropdownMenuItem(
+                  value: o,
+                  child: Text(o, style: const TextStyle(fontSize: 12))))
+              .toList(),
+          onChanged: (val) => onSelected(val!),
+        ),
+      ),
+    );
+    final noteRow = <Widget>[
+      const Text('Note:',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+      const SizedBox(width: 8),
+      Expanded(
+        child: Container(
+          height: 38,
+          decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFFE9D5FF))),
+          child: TextField(
+            decoration: const InputDecoration(
+                border: InputBorder.none,
+                contentPadding:
+                    EdgeInsets.symmetric(horizontal: 12, vertical: 10)),
+            onChanged: onNoteChanged,
+          ),
+        ),
+      ),
+    ];
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth >= 480) {
+          return Row(
+              children: [dropdown, const SizedBox(width: 16), ...noteRow]);
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            dropdown,
+            const SizedBox(height: 8),
+            Row(children: noteRow),
+          ],
+        );
+      },
     );
   }
 
@@ -1664,14 +2197,22 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.black87)),
+          Text(label,
+              style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12,
+                  color: Colors.black87)),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(6),
             ),
-            child: Text(count, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.black87)),
+            child: Text(count,
+                style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                    color: Colors.black87)),
           ),
         ],
       ),
@@ -1681,23 +2222,39 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
   Widget _buildMiniCounter(int count, ValueChanged<int> onChanged) {
     return Container(
       height: 28,
-      decoration: BoxDecoration(color: const Color(0xFFE9D5FF), borderRadius: BorderRadius.circular(14)),
+      decoration: BoxDecoration(
+          color: const Color(0xFFE9D5FF),
+          borderRadius: BorderRadius.circular(14)),
       child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
           InkWell(
             onTap: () {
               if (count > 0) onChanged(count - 1);
             },
-            child: const Padding(padding: EdgeInsets.symmetric(horizontal: 8), child: Text('-', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF7E22CE)))),
+            child: const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 8),
+                child: Text('-',
+                    style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF7E22CE)))),
           ),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10)),
-            child: Text('$count', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
+            decoration: BoxDecoration(
+                color: Colors.white, borderRadius: BorderRadius.circular(10)),
+            child: Text('$count',
+                style:
+                    const TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
           ),
           InkWell(
             onTap: () => onChanged(count + 1),
-            child: const Padding(padding: EdgeInsets.symmetric(horizontal: 8), child: Text('+', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF7E22CE)))),
+            child: const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 8),
+                child: Text('+',
+                    style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF7E22CE)))),
           ),
         ],
       ),
@@ -1710,7 +2267,11 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
       if (domainKey == 'mand') return d.contains('mand');
       if (domainKey == 'listener') return d.contains('listener');
       if (domainKey == 'tact') return d.contains('tact');
-      if (domainKey == 'vp') return d.contains('vp') || d.contains('visual') || d.contains('matching');
+      if (domainKey == 'vp') {
+        return d.contains('vp') ||
+            d.contains('visual') ||
+            d.contains('matching');
+      }
       return false;
     }).toList();
 
@@ -1720,7 +2281,10 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
         child: Center(
           child: Text(
             emptyMessage,
-            style: const TextStyle(color: Colors.black54, fontStyle: FontStyle.italic, fontSize: 13),
+            style: const TextStyle(
+                color: Colors.black54,
+                fontStyle: FontStyle.italic,
+                fontSize: 13),
           ),
         ),
       );
@@ -1742,27 +2306,28 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
             borderRadius: BorderRadius.circular(8),
             border: Border.all(color: const Color(0xFFE9D5FF)),
           ),
-          child: Row(
-            children: [
-              Expanded(
-                flex: 3,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      target,
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF3B0764)),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      'Prompt Level: $prompt',
-                      style: const TextStyle(fontSize: 11, color: Colors.black54),
-                    ),
-                  ],
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final info = Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    target,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                        color: Color(0xFF3B0764)),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Prompt Level: $prompt',
+                    style: const TextStyle(fontSize: 11, color: Colors.black54),
+                  ),
+                ],
+              );
+              final trialsChip = Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(6),
@@ -1770,22 +2335,52 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
                 ),
                 child: Text(
                   'Trials: $success / $trials',
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF6B21A8)),
+                  style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF6B21A8)),
                 ),
-              ),
-              const SizedBox(width: 12),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              );
+              final pctChip = Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
                   color: const Color(0xFF15803D),
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
                   '$pct%',
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
+                  style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white),
                 ),
-              ),
-            ],
+              );
+
+              // Narrow cards: chips drop below the target name.
+              if (constraints.maxWidth < 420) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    info,
+                    const SizedBox(height: 8),
+                    Row(children: [
+                      trialsChip,
+                      const SizedBox(width: 12),
+                      pctChip
+                    ]),
+                  ],
+                );
+              }
+              return Row(
+                children: [
+                  Expanded(flex: 3, child: info),
+                  trialsChip,
+                  const SizedBox(width: 12),
+                  pctChip,
+                ],
+              );
+            },
           ),
         );
       }).toList(),
@@ -1814,8 +2409,17 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.black87)),
-                  Icon(isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down, color: Colors.black87),
+                  Expanded(
+                      child: Text(title,
+                          style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                              color: Colors.black87))),
+                  Icon(
+                      isExpanded
+                          ? Icons.keyboard_arrow_up
+                          : Icons.keyboard_arrow_down,
+                      color: Colors.black87),
                 ],
               ),
             ),

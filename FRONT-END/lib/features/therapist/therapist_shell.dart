@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:roh_erp/core/constants/app_colors.dart';
 import 'package:roh_erp/core/constants/app_constants.dart';
 import 'package:roh_erp/core/constants/app_images.dart';
+import '../../core/layout/responsive.dart';
 import '../../core/widgets/custom_mobile_bottom_bar.dart';
 import '../../core/widgets/animated_top_bar_title.dart';
 import '../../core/widgets/two_step_logout_dialog.dart';
@@ -89,87 +90,91 @@ class _TherapistShellState extends State<TherapistShell> {
 
   @override
   Widget build(BuildContext context) {
-    final width = MediaQuery.of(context).size.width;
-    final isMobile = width < 768;
+    final screen = Breakpoints.of(context);
+    final isMobile = screen == ScreenSize.compact;
+    // Tablet (600–1023): collapse the sidebar to a compact icon rail.
+    final isRail = screen == ScreenSize.medium;
 
-    final sidebarWidget = Container(
-      width: 250,
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        border: Border(
-          right: BorderSide(color: Color(0xFFE6EFF5), width: 1),
-        ),
-      ),
-      child: Column(
-        children: [
-          // Authentic Figma ROH Logo (Puzzle + Flame + "ROH" text)
-          InkWell(
-            onTap: () {
-              if (isMobile) Navigator.of(context).maybePop();
-              _onItemTapped(0);
-            },
-            borderRadius: BorderRadius.circular(8),
-            child: Container(
-              height: 84,
-              alignment: Alignment.centerLeft,
-              padding: const EdgeInsets.only(left: 28),
-              child: AppImages.rohLogo(height: 38),
+    final sidebarWidget = isRail
+        ? _buildRail()
+        : Container(
+            width: 250,
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              border: Border(
+                right: BorderSide(color: Color(0xFFE6EFF5), width: 1),
+              ),
             ),
-          ),
-          
-          // Menu Items
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Column(
               children: [
-                _buildMenuItem(
-                  index: 0,
-                  title: 'Dashboard',
-                  icon: Icons.home,
-                  isDrawer: isMobile,
+                // Authentic Figma ROH Logo (Puzzle + Flame + "ROH" text)
+                InkWell(
+                  onTap: () {
+                    if (isMobile) Navigator.of(context).maybePop();
+                    _onItemTapped(0);
+                  },
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    height: 84,
+                    alignment: Alignment.centerLeft,
+                    padding: const EdgeInsets.only(left: 28),
+                    child: AppImages.rohLogo(height: 38),
+                  ),
                 ),
-                _buildMenuItem(
-                  index: 1,
-                  title: 'Time Table',
-                  icon: Icons.calendar_today_outlined,
-                  isDrawer: isMobile,
-                ),
-                
-                // VB Assessment - Expandable with 5 sub-items
-                _buildExpandableMenuItem(isDrawer: isMobile),
 
-                // VB Milestone / Report
-                _buildMenuItem(
-                  index: 7,
-                  title: 'VB Milestone',
-                  icon: Icons.person,
-                  isDrawer: isMobile,
-                ),
-                
-                _buildMenuItem(
-                  index: 8,
-                  title: 'IEP',
-                  icon: Icons.bar_chart,
-                  isDrawer: isMobile,
-                ),
-                _buildMenuItem(
-                  index: 9,
-                  title: 'Daily Data Analysis',
-                  icon: Icons.credit_card,
-                  isDrawer: isMobile,
-                ),
-                _buildMenuItem(
-                  index: 10,
-                  title: 'Profile',
-                  icon: Icons.settings,
-                  isDrawer: isMobile,
+                // Menu Items
+                Expanded(
+                  child: ListView(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    children: [
+                      _buildMenuItem(
+                        index: 0,
+                        title: 'Dashboard',
+                        icon: Icons.home,
+                        isDrawer: isMobile,
+                      ),
+                      _buildMenuItem(
+                        index: 1,
+                        title: 'Time Table',
+                        icon: Icons.calendar_today_outlined,
+                        isDrawer: isMobile,
+                      ),
+
+                      // VB Assessment - Expandable with 5 sub-items
+                      _buildExpandableMenuItem(isDrawer: isMobile),
+
+                      // VB Milestone / Report
+                      _buildMenuItem(
+                        index: 7,
+                        title: 'VB Milestone',
+                        icon: Icons.person,
+                        isDrawer: isMobile,
+                      ),
+
+                      _buildMenuItem(
+                        index: 8,
+                        title: 'IEP',
+                        icon: Icons.bar_chart,
+                        isDrawer: isMobile,
+                      ),
+                      _buildMenuItem(
+                        index: 9,
+                        title: 'Daily Data Analysis',
+                        icon: Icons.credit_card,
+                        isDrawer: isMobile,
+                      ),
+                      _buildMenuItem(
+                        index: 10,
+                        title: 'Profile',
+                        icon: Icons.settings,
+                        isDrawer: isMobile,
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
-          ),
-        ],
-      ),
-    );
+          );
 
     final topBarWidget = Container(
       height: 72,
@@ -222,11 +227,16 @@ class _TherapistShellState extends State<TherapistShell> {
                         right: -2,
                         child: Container(
                           padding: const EdgeInsets.all(3),
-                          decoration: const BoxDecoration(color: Color(0xFFEF4444), shape: BoxShape.circle),
-                          constraints: const BoxConstraints(minWidth: 14, minHeight: 14),
+                          decoration: const BoxDecoration(
+                              color: Color(0xFFEF4444), shape: BoxShape.circle),
+                          constraints:
+                              const BoxConstraints(minWidth: 14, minHeight: 14),
                           child: Text(
                             '$count',
-                            style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 9,
+                                fontWeight: FontWeight.bold),
                             textAlign: TextAlign.center,
                           ),
                         ),
@@ -247,7 +257,8 @@ class _TherapistShellState extends State<TherapistShell> {
                 if (shouldLogout == true && context.mounted) {
                   await context.read<AuthService>().logout();
                   if (context.mounted) {
-                    Navigator.of(context).pushReplacementNamed(AppConstants.routeLogin);
+                    Navigator.of(context)
+                        .pushReplacementNamed(AppConstants.routeLogin);
                   }
                 }
               } else {
@@ -257,13 +268,16 @@ class _TherapistShellState extends State<TherapistShell> {
             itemBuilder: (context) => [
               const PopupMenuItem(
                 enabled: false,
-                child: Text('Switch Portal', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                child: Text('Switch Portal',
+                    style:
+                        TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
               ),
               const PopupMenuItem(
                 value: AppConstants.routeAdmin,
                 child: Row(
                   children: [
-                    Icon(Icons.admin_panel_settings, size: 18, color: AppColors.primary),
+                    Icon(Icons.admin_panel_settings,
+                        size: 18, color: AppColors.primary),
                     SizedBox(width: 8),
                     Text('Admin Panel'),
                   ],
@@ -273,7 +287,8 @@ class _TherapistShellState extends State<TherapistShell> {
                 value: AppConstants.routeTherapist,
                 child: Row(
                   children: [
-                    Icon(Icons.medical_services, size: 18, color: AppColors.primary),
+                    Icon(Icons.medical_services,
+                        size: 18, color: AppColors.primary),
                     SizedBox(width: 8),
                     Text('Therapist Panel'),
                   ],
@@ -283,7 +298,8 @@ class _TherapistShellState extends State<TherapistShell> {
                 value: AppConstants.routeParent,
                 child: Row(
                   children: [
-                    Icon(Icons.family_restroom, size: 18, color: AppColors.primary),
+                    Icon(Icons.family_restroom,
+                        size: 18, color: AppColors.primary),
                     SizedBox(width: 8),
                     Text('Parent Panel'),
                   ],
@@ -332,7 +348,8 @@ class _TherapistShellState extends State<TherapistShell> {
           currentIndex: () {
             if (_selectedIndex == 0) return 0; // Dashboard
             if (_selectedIndex == 1) return 1; // Timetable / Sessions
-            if (_isVbChildSelected() || _selectedIndex == 7) return 2; // VB Assessment / Milestones
+            if (_isVbChildSelected() || _selectedIndex == 7)
+              return 2; // VB Assessment / Milestones
             if (_selectedIndex == 8) return 3; // IEP
             if (_selectedIndex == 9) return 4; // Daily Data Sheet
             return -1;
@@ -390,6 +407,179 @@ class _TherapistShellState extends State<TherapistShell> {
     );
   }
 
+  /// Compact icon rail used at tablet widths (600–1023). Every destination
+  /// stays reachable: the VB Assessment group opens its five sub-pages as a
+  /// popup menu.
+  Widget _buildRail() {
+    return Container(
+      width: 76,
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(
+          right: BorderSide(color: Color(0xFFE6EFF5), width: 1),
+        ),
+      ),
+      child: Column(
+        children: [
+          InkWell(
+            onTap: () => _onItemTapped(0),
+            borderRadius: BorderRadius.circular(8),
+            child: Container(
+              height: 72,
+              alignment: Alignment.center,
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              child: AppImages.rohLogo(height: 30),
+            ),
+          ),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              children: [
+                _buildRailItem(index: 0, title: 'Dashboard', icon: Icons.home),
+                _buildRailItem(
+                    index: 1,
+                    title: 'Time Table',
+                    icon: Icons.calendar_today_outlined),
+                _buildRailVbAssessment(),
+                _buildRailItem(
+                    index: 7, title: 'VB Milestone', icon: Icons.person),
+                _buildRailItem(index: 8, title: 'IEP', icon: Icons.bar_chart),
+                _buildRailItem(
+                    index: 9,
+                    title: 'Daily Data Analysis',
+                    icon: Icons.credit_card),
+                _buildRailItem(
+                    index: 10, title: 'Profile', icon: Icons.settings),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _railTile({
+    required bool isSelected,
+    required IconData icon,
+    bool showMenuHint = false,
+  }) {
+    const Color activeColor = AppColors.primary;
+    const Color inactiveColor = AppColors.textSecondary;
+    return SizedBox(
+      height: 52,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          if (isSelected)
+            Positioned(
+              left: 0,
+              child: Container(
+                width: 5,
+                height: 40,
+                decoration: const BoxDecoration(
+                  color: activeColor,
+                  borderRadius: BorderRadius.only(
+                    topRight: Radius.circular(6),
+                    bottomRight: Radius.circular(6),
+                  ),
+                ),
+              ),
+            ),
+          Container(
+            width: 44,
+            height: 40,
+            decoration: BoxDecoration(
+              color:
+                  isSelected ? AppColors.sidebarSelectedBg : Colors.transparent,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(
+              icon,
+              color: isSelected ? activeColor : inactiveColor,
+              size: 24,
+            ),
+          ),
+          if (showMenuHint)
+            Positioned(
+              right: 6,
+              child: Icon(
+                Icons.chevron_right,
+                size: 14,
+                color: isSelected ? activeColor : inactiveColor,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRailItem({
+    required int index,
+    required String title,
+    required IconData icon,
+  }) {
+    return Tooltip(
+      message: title,
+      waitDuration: const Duration(milliseconds: 300),
+      child: InkWell(
+        onTap: () => _onItemTapped(index),
+        hoverColor: const Color(0xFFF9FAFB),
+        child: _railTile(isSelected: _selectedIndex == index, icon: icon),
+      ),
+    );
+  }
+
+  Widget _buildRailVbAssessment() {
+    const subItems = <(int, String)>[
+      (2, 'Milestone Assessment'),
+      (3, 'Barriers Assessment'),
+      (4, 'Transition Assessment'),
+      (5, 'EES Assessment'),
+      (6, 'Preference Assessment'),
+    ];
+    return PopupMenuButton<int>(
+      tooltip: 'VB Assessment',
+      offset: const Offset(76, 0),
+      onSelected: _onItemTapped,
+      itemBuilder: (context) => [
+        const PopupMenuItem<int>(
+          enabled: false,
+          child: Text(
+            'VB Assessment',
+            style: TextStyle(
+              fontFamily: 'Poppins',
+              fontWeight: FontWeight.w600,
+              fontSize: 13,
+              color: AppColors.textPrimary,
+            ),
+          ),
+        ),
+        for (final (index, title) in subItems)
+          PopupMenuItem<int>(
+            value: index,
+            child: Text(
+              title,
+              style: TextStyle(
+                fontFamily: 'Poppins',
+                fontSize: 13,
+                fontWeight: _selectedIndex == index
+                    ? FontWeight.w600
+                    : FontWeight.normal,
+                color: _selectedIndex == index
+                    ? AppColors.primary
+                    : AppColors.textSecondary,
+              ),
+            ),
+          ),
+      ],
+      child: _railTile(
+        isSelected: _isVbChildSelected(),
+        icon: Icons.volunteer_activism_outlined,
+        showMenuHint: true,
+      ),
+    );
+  }
+
   Widget _buildMenuItem({
     required int index,
     required String title,
@@ -443,7 +633,8 @@ class _TherapistShellState extends State<TherapistShell> {
                     style: TextStyle(
                       fontFamily: 'Poppins',
                       fontSize: 15,
-                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                      fontWeight:
+                          isSelected ? FontWeight.w600 : FontWeight.w500,
                       color: isSelected ? activeColor : inactiveColor,
                     ),
                   ),
@@ -502,8 +693,11 @@ class _TherapistShellState extends State<TherapistShell> {
                           style: TextStyle(
                             fontFamily: 'Poppins',
                             fontSize: 15,
-                            fontWeight: isParentSelected ? FontWeight.w600 : FontWeight.w500,
-                            color: isParentSelected ? activeColor : inactiveColor,
+                            fontWeight: isParentSelected
+                                ? FontWeight.w600
+                                : FontWeight.w500,
+                            color:
+                                isParentSelected ? activeColor : inactiveColor,
                           ),
                         ),
                       ),
@@ -525,15 +719,22 @@ class _TherapistShellState extends State<TherapistShell> {
         ),
         AnimatedCrossFade(
           duration: const Duration(milliseconds: 200),
-          crossFadeState: _isVbAssessmentExpanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+          crossFadeState: _isVbAssessmentExpanded
+              ? CrossFadeState.showSecond
+              : CrossFadeState.showFirst,
           firstChild: const SizedBox(width: double.infinity, height: 0),
           secondChild: Column(
             children: [
-              _buildSubMenuItem(index: 2, title: 'Milestone Assessment', isDrawer: isDrawer),
-              _buildSubMenuItem(index: 3, title: 'Barriers Assessment', isDrawer: isDrawer),
-              _buildSubMenuItem(index: 4, title: 'Transition Assessment', isDrawer: isDrawer),
-              _buildSubMenuItem(index: 5, title: 'EES Assessment', isDrawer: isDrawer),
-              _buildSubMenuItem(index: 6, title: 'Preference Assessment', isDrawer: isDrawer),
+              _buildSubMenuItem(
+                  index: 2, title: 'Milestone Assessment', isDrawer: isDrawer),
+              _buildSubMenuItem(
+                  index: 3, title: 'Barriers Assessment', isDrawer: isDrawer),
+              _buildSubMenuItem(
+                  index: 4, title: 'Transition Assessment', isDrawer: isDrawer),
+              _buildSubMenuItem(
+                  index: 5, title: 'EES Assessment', isDrawer: isDrawer),
+              _buildSubMenuItem(
+                  index: 6, title: 'Preference Assessment', isDrawer: isDrawer),
             ],
           ),
         ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:roh_erp/core/constants/app_colors.dart';
+import 'package:roh_erp/core/layout/responsive.dart';
 import 'package:roh_erp/core/models/schedule_model.dart';
 import 'package:roh_erp/core/services/schedule_service.dart';
 import '../../auth/auth_service.dart';
@@ -50,17 +51,26 @@ class _DirectorDashboardPageState extends State<DirectorDashboardPage> {
   Widget build(BuildContext context) {
     final user = context.watch<AuthService>().currentUser;
     final now = DateTime.now();
-    const dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    const dayNames = [
+      'Monday',
+      'Tuesday',
+      'Wednesday',
+      'Thursday',
+      'Friday',
+      'Saturday',
+      'Sunday'
+    ];
     final dateStr =
         '${now.day.toString().padLeft(2, '0')}-${now.month.toString().padLeft(2, '0')}-${now.year} ${dayNames[now.weekday - 1]}';
 
     final enrolledCount = _students.length;
     const maxCapacity = 30;
-    final capacityPercent = maxCapacity > 0 ? (enrolledCount / maxCapacity * 100).toInt() : 0;
+    final capacityPercent =
+        maxCapacity > 0 ? (enrolledCount / maxCapacity * 100).toInt() : 0;
     final openSlots = (maxCapacity - enrolledCount).clamp(0, maxCapacity);
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+      padding: Breakpoints.pagePadding(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -71,7 +81,11 @@ class _DirectorDashboardPageState extends State<DirectorDashboardPage> {
                 ? Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(flex: 6, child: _DirectorWelcomeCard(name: user?.name ?? 'Clinical Director', dateStr: dateStr)),
+                      Expanded(
+                          flex: 6,
+                          child: _DirectorWelcomeCard(
+                              name: user?.name ?? 'Clinical Director',
+                              dateStr: dateStr)),
                       const SizedBox(width: 20),
                       Expanded(
                         flex: 5,
@@ -85,7 +99,9 @@ class _DirectorDashboardPageState extends State<DirectorDashboardPage> {
                     ],
                   )
                 : Column(children: [
-                    _DirectorWelcomeCard(name: user?.name ?? 'Clinical Director', dateStr: dateStr),
+                    _DirectorWelcomeCard(
+                        name: user?.name ?? 'Clinical Director',
+                        dateStr: dateStr),
                     const SizedBox(height: 16),
                     _CenterCapacityCard(
                       enrolled: enrolledCount,
@@ -109,7 +125,8 @@ class _DirectorDashboardPageState extends State<DirectorDashboardPage> {
               crossAxisCount: crossAxisCount,
               crossAxisSpacing: 14,
               mainAxisSpacing: 14,
-              childAspectRatio: crossAxisCount == 1 ? 3.0 : (crossAxisCount == 2 ? 2.4 : 1.8),
+              childAspectRatio:
+                  crossAxisCount == 1 ? 3.0 : (crossAxisCount == 2 ? 2.4 : 1.8),
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               children: [
@@ -122,8 +139,12 @@ class _DirectorDashboardPageState extends State<DirectorDashboardPage> {
                 ),
                 _KpiStatCard(
                   label: 'Mastery Velocity',
-                  value: enrolledCount > 0 ? '${enrolledCount * 10} Targets' : '0 Targets',
-                  subtext: enrolledCount > 0 ? '+18.4% this quarter' : 'No active targets',
+                  value: enrolledCount > 0
+                      ? '${enrolledCount * 10} Targets'
+                      : '0 Targets',
+                  subtext: enrolledCount > 0
+                      ? '+18.4% this quarter'
+                      : 'No active targets',
                   icon: Icons.trending_up,
                   color: Colors.green,
                 ),
@@ -137,7 +158,9 @@ class _DirectorDashboardPageState extends State<DirectorDashboardPage> {
                 _KpiStatCard(
                   label: 'BACB Supervised',
                   value: enrolledCount > 0 ? '42.5 hrs' : '0.0 hrs',
-                  subtext: enrolledCount > 0 ? '5.2% ratio (Compliant)' : 'No sessions recorded',
+                  subtext: enrolledCount > 0
+                      ? '5.2% ratio (Compliant)'
+                      : 'No sessions recorded',
                   icon: Icons.access_time_outlined,
                   color: Colors.teal,
                 ),
@@ -147,7 +170,8 @@ class _DirectorDashboardPageState extends State<DirectorDashboardPage> {
           const SizedBox(height: 24),
 
           // ── Executive Analytics & Caseload Intelligence (FRS 8) ────────
-          _DirectorExecutiveAnalyticsSection(therapists: _therapists, studentsCount: enrolledCount),
+          _DirectorExecutiveAnalyticsSection(
+              therapists: _therapists, studentsCount: enrolledCount),
           const SizedBox(height: 24),
 
           // ── Today's Center Operations & Live Therapist Timetable ────────
@@ -167,7 +191,6 @@ class _DirectorDashboardPageState extends State<DirectorDashboardPage> {
         ],
       ),
     );
-
   }
 }
 
@@ -185,7 +208,8 @@ class _DirectorWelcomeCard extends StatelessWidget {
         color: AppColors.primary,
         borderRadius: BorderRadius.circular(16),
         boxShadow: const [
-          BoxShadow(color: Color(0x0A000000), blurRadius: 8, offset: Offset(0, 2)),
+          BoxShadow(
+              color: Color(0x0A000000), blurRadius: 8, offset: Offset(0, 2)),
         ],
       ),
       child: Column(
@@ -195,33 +219,52 @@ class _DirectorWelcomeCard extends StatelessWidget {
             children: [
               Flexible(
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(20)),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(20)),
                   child: const Text(
                     'BCBA-D Clinical Director Command',
-                    style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ),
               const Spacer(),
-              const Icon(Icons.shield_outlined, color: Colors.white70, size: 20),
+              const Icon(Icons.shield_outlined,
+                  color: Colors.white70, size: 20),
             ],
           ),
           const SizedBox(height: 12),
-          Text('Hi, $name !', style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+          Text('Hi, $name !',
+              style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold)),
           const SizedBox(height: 6),
-          const Text('Clinical oversight, BACB governance, and treatment plan authorization station.', style: TextStyle(color: Colors.white70, fontSize: 13)),
+          const Text(
+              'Clinical oversight, BACB governance, and treatment plan authorization station.',
+              style: TextStyle(color: Colors.white70, fontSize: 13)),
           const SizedBox(height: 18),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-            decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(8)),
+            decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(8)),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 const Icon(Icons.event, color: Colors.white70, size: 16),
                 const SizedBox(width: 8),
-                Text(dateStr, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
+                Text(dateStr,
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600)),
               ],
             ),
           ),
@@ -247,7 +290,8 @@ class _CenterCapacityCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ratio = (maxCapacity > 0 ? enrolled / maxCapacity : 0.0).clamp(0.0, 1.0);
+    final ratio =
+        (maxCapacity > 0 ? enrolled / maxCapacity : 0.0).clamp(0.0, 1.0);
 
     return Container(
       padding: const EdgeInsets.all(22),
@@ -265,7 +309,10 @@ class _CenterCapacityCard extends StatelessWidget {
               const Expanded(
                 child: Text(
                   'Center Clinical Caseload Capacity',
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                  style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
@@ -273,7 +320,9 @@ class _CenterCapacityCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: enrolled == 0 ? const Color(0xFFF1F5F9) : const Color(0xFFE8F5E9),
+                  color: enrolled == 0
+                      ? const Color(0xFFF1F5F9)
+                      : const Color(0xFFE8F5E9),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
@@ -281,7 +330,9 @@ class _CenterCapacityCard extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.bold,
-                    color: enrolled == 0 ? AppColors.textSecondary : const Color(0xFF2E7D32),
+                    color: enrolled == 0
+                        ? AppColors.textSecondary
+                        : const Color(0xFF2E7D32),
                   ),
                 ),
               ),
@@ -291,16 +342,24 @@ class _CenterCapacityCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'Enrolled: $enrolled / $maxCapacity Students',
-                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+              Flexible(
+                child: Text(
+                  'Enrolled: $enrolled / $maxCapacity Students',
+                  style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary),
+                ),
               ),
+              const SizedBox(width: 8),
               Text(
                 '$percentage% Utilized',
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.bold,
-                  color: enrolled == 0 ? AppColors.textSecondary : AppColors.primary,
+                  color: enrolled == 0
+                      ? AppColors.textSecondary
+                      : AppColors.primary,
                 ),
               ),
             ],
@@ -321,7 +380,9 @@ class _CenterCapacityCard extends StatelessWidget {
           Row(
             children: [
               Icon(
-                enrolled == 0 ? Icons.check_circle_outline : Icons.hourglass_top_outlined,
+                enrolled == 0
+                    ? Icons.check_circle_outline
+                    : Icons.hourglass_top_outlined,
                 size: 16,
                 color: enrolled == 0 ? Colors.green : AppColors.statusPending,
               ),
@@ -331,7 +392,8 @@ class _CenterCapacityCard extends StatelessWidget {
                   enrolled == 0
                       ? 'Admissions Ready: All clinical slots available for new intakes'
                       : 'Admissions Waitlist: 0 Students currently queued',
-                  style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                  style: const TextStyle(
+                      fontSize: 12, color: AppColors.textSecondary),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
@@ -351,14 +413,21 @@ class _UrgentActionBanners extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final pendingIeps = iepReports.where((r) => (r['status'] ?? '').toString().contains('Pending')).toList();
+    final pendingIeps = iepReports
+        .where((r) => (r['status'] ?? '').toString().contains('Pending'))
+        .toList();
 
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: pendingIeps.isNotEmpty ? const Color(0xFFFFFBEB) : const Color(0xFFF8FAFC),
+        color: pendingIeps.isNotEmpty
+            ? const Color(0xFFFFFBEB)
+            : const Color(0xFFF8FAFC),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: pendingIeps.isNotEmpty ? const Color(0xFFFDE68A) : const Color(0xFFE2E8F0)),
+        border: Border.all(
+            color: pendingIeps.isNotEmpty
+                ? const Color(0xFFFDE68A)
+                : const Color(0xFFE2E8F0)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -366,19 +435,27 @@ class _UrgentActionBanners extends StatelessWidget {
           Row(
             children: [
               Icon(
-                pendingIeps.isNotEmpty ? Icons.priority_high : Icons.verified_outlined,
-                color: pendingIeps.isNotEmpty ? const Color(0xFFD97706) : const Color(0xFF10B981),
+                pendingIeps.isNotEmpty
+                    ? Icons.priority_high
+                    : Icons.verified_outlined,
+                color: pendingIeps.isNotEmpty
+                    ? const Color(0xFFD97706)
+                    : const Color(0xFF10B981),
                 size: 20,
               ),
               const SizedBox(width: 8),
-              Text(
-                pendingIeps.isNotEmpty
-                    ? 'Director Clinical Attention Queue (${pendingIeps.length} pending items)'
-                    : 'Director Clinical Attention Queue (All Clean)',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
-                  color: pendingIeps.isNotEmpty ? const Color(0xFF92400E) : const Color(0xFF065F46),
+              Expanded(
+                child: Text(
+                  pendingIeps.isNotEmpty
+                      ? 'Director Clinical Attention Queue (${pendingIeps.length} pending items)'
+                      : 'Director Clinical Attention Queue (All Clean)',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                    color: pendingIeps.isNotEmpty
+                        ? const Color(0xFF92400E)
+                        : const Color(0xFF065F46),
+                  ),
                 ),
               ),
             ],
@@ -392,7 +469,9 @@ class _UrgentActionBanners extends StatelessWidget {
                 _actionItem(
                   Icons.assignment_turned_in_outlined,
                   '${pendingIeps.length} IEP Report(s) Awaiting Approval',
-                  pendingIeps.map((r) => r['student_name'] ?? 'Student').join(', '),
+                  pendingIeps
+                      .map((r) => r['student_name'] ?? 'Student')
+                      .join(', '),
                   const Color(0xFFD97706),
                 ),
               ],
@@ -404,9 +483,14 @@ class _UrgentActionBanners extends StatelessWidget {
                 children: [
                   Icon(Icons.check, size: 16, color: Color(0xFF10B981)),
                   SizedBox(width: 8),
-                  Text(
-                    'No urgent clinical alerts or IEP approvals currently pending audit.',
-                    style: TextStyle(fontSize: 12.5, color: AppColors.textSecondary, fontWeight: FontWeight.w500),
+                  Expanded(
+                    child: Text(
+                      'No urgent clinical alerts or IEP approvals currently pending audit.',
+                      style: TextStyle(
+                          fontSize: 12.5,
+                          color: AppColors.textSecondary,
+                          fontWeight: FontWeight.w500),
+                    ),
                   ),
                 ],
               ),
@@ -416,10 +500,11 @@ class _UrgentActionBanners extends StatelessWidget {
     );
   }
 
-  Widget _actionItem(IconData icon, String title, String subtitle, Color color) {
+  Widget _actionItem(
+      IconData icon, String title, String subtitle, Color color) {
     return Builder(
       builder: (context) {
-        final isMobile = MediaQuery.of(context).size.width < 768;
+        final isMobile = Breakpoints.isCompact(context);
         return Container(
           width: isMobile ? double.infinity : null,
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -438,9 +523,16 @@ class _UrgentActionBanners extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(title, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color)),
+                    Text(title,
+                        style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: color)),
                     const SizedBox(height: 2),
-                    Text(subtitle, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary), softWrap: true),
+                    Text(subtitle,
+                        style: const TextStyle(
+                            fontSize: 11, color: AppColors.textSecondary),
+                        softWrap: true),
                   ],
                 ),
               ),
@@ -481,7 +573,9 @@ class _KpiStatCard extends StatelessWidget {
         children: [
           Container(
             padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
+            decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(10)),
             child: Icon(icon, color: color, size: 24),
           ),
           const SizedBox(width: 12),
@@ -489,11 +583,23 @@ class _KpiStatCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(label, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                Text(label,
+                    style: const TextStyle(
+                        fontSize: 11, color: AppColors.textSecondary)),
                 const SizedBox(height: 2),
-                Text(value, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                Text(value,
+                    style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary)),
                 const SizedBox(height: 2),
-                Text(subtext, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w600)),
+                Text(subtext,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                        fontSize: 11,
+                        color: color,
+                        fontWeight: FontWeight.w600)),
               ],
             ),
           ),
@@ -516,10 +622,12 @@ class _ClinicalOperationsSection extends StatefulWidget {
   });
 
   @override
-  State<_ClinicalOperationsSection> createState() => _ClinicalOperationsSectionState();
+  State<_ClinicalOperationsSection> createState() =>
+      _ClinicalOperationsSectionState();
 }
 
-class _ClinicalOperationsSectionState extends State<_ClinicalOperationsSection> with SingleTickerProviderStateMixin {
+class _ClinicalOperationsSectionState extends State<_ClinicalOperationsSection>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
   @override
@@ -536,7 +644,9 @@ class _ClinicalOperationsSectionState extends State<_ClinicalOperationsSection> 
 
   @override
   Widget build(BuildContext context) {
-    final pendingCount = widget.iepReports.where((r) => (r['status'] ?? '').toString().contains('Pending')).length;
+    final pendingCount = widget.iepReports
+        .where((r) => (r['status'] ?? '').toString().contains('Pending'))
+        .length;
 
     return Container(
       decoration: BoxDecoration(
@@ -558,25 +668,46 @@ class _ClinicalOperationsSectionState extends State<_ClinicalOperationsSection> 
                     children: [
                       const Text(
                         'Clinical Operations & Governance',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                        style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textPrimary),
                       ),
                       const SizedBox(height: 8),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(color: AppColors.primary.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
-                        child: const Text('Live Supervision Active', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.primary)),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                            color: AppColors.primary.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(12)),
+                        child: const Text('Live Supervision Active',
+                            style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.primary)),
                       ),
                     ],
                   );
                 }
                 return Row(
                   children: [
-                    const Text('Clinical Operations & Governance', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                    const Text('Clinical Operations & Governance',
+                        style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textPrimary)),
                     const Spacer(),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(color: AppColors.primary.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
-                      child: const Text('Live Supervision Active', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.primary)),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                          color: AppColors.primary.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(12)),
+                      child: const Text('Live Supervision Active',
+                          style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.primary)),
                     ),
                   ],
                 );
@@ -591,7 +722,8 @@ class _ClinicalOperationsSectionState extends State<_ClinicalOperationsSection> 
             unselectedLabelColor: AppColors.textSecondary,
             indicatorColor: AppColors.primary,
             indicatorSize: TabBarIndicatorSize.label,
-            labelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+            labelStyle:
+                const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             tabs: [
               Tab(text: 'Pending IEP Approvals ($pendingCount)'),
@@ -617,7 +749,6 @@ class _ClinicalOperationsSectionState extends State<_ClinicalOperationsSection> 
   }
 }
 
-
 // ── Tab 1: Pending IEPs ──────────────────────────────────────────────────────
 class _PendingIepsTab extends StatelessWidget {
   final List<Map<String, dynamic>> iepReports;
@@ -626,16 +757,21 @@ class _PendingIepsTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final pendingList = iepReports.where((r) => (r['status'] ?? '').toString().contains('Pending')).toList();
+    final pendingList = iepReports
+        .where((r) => (r['status'] ?? '').toString().contains('Pending'))
+        .toList();
 
     if (pendingList.isEmpty) {
       return const Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.assignment_turned_in_outlined, size: 40, color: Colors.grey),
+            Icon(Icons.assignment_turned_in_outlined,
+                size: 40, color: Colors.grey),
             SizedBox(height: 8),
-            Text('No pending IEP reports awaiting approval', style: TextStyle(color: Colors.grey, fontWeight: FontWeight.w600)),
+            Text('No pending IEP reports awaiting approval',
+                style:
+                    TextStyle(color: Colors.grey, fontWeight: FontWeight.w600)),
           ],
         ),
       );
@@ -648,7 +784,8 @@ class _PendingIepsTab extends StatelessWidget {
         child: ListView.separated(
           padding: const EdgeInsets.all(16),
           itemCount: pendingList.length,
-          separatorBuilder: (_, __) => const Divider(height: 1, color: AppColors.divider),
+          separatorBuilder: (_, __) =>
+              const Divider(height: 1, color: AppColors.divider),
           itemBuilder: (ctx, i) {
             final item = pendingList[i];
             return Padding(
@@ -658,7 +795,10 @@ class _PendingIepsTab extends StatelessWidget {
                   CircleAvatar(
                     radius: 18,
                     backgroundColor: AppColors.primary.withValues(alpha: 0.1),
-                    child: Text(item['student']!.substring(0, 1), style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold)),
+                    child: Text(item['student']!.substring(0, 1),
+                        style: const TextStyle(
+                            color: AppColors.primary,
+                            fontWeight: FontWeight.bold)),
                   ),
                   const SizedBox(width: 14),
                   Expanded(
@@ -666,29 +806,51 @@ class _PendingIepsTab extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(item['student']!, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textPrimary)),
-                        Text('Age: ${item['age']} yrs • Sub: ${item['submitted']}', style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                        Text(item['student']!,
+                            style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                                color: AppColors.textPrimary)),
+                        Text(
+                            'Age: ${item['age']} yrs • Sub: ${item['submitted']}',
+                            style: const TextStyle(
+                                fontSize: 11, color: AppColors.textSecondary)),
                       ],
                     ),
                   ),
                   Expanded(
                     flex: 3,
-                    child: Text('Therapist: ${item['therapist']!}', style: const TextStyle(fontSize: 12, color: AppColors.textPrimary)),
+                    child: Text('Therapist: ${item['therapist']!}',
+                        style: const TextStyle(
+                            fontSize: 12, color: AppColors.textPrimary)),
                   ),
                   Expanded(
                     flex: 3,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(item['cycle']!, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
-                        Text(item['targets']!, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                        Text(item['cycle']!,
+                            style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.textPrimary)),
+                        Text(item['targets']!,
+                            style: const TextStyle(
+                                fontSize: 11, color: AppColors.textSecondary)),
                       ],
                     ),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(color: AppColors.statusPendingBg, borderRadius: BorderRadius.circular(12)),
-                    child: const Text('Pending Audit', style: TextStyle(color: AppColors.statusPending, fontWeight: FontWeight.bold, fontSize: 11)),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                        color: AppColors.statusPendingBg,
+                        borderRadius: BorderRadius.circular(12)),
+                    child: const Text('Pending Audit',
+                        style: TextStyle(
+                            color: AppColors.statusPending,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 11)),
                   ),
                 ],
               ),
@@ -715,7 +877,9 @@ class _ClinicianSupervisionTab extends StatelessWidget {
           children: [
             Icon(Icons.people_outline, size: 40, color: Colors.grey),
             SizedBox(height: 8),
-            Text('No clinicians registered', style: TextStyle(color: Colors.grey, fontWeight: FontWeight.w600)),
+            Text('No clinicians registered',
+                style:
+                    TextStyle(color: Colors.grey, fontWeight: FontWeight.w600)),
           ],
         ),
       );
@@ -728,14 +892,16 @@ class _ClinicianSupervisionTab extends StatelessWidget {
         child: ListView.separated(
           padding: const EdgeInsets.all(16),
           itemCount: therapists.length,
-          separatorBuilder: (_, __) => const Divider(height: 1, color: AppColors.divider),
+          separatorBuilder: (_, __) =>
+              const Divider(height: 1, color: AppColors.divider),
           itemBuilder: (ctx, i) {
             final t = therapists[i];
             final name = t['name']?.toString() ?? 'Therapist';
             final role = t['designation']?.toString() ?? 'Behavior Therapist';
             final cases = (t['student_count'] ?? 0) as int;
             final hours = (cases * 1.5).toStringAsFixed(1);
-            final reqHours = cases > 0 ? (cases * 1.5).toStringAsFixed(1) : '0.0';
+            final reqHours =
+                cases > 0 ? (cases * 1.5).toStringAsFixed(1) : '0.0';
 
             return Padding(
               padding: const EdgeInsets.symmetric(vertical: 10),
@@ -746,7 +912,9 @@ class _ClinicianSupervisionTab extends StatelessWidget {
                     backgroundColor: AppColors.primary.withValues(alpha: 0.1),
                     child: Text(
                       name.isNotEmpty ? name.substring(0, 1) : 'T',
-                      style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold),
+                      style: const TextStyle(
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.bold),
                     ),
                   ),
                   const SizedBox(width: 14),
@@ -755,14 +923,22 @@ class _ClinicianSupervisionTab extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textPrimary)),
-                        Text(role, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                        Text(name,
+                            style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                                color: AppColors.textPrimary)),
+                        Text(role,
+                            style: const TextStyle(
+                                fontSize: 11, color: AppColors.textSecondary)),
                       ],
                     ),
                   ),
                   Expanded(
                     flex: 2,
-                    child: Text('$cases Cases', style: const TextStyle(fontSize: 12, color: AppColors.textPrimary)),
+                    child: Text('$cases Cases',
+                        style: const TextStyle(
+                            fontSize: 12, color: AppColors.textPrimary)),
                   ),
                   Expanded(
                     flex: 4,
@@ -772,8 +948,16 @@ class _ClinicianSupervisionTab extends StatelessWidget {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text('Supervision: $hours / $reqHours hrs', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
-                            const Text('BACB Compliant', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.green)),
+                            Text('Supervision: $hours / $reqHours hrs',
+                                style: const TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.textPrimary)),
+                            const Text('BACB Compliant',
+                                style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.green)),
                           ],
                         ),
                         const SizedBox(height: 4),
@@ -783,7 +967,8 @@ class _ClinicianSupervisionTab extends StatelessWidget {
                             value: cases > 0 ? 1.0 : 0.0,
                             minHeight: 6,
                             backgroundColor: Colors.grey.shade200,
-                            valueColor: const AlwaysStoppedAnimation<Color>(Colors.green),
+                            valueColor: const AlwaysStoppedAnimation<Color>(
+                                Colors.green),
                           ),
                         ),
                       ],
@@ -798,7 +983,6 @@ class _ClinicianSupervisionTab extends StatelessWidget {
     );
   }
 }
-
 
 // ── Tab 3: Domain Velocity ───────────────────────────────────────────────────
 class _DomainVelocityTab extends StatelessWidget {
@@ -815,45 +999,92 @@ class _DomainVelocityTab extends StatelessWidget {
           children: [
             Icon(Icons.auto_graph_outlined, size: 40, color: Colors.grey),
             SizedBox(height: 8),
-            Text('No domain acquisition data recorded yet', style: TextStyle(color: Colors.grey, fontWeight: FontWeight.w600)),
+            Text('No domain acquisition data recorded yet',
+                style:
+                    TextStyle(color: Colors.grey, fontWeight: FontWeight.w600)),
           ],
         ),
       );
     }
 
     final domains = [
-      {'name': 'Manding (Speech/Requests)', 'percent': '88% Mastery', 'speed': '3.4 days / target'},
-      {'name': 'Tacting (Labeling/Objects)', 'percent': '82% Mastery', 'speed': '3.7 days / target'},
-      {'name': 'Listener Responding', 'percent': '78% Mastery', 'speed': '4.1 days / target'},
-      {'name': 'Motor Imitation', 'percent': '85% Mastery', 'speed': '3.2 days / target'},
+      {
+        'name': 'Manding (Speech/Requests)',
+        'percent': '88% Mastery',
+        'speed': '3.4 days / target'
+      },
+      {
+        'name': 'Tacting (Labeling/Objects)',
+        'percent': '82% Mastery',
+        'speed': '3.7 days / target'
+      },
+      {
+        'name': 'Listener Responding',
+        'percent': '78% Mastery',
+        'speed': '4.1 days / target'
+      },
+      {
+        'name': 'Motor Imitation',
+        'percent': '85% Mastery',
+        'speed': '3.2 days / target'
+      },
     ];
 
     return ListView.separated(
       padding: const EdgeInsets.all(16),
       itemCount: domains.length,
-      separatorBuilder: (_, __) => const Divider(height: 1, color: AppColors.divider),
+      separatorBuilder: (_, __) =>
+          const Divider(height: 1, color: AppColors.divider),
       itemBuilder: (ctx, i) {
         final d = domains[i];
         return Padding(
           padding: const EdgeInsets.symmetric(vertical: 12),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(d['name']!, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textPrimary)),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(color: const Color(0xFFE8F5E9), borderRadius: BorderRadius.circular(10)),
-                child: Text(d['percent']!, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Color(0xFF2E7D32))),
-              ),
-              Text('Acquisition speed: ${d['speed']!}', style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-            ],
-          ),
+          child: LayoutBuilder(builder: (context, constraints) {
+            final name = Text(d['name']!,
+                style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                    color: AppColors.textPrimary));
+            final chip = Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                  color: const Color(0xFFE8F5E9),
+                  borderRadius: BorderRadius.circular(10)),
+              child: Text(d['percent']!,
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 11,
+                      color: Color(0xFF2E7D32))),
+            );
+            final speed = Text('Acquisition speed: ${d['speed']!}',
+                style: const TextStyle(
+                    fontSize: 12, color: AppColors.textSecondary));
+            // Narrow: name on top, chip + speed wrapped underneath.
+            if (constraints.maxWidth < 560) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  name,
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 4,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [chip, speed],
+                  ),
+                ],
+              );
+            }
+            return Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [name, chip, speed],
+            );
+          }),
         );
       },
     );
   }
 }
-
 
 // ── Today's Center Operations & Live Therapist Timetable ────────────────────
 class _DirectorLiveTimetableSection extends StatelessWidget {
@@ -906,7 +1137,8 @@ class _DirectorLiveTimetableSection extends StatelessWidget {
                               color: AppColors.primaryLight,
                               borderRadius: BorderRadius.circular(8),
                             ),
-                            child: const Icon(Icons.people_alt_outlined, color: AppColors.primary, size: 20),
+                            child: const Icon(Icons.people_alt_outlined,
+                                color: AppColors.primary, size: 20),
                           ),
                           const SizedBox(width: 12),
                           const Expanded(
@@ -925,23 +1157,30 @@ class _DirectorLiveTimetableSection extends StatelessWidget {
                       const SizedBox(height: 8),
                       Text(
                         'Real-time room occupancy & clinician session progress (${todaySessions.length} total sessions today)',
-                        style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                        style: const TextStyle(
+                            fontSize: 12, color: AppColors.textSecondary),
                       ),
                       const SizedBox(height: 12),
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton.icon(
                           onPressed: () => _openScheduleDialog(context),
-                          icon: const Icon(Icons.add_circle_outline, size: 16, color: Colors.white),
+                          icon: const Icon(Icons.add_circle_outline,
+                              size: 16, color: Colors.white),
                           label: const Text(
                             '+ Schedule Session for Therapist',
-                            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                            style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12),
                           ),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppColors.primary,
                             elevation: 1,
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 12),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8)),
                           ),
                         ),
                       ),
@@ -955,7 +1194,8 @@ class _DirectorLiveTimetableSection extends StatelessWidget {
                           color: AppColors.primaryLight,
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        child: const Icon(Icons.people_alt_outlined, color: AppColors.primary, size: 20),
+                        child: const Icon(Icons.people_alt_outlined,
+                            color: AppColors.primary, size: 20),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
@@ -973,23 +1213,30 @@ class _DirectorLiveTimetableSection extends StatelessWidget {
                             ),
                             Text(
                               'Real-time room occupancy & clinician session progress (${todaySessions.length} total sessions today)',
-                              style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                              style: const TextStyle(
+                                  fontSize: 12, color: AppColors.textSecondary),
                             ),
                           ],
                         ),
                       ),
                       ElevatedButton.icon(
                         onPressed: () => _openScheduleDialog(context),
-                        icon: const Icon(Icons.add_circle_outline, size: 16, color: Colors.white),
+                        icon: const Icon(Icons.add_circle_outline,
+                            size: 16, color: Colors.white),
                         label: const Text(
                           '+ Schedule Session for Therapist',
-                          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12),
                         ),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.primary,
                           elevation: 1,
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 12),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8)),
                         ),
                       ),
                     ],
@@ -1006,7 +1253,8 @@ class _DirectorLiveTimetableSection extends StatelessWidget {
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: isWide ? 3 : (constraints.maxWidth > 600 ? 2 : 1),
+                crossAxisCount:
+                    isWide ? 3 : (constraints.maxWidth > 600 ? 2 : 1),
                 crossAxisSpacing: 14,
                 mainAxisSpacing: 14,
                 mainAxisExtent: 182,
@@ -1041,10 +1289,13 @@ class _DirectorLiveTimetableSection extends StatelessWidget {
                 return Container(
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
-                    color: hasLive ? const Color(0xFFFAFFFA) : const Color(0xFFFAFAFA),
+                    color: hasLive
+                        ? const Color(0xFFFAFFFA)
+                        : const Color(0xFFFAFAFA),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: hasLive ? const Color(0xFF4CAF50) : AppColors.divider,
+                      color:
+                          hasLive ? const Color(0xFF4CAF50) : AppColors.divider,
                       width: hasLive ? 1.5 : 1,
                     ),
                   ),
@@ -1056,11 +1307,15 @@ class _DirectorLiveTimetableSection extends StatelessWidget {
                         children: [
                           CircleAvatar(
                             radius: 16,
-                            backgroundColor: hasLive ? const Color(0xFFE8F5E9) : AppColors.primaryLight,
+                            backgroundColor: hasLive
+                                ? const Color(0xFFE8F5E9)
+                                : AppColors.primaryLight,
                             child: Text(
                               therapist['name']!.substring(0, 1),
                               style: TextStyle(
-                                color: hasLive ? const Color(0xFF2E7D32) : AppColors.primary,
+                                color: hasLive
+                                    ? const Color(0xFF2E7D32)
+                                    : AppColors.primary,
                                 fontWeight: FontWeight.bold,
                                 fontSize: 12,
                               ),
@@ -1073,20 +1328,27 @@ class _DirectorLiveTimetableSection extends StatelessWidget {
                               children: [
                                 Text(
                                   therapist['name']!,
-                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 13),
                                   overflow: TextOverflow.ellipsis,
                                 ),
                                 Text(
                                   '${sessions.length} sessions today',
-                                  style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                                  style: const TextStyle(
+                                      fontSize: 11,
+                                      color: AppColors.textSecondary),
                                 ),
                               ],
                             ),
                           ),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 2),
                             decoration: BoxDecoration(
-                              color: hasLive ? const Color(0xFFE8F5E9) : Colors.grey.shade200,
+                              color: hasLive
+                                  ? const Color(0xFFE8F5E9)
+                                  : Colors.grey.shade200,
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: Text(
@@ -1094,7 +1356,9 @@ class _DirectorLiveTimetableSection extends StatelessWidget {
                               style: TextStyle(
                                 fontSize: 9,
                                 fontWeight: FontWeight.bold,
-                                color: hasLive ? const Color(0xFF2E7D32) : Colors.grey.shade700,
+                                color: hasLive
+                                    ? const Color(0xFF2E7D32)
+                                    : Colors.grey.shade700,
                               ),
                             ),
                           ),
@@ -1106,7 +1370,8 @@ class _DirectorLiveTimetableSection extends StatelessWidget {
                       Expanded(
                         child: Container(
                           width: double.infinity,
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 6),
                           decoration: BoxDecoration(
                             color: Colors.white,
                             borderRadius: BorderRadius.circular(6),
@@ -1119,34 +1384,47 @@ class _DirectorLiveTimetableSection extends StatelessWidget {
                                   children: [
                                     Text(
                                       'With: ${activeSession.studentName} (${activeSession.studentAge}y)',
-                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
+                                      style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 11),
                                       overflow: TextOverflow.ellipsis,
                                     ),
                                     Text(
                                       '📍 ${activeSession.room} (${activeSession.startTime})',
-                                      style: const TextStyle(fontSize: 10, color: AppColors.primary, fontWeight: FontWeight.w600),
+                                      style: const TextStyle(
+                                          fontSize: 10,
+                                          color: AppColors.primary,
+                                          fontWeight: FontWeight.w600),
                                       overflow: TextOverflow.ellipsis,
                                     ),
                                     Text(
                                       activeSession.programTitle,
-                                      style: const TextStyle(fontSize: 10, color: AppColors.textSecondary),
+                                      style: const TextStyle(
+                                          fontSize: 10,
+                                          color: AppColors.textSecondary),
                                       overflow: TextOverflow.ellipsis,
                                     ),
                                   ],
                                 )
                               : sessions.isNotEmpty
                                   ? Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
                                       children: [
                                         Text(
                                           'Next: ${sessions.first.startTime} - ${sessions.first.studentName}',
-                                          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 11),
+                                          style: const TextStyle(
+                                              fontWeight: FontWeight.w600,
+                                              fontSize: 11),
                                           overflow: TextOverflow.ellipsis,
                                         ),
                                         Text(
                                           'Room: ${sessions.first.room}',
-                                          style: const TextStyle(fontSize: 10, color: AppColors.textSecondary),
+                                          style: const TextStyle(
+                                              fontSize: 10,
+                                              color: AppColors.textSecondary),
                                           overflow: TextOverflow.ellipsis,
                                         ),
                                       ],
@@ -1154,7 +1432,9 @@ class _DirectorLiveTimetableSection extends StatelessWidget {
                                   : const Center(
                                       child: Text(
                                         'No sessions scheduled yet',
-                                        style: TextStyle(fontSize: 11, color: AppColors.textHint),
+                                        style: TextStyle(
+                                            fontSize: 11,
+                                            color: AppColors.textHint),
                                       ),
                                     ),
                         ),
@@ -1165,11 +1445,13 @@ class _DirectorLiveTimetableSection extends StatelessWidget {
                       Align(
                         alignment: Alignment.centerRight,
                         child: InkWell(
-                          onTap: () => _openScheduleDialog(context, therapist['id']),
+                          onTap: () =>
+                              _openScheduleDialog(context, therapist['id']),
                           child: const Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.add, size: 12, color: AppColors.primary),
+                              Icon(Icons.add,
+                                  size: 12, color: AppColors.primary),
                               SizedBox(width: 2),
                               Text(
                                 'Assign Session',
@@ -1202,7 +1484,8 @@ class _DirectorExecutiveAppointmentsSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheduleService = context.watch<ScheduleService>();
-    final todayAppointments = scheduleService.getDirectorAppointments(date: DateTime.now());
+    final todayAppointments =
+        scheduleService.getDirectorAppointments(date: DateTime.now());
 
     return Container(
       padding: const EdgeInsets.all(22),
@@ -1236,7 +1519,8 @@ class _DirectorExecutiveAppointmentsSection extends StatelessWidget {
                               color: const Color(0xFFE0F2FE),
                               borderRadius: BorderRadius.circular(8),
                             ),
-                            child: const Icon(Icons.event_available, color: Color(0xFF0284C7), size: 20),
+                            child: const Icon(Icons.event_available,
+                                color: Color(0xFF0284C7), size: 20),
                           ),
                           const SizedBox(width: 12),
                           const Expanded(
@@ -1255,11 +1539,13 @@ class _DirectorExecutiveAppointmentsSection extends StatelessWidget {
                       const SizedBox(height: 8),
                       const Text(
                         'Parent diagnostic intakes & clinical case audits scheduled by the Admin office',
-                        style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                        style: TextStyle(
+                            fontSize: 12, color: AppColors.textSecondary),
                       ),
                       const SizedBox(height: 10),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(
                           color: const Color(0xFFF3E8FF),
                           borderRadius: BorderRadius.circular(12),
@@ -1283,7 +1569,8 @@ class _DirectorExecutiveAppointmentsSection extends StatelessWidget {
                           color: const Color(0xFFE0F2FE),
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        child: const Icon(Icons.event_available, color: Color(0xFF0284C7), size: 20),
+                        child: const Icon(Icons.event_available,
+                            color: Color(0xFF0284C7), size: 20),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
@@ -1301,13 +1588,15 @@ class _DirectorExecutiveAppointmentsSection extends StatelessWidget {
                             ),
                             const Text(
                               'Parent diagnostic intakes & clinical case audits scheduled by the Admin office',
-                              style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                              style: TextStyle(
+                                  fontSize: 12, color: AppColors.textSecondary),
                             ),
                           ],
                         ),
                       ),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(
                           color: const Color(0xFFF3E8FF),
                           borderRadius: BorderRadius.circular(12),
@@ -1356,7 +1645,8 @@ class _DirectorExecutiveAppointmentsSection extends StatelessWidget {
                     children: [
                       // Time badge
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 8),
                         decoration: BoxDecoration(
                           color: AppColors.primaryLight,
                           borderRadius: BorderRadius.circular(8),
@@ -1373,7 +1663,8 @@ class _DirectorExecutiveAppointmentsSection extends StatelessWidget {
                             ),
                             Text(
                               appt.endTime,
-                              style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                              style: const TextStyle(
+                                  fontSize: 11, color: AppColors.textSecondary),
                             ),
                           ],
                         ),
@@ -1390,7 +1681,8 @@ class _DirectorExecutiveAppointmentsSection extends StatelessWidget {
                                 final isNarrow = constraints.maxWidth < 450;
                                 if (isNarrow) {
                                   return Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Text(
                                         appt.title,
@@ -1402,10 +1694,12 @@ class _DirectorExecutiveAppointmentsSection extends StatelessWidget {
                                       ),
                                       const SizedBox(height: 4),
                                       Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 6, vertical: 2),
                                         decoration: BoxDecoration(
                                           color: const Color(0xFFE0F2FE),
-                                          borderRadius: BorderRadius.circular(6),
+                                          borderRadius:
+                                              BorderRadius.circular(6),
                                         ),
                                         child: Text(
                                           'Scheduled by ${appt.scheduledBy}',
@@ -1433,7 +1727,8 @@ class _DirectorExecutiveAppointmentsSection extends StatelessWidget {
                                     ),
                                     const SizedBox(width: 8),
                                     Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 6, vertical: 2),
                                       decoration: BoxDecoration(
                                         color: const Color(0xFFE0F2FE),
                                         borderRadius: BorderRadius.circular(6),
@@ -1460,12 +1755,15 @@ class _DirectorExecutiveAppointmentsSection extends StatelessWidget {
                                 Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    const Icon(Icons.person, size: 14, color: AppColors.primary),
+                                    const Icon(Icons.person,
+                                        size: 14, color: AppColors.primary),
                                     const SizedBox(width: 4),
                                     Flexible(
                                       child: Text(
                                         '${appt.attendeeName} (${appt.attendeeRole})',
-                                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                                        style: const TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w600),
                                         overflow: TextOverflow.ellipsis,
                                       ),
                                     ),
@@ -1474,11 +1772,15 @@ class _DirectorExecutiveAppointmentsSection extends StatelessWidget {
                                 Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    const Icon(Icons.room, size: 14, color: AppColors.textSecondary),
+                                    const Icon(Icons.room,
+                                        size: 14,
+                                        color: AppColors.textSecondary),
                                     const SizedBox(width: 4),
                                     Text(
                                       appt.location,
-                                      style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                                      style: const TextStyle(
+                                          fontSize: 11,
+                                          color: AppColors.textSecondary),
                                     ),
                                   ],
                                 ),
@@ -1488,7 +1790,9 @@ class _DirectorExecutiveAppointmentsSection extends StatelessWidget {
                               const SizedBox(height: 4),
                               Text(
                                 appt.notes,
-                                style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                                style: const TextStyle(
+                                    fontSize: 11,
+                                    color: AppColors.textSecondary),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                               ),
@@ -1500,7 +1804,7 @@ class _DirectorExecutiveAppointmentsSection extends StatelessWidget {
                   ),
                 );
               },
-              ),
+            ),
         ],
       ),
     );
@@ -1531,6 +1835,19 @@ class _DirectorExecutiveAnalyticsSection extends StatelessWidget {
 
     final displayTherapists = therapists;
 
+    final isPhone = Breakpoints.isCompact(context);
+    final liveBadge = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: const Color(0xFFDCFCE7),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: const Text('Live Sync Active',
+          style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF15803D))),
+    );
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -1538,7 +1855,8 @@ class _DirectorExecutiveAnalyticsSection extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.border),
         boxShadow: const [
-          BoxShadow(color: Color(0x06000000), blurRadius: 6, offset: Offset(0, 2)),
+          BoxShadow(
+              color: Color(0x06000000), blurRadius: 6, offset: Offset(0, 2)),
         ],
       ),
       child: Column(
@@ -1552,32 +1870,35 @@ class _DirectorExecutiveAnalyticsSection extends StatelessWidget {
                   color: AppColors.primaryLight.withOpacity(0.2),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Icon(Icons.analytics_outlined, color: AppColors.primary, size: 20),
+                child: const Icon(Icons.analytics_outlined,
+                    color: AppColors.primary, size: 20),
               ),
               const SizedBox(width: 12),
-              const Expanded(
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
+                    const Text(
                       'Executive Analytics & Caseload Intelligence',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                      style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.textPrimary),
                     ),
-                    Text(
+                    const Text(
                       'Therapist capacity, completion velocities, and security audit monitoring (FRS 8.0)',
-                      style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                      style: TextStyle(
+                          fontSize: 12, color: AppColors.textSecondary),
                     ),
+                    // Phone: badge moves under the subtitle.
+                    if (isPhone) ...[
+                      const SizedBox(height: 6),
+                      liveBadge,
+                    ],
                   ],
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFDCFCE7),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Text('Live Sync Active', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF15803D))),
-              ),
+              if (!isPhone) liveBadge,
             ],
           ),
           const SizedBox(height: 20),
@@ -1589,17 +1910,22 @@ class _DirectorExecutiveAnalyticsSection extends StatelessWidget {
               alignment: Alignment.center,
               child: Column(
                 children: [
-                  Icon(Icons.people_outline, size: 40, color: Colors.grey.shade400),
+                  Icon(Icons.people_outline,
+                      size: 40, color: Colors.grey.shade400),
                   const SizedBox(height: 8),
                   const Text(
                     'No Clinicians Registered Yet',
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                    style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary),
                   ),
                   const SizedBox(height: 4),
                   const Text(
                     'Caseload distribution and capacity velocity will appear here once clinicians are added to the center.',
                     textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                    style:
+                        TextStyle(fontSize: 12, color: AppColors.textSecondary),
                   ),
                 ],
               ),
@@ -1612,7 +1938,8 @@ class _DirectorExecutiveAnalyticsSection extends StatelessWidget {
               final children = items.asMap().entries.map((entry) {
                 final idx = entry.key;
                 final t = entry.value;
-                final name = '${t['name'] ?? 'Therapist'} (${t['designation'] ?? 'Therapist'})';
+                final name =
+                    '${t['name'] ?? 'Therapist'} (${t['designation'] ?? 'Therapist'})';
                 final caseload = (t['student_count'] ?? 0) as int;
                 final maxCaseload = 10;
                 final color = barColors[idx % barColors.length];
@@ -1625,32 +1952,31 @@ class _DirectorExecutiveAnalyticsSection extends StatelessWidget {
                 );
               }).toList();
 
-            if (isWide) {
-              return Row(
-                children: [
-                  for (int i = 0; i < children.length; i++) ...[
-                    if (i > 0) const SizedBox(width: 16),
-                    Expanded(child: children[i]),
+              if (isWide) {
+                return Row(
+                  children: [
+                    for (int i = 0; i < children.length; i++) ...[
+                      if (i > 0) const SizedBox(width: 16),
+                      Expanded(child: children[i]),
+                    ],
                   ],
-                ],
-              );
-            } else {
-              return Column(
-                children: [
-                  for (int i = 0; i < children.length; i++) ...[
-                    if (i > 0) const SizedBox(height: 12),
-                    children[i],
+                );
+              } else {
+                return Column(
+                  children: [
+                    for (int i = 0; i < children.length; i++) ...[
+                      if (i > 0) const SizedBox(height: 12),
+                      children[i],
+                    ],
                   ],
-                ],
-              );
-            }
-          }),
+                );
+              }
+            }),
         ],
       ),
     );
   }
 }
-
 
 class _CaseloadBar extends StatelessWidget {
   final String name;
@@ -1679,13 +2005,23 @@ class _CaseloadBar extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(name, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5), maxLines: 1, overflow: TextOverflow.ellipsis),
+          Text(name,
+              style:
+                  const TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis),
           const SizedBox(height: 6),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('$caseload / $maxCaseload Students', style: const TextStyle(fontSize: 11.5, color: AppColors.textSecondary)),
-              Text('${(ratio * 100).toInt()}% Capacity', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: color)),
+              Text('$caseload / $maxCaseload Students',
+                  style: const TextStyle(
+                      fontSize: 11.5, color: AppColors.textSecondary)),
+              Text('${(ratio * 100).toInt()}% Capacity',
+                  style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.bold,
+                      color: color)),
             ],
           ),
           const SizedBox(height: 8),
@@ -1703,6 +2039,3 @@ class _CaseloadBar extends StatelessWidget {
     );
   }
 }
-
-
-

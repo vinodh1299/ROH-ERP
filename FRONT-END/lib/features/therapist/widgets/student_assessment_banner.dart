@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:roh_erp/core/constants/app_colors.dart';
 import 'package:roh_erp/core/constants/app_images.dart';
+import 'package:roh_erp/core/layout/responsive.dart';
 
 class StudentAssessmentBanner extends StatelessWidget {
   final String studentName;
@@ -30,81 +31,111 @@ class StudentAssessmentBanner extends StatelessWidget {
           ),
         ],
       ),
-      padding: const EdgeInsets.all(20),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          // Student photo
-          AppImages.studentAvatar(
-            width: 80,
-            height: 80,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          const SizedBox(width: 20),
-          // Student info
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
+      padding: EdgeInsets.all(Breakpoints.isCompact(context) ? 14 : 20),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final right = rightContent ?? const DefaultAssessmentScoreTable();
+          // Narrow: photo + details on top, score key full-width underneath.
+          if (constraints.maxWidth < 760) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text(
-                  studentName,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    fontFamily: 'Poppins',
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'Date of Birth : $dateOfBirth',
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.9),
-                    fontSize: 12,
-                    fontFamily: 'Poppins',
-                  ),
-                ),
-                const SizedBox(height: 6),
                 Row(
                   children: [
-                    Text(
-                      'Age at Testing: ',
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.9),
-                        fontSize: 12,
-                        fontFamily: 'Poppins',
-                      ),
+                    AppImages.studentAvatar(
+                      width: 56,
+                      height: 56,
+                      borderRadius: BorderRadius.circular(10),
                     ),
-                    const SizedBox(width: 4),
-                    for (int i = 1; i <= 4; i++)
-                      Container(
-                        width: 24,
-                        height: 20,
-                        margin: const EdgeInsets.only(right: 6),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        alignment: Alignment.center,
-                        child: Text(
-                          '$i',
-                          style: const TextStyle(
-                            color: AppColors.textPrimary,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 11,
-                          ),
-                        ),
-                      ),
+                    const SizedBox(width: 14),
+                    Expanded(child: _details()),
                   ],
                 ),
+                const SizedBox(height: 14),
+                ScrollableMinWidth(minWidth: 360, child: right),
               ],
-            ),
-          ),
-          // Right content (scores table, dates, or inputs)
-          if (rightContent != null) rightContent! else const DefaultAssessmentScoreTable(),
-        ],
+            );
+          }
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              AppImages.studentAvatar(
+                width: 80,
+                height: 80,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              const SizedBox(width: 20),
+              Expanded(child: _details()),
+              const SizedBox(width: 16),
+              right,
+            ],
+          );
+        },
       ),
+    );
+  }
+
+  Widget _details() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          studentName,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            fontFamily: 'Poppins',
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          'Date of Birth : $dateOfBirth',
+          style: TextStyle(
+            color: Colors.white.withValues(alpha: 0.9),
+            fontSize: 12,
+            fontFamily: 'Poppins',
+          ),
+        ),
+        const SizedBox(height: 6),
+        Wrap(
+          crossAxisAlignment: WrapCrossAlignment.center,
+          runSpacing: 4,
+          children: [
+            Text(
+              'Age at Testing: ',
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.9),
+                fontSize: 12,
+                fontFamily: 'Poppins',
+              ),
+            ),
+            const SizedBox(width: 4),
+            for (int i = 1; i <= 4; i++)
+              Container(
+                width: 24,
+                height: 20,
+                margin: const EdgeInsets.only(right: 6),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  '$i',
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 11,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ],
     );
   }
 }
@@ -132,7 +163,8 @@ class DefaultAssessmentScoreTable extends StatelessWidget {
         defaultVerticalAlignment: TableCellVerticalAlignment.middle,
         children: [
           TableRow(
-            decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.25)),
+            decoration:
+                BoxDecoration(color: Colors.black.withValues(alpha: 0.25)),
             children: const [
               _HeaderCell('Key'),
               _HeaderCell('Score'),
@@ -150,7 +182,8 @@ class DefaultAssessmentScoreTable extends StatelessWidget {
     );
   }
 
-  static TableRow _buildRow(String key, String score, String date, Color color, String tester) {
+  static TableRow _buildRow(
+      String key, String score, String date, Color color, String tester) {
     return TableRow(
       children: [
         _BodyCell(key),

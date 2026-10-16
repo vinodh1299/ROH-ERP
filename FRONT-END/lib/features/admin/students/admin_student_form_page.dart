@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:roh_erp/core/constants/app_colors.dart';
+import 'package:roh_erp/core/layout/responsive.dart';
 import 'admin_add_guardian_dialog.dart';
 
 class AdminStudentFormPage extends StatefulWidget {
@@ -10,7 +11,8 @@ class AdminStudentFormPage extends StatefulWidget {
   State<AdminStudentFormPage> createState() => _AdminStudentFormPageState();
 }
 
-class _AdminStudentFormPageState extends State<AdminStudentFormPage> with SingleTickerProviderStateMixin {
+class _AdminStudentFormPageState extends State<AdminStudentFormPage>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
   @override
@@ -21,20 +23,28 @@ class _AdminStudentFormPageState extends State<AdminStudentFormPage> with Single
 
   @override
   Widget build(BuildContext context) {
+    final pad = Breakpoints.pagePadding(context).left;
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.all(24.0),
+          padding: EdgeInsets.all(pad),
           child: Row(
             children: [
-              IconButton(icon: const Icon(Icons.arrow_back), onPressed: widget.onBack),
-              const Text('Add Student', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 18)),
+              IconButton(
+                  icon: const Icon(Icons.arrow_back), onPressed: widget.onBack),
+              const Expanded(
+                child: Text('Add Student',
+                    style: TextStyle(
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18)),
+              ),
             ],
           ),
         ),
         Expanded(
           child: Container(
-            margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+            margin: EdgeInsets.symmetric(horizontal: pad, vertical: 8),
             decoration: BoxDecoration(
               color: const Color(0xFFF3E8FF),
               borderRadius: BorderRadius.circular(16),
@@ -44,7 +54,8 @@ class _AdminStudentFormPageState extends State<AdminStudentFormPage> with Single
                 Container(
                   decoration: const BoxDecoration(
                     color: AppColors.primary,
-                    borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+                    borderRadius:
+                        BorderRadius.vertical(top: Radius.circular(16)),
                   ),
                   child: TabBar(
                     controller: _tabController,
@@ -54,7 +65,8 @@ class _AdminStudentFormPageState extends State<AdminStudentFormPage> with Single
                     unselectedLabelColor: Colors.white,
                     indicator: const BoxDecoration(
                       color: Colors.white,
-                      borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+                      borderRadius:
+                          BorderRadius.vertical(top: Radius.circular(16)),
                     ),
                     tabs: const [
                       Tab(text: 'STUDENTS INFORMATION'),
@@ -77,10 +89,14 @@ class _AdminStudentFormPageState extends State<AdminStudentFormPage> with Single
             ),
           ),
         ),
-        const SizedBox(height: 24),
+        SizedBox(height: pad),
       ],
     );
   }
+
+  /// Inner padding of each form tab; tighter on phones.
+  EdgeInsets get _tabPadding =>
+      EdgeInsets.all(Breakpoints.isCompact(context) ? 14 : 24);
 
   Widget _buildTab1() {
     return LayoutBuilder(
@@ -91,20 +107,28 @@ class _AdminStudentFormPageState extends State<AdminStudentFormPage> with Single
           if (isNarrow) {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: children.map((c) => Padding(padding: const EdgeInsets.only(bottom: 16), child: c)).toList(),
+              children: children
+                  .map((c) => Padding(
+                      padding: const EdgeInsets.only(bottom: 16), child: c))
+                  .toList(),
             );
           }
           return Padding(
             padding: const EdgeInsets.only(bottom: 16),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: children.map((c) => Expanded(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 8), child: c))).toList(),
+              children: children
+                  .map((c) => Expanded(
+                      child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          child: c)))
+                  .toList(),
             ),
           );
         }
 
         return SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
+          padding: _tabPadding,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -119,16 +143,23 @@ class _AdminStudentFormPageState extends State<AdminStudentFormPage> with Single
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Gender', style: TextStyle(color: AppColors.textPrimary, fontSize: 12)),
+                    const Text('Gender',
+                        style: TextStyle(
+                            color: AppColors.textPrimary, fontSize: 12)),
                     const SizedBox(height: 8),
                     DropdownButtonFormField<String>(
                       decoration: InputDecoration(
                         filled: true,
                         fillColor: Colors.white,
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide.none),
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 12),
                       ),
-                      items: const [DropdownMenuItem(value: 'Male', child: Text('Male'))],
+                      items: const [
+                        DropdownMenuItem(value: 'Male', child: Text('Male'))
+                      ],
                       onChanged: (v) {},
                       initialValue: 'Male',
                     ),
@@ -147,30 +178,32 @@ class _AdminStudentFormPageState extends State<AdminStudentFormPage> with Single
                 _buildTextField('Date of Application'),
                 if (!isNarrow) const SizedBox(),
               ]),
-          const SizedBox(height: 24),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              OutlinedButton(
-                onPressed: () {},
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.primary,
-                  side: const BorderSide(color: AppColors.primary),
-                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                ),
-                child: const Text('Cancel'),
-              ),
-              const SizedBox(width: 16),
-              ElevatedButton(
-                onPressed: () => _tabController.animateTo(1),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                ),
-                child: const Text('Next'),
-              ),
-            ],
+              const SizedBox(height: 24),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  OutlinedButton(
+                    onPressed: () {},
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.primary,
+                      side: const BorderSide(color: AppColors.primary),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 32, vertical: 16),
+                    ),
+                    child: const Text('Cancel'),
+                  ),
+                  const SizedBox(width: 16),
+                  ElevatedButton(
+                    onPressed: () => _tabController.animateTo(1),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 32, vertical: 16),
+                    ),
+                    child: const Text('Next'),
+                  ),
+                ],
               ),
             ],
           ),
@@ -181,7 +214,7 @@ class _AdminStudentFormPageState extends State<AdminStudentFormPage> with Single
 
   Widget _buildTab2() {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+      padding: _tabPadding,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -203,36 +236,86 @@ class _AdminStudentFormPageState extends State<AdminStudentFormPage> with Single
                   const TableRow(
                     decoration: BoxDecoration(color: Colors.white),
                     children: [
-                      Padding(padding: EdgeInsets.all(8.0), child: Text('Medication', style: TextStyle(fontWeight: FontWeight.bold))),
-                      Padding(padding: EdgeInsets.all(8.0), child: Text('Date Prescribed', style: TextStyle(fontWeight: FontWeight.bold))),
-                      Padding(padding: EdgeInsets.all(8.0), child: Text('Dosage', style: TextStyle(fontWeight: FontWeight.bold))),
-                      Padding(padding: EdgeInsets.all(8.0), child: Text('Administration Timelines', style: TextStyle(fontWeight: FontWeight.bold))),
-                      Padding(padding: EdgeInsets.all(8.0), child: Text('Used For', style: TextStyle(fontWeight: FontWeight.bold))),
+                      Padding(
+                          padding: EdgeInsets.all(8.0),
+                          child: Text('Medication',
+                              style: TextStyle(fontWeight: FontWeight.bold))),
+                      Padding(
+                          padding: EdgeInsets.all(8.0),
+                          child: Text('Date Prescribed',
+                              style: TextStyle(fontWeight: FontWeight.bold))),
+                      Padding(
+                          padding: EdgeInsets.all(8.0),
+                          child: Text('Dosage',
+                              style: TextStyle(fontWeight: FontWeight.bold))),
+                      Padding(
+                          padding: EdgeInsets.all(8.0),
+                          child: Text('Administration Timelines',
+                              style: TextStyle(fontWeight: FontWeight.bold))),
+                      Padding(
+                          padding: EdgeInsets.all(8.0),
+                          child: Text('Used For',
+                              style: TextStyle(fontWeight: FontWeight.bold))),
                       Padding(padding: EdgeInsets.all(8.0), child: Text('')),
                     ],
                   ),
-                  ...List.generate(3, (index) => TableRow(
-                    decoration: const BoxDecoration(color: Colors.white),
-                    children: [
-                      const Padding(padding: EdgeInsets.all(8.0), child: TextField(decoration: InputDecoration(border: InputBorder.none))),
-                      const Padding(padding: EdgeInsets.all(8.0), child: TextField(decoration: InputDecoration(border: InputBorder.none))),
-                      const Padding(padding: EdgeInsets.all(8.0), child: TextField(decoration: InputDecoration(border: InputBorder.none))),
-                      const Padding(padding: EdgeInsets.all(8.0), child: TextField(decoration: InputDecoration(border: InputBorder.none))),
-                      const Padding(padding: EdgeInsets.all(8.0), child: TextField(decoration: InputDecoration(border: InputBorder.none))),
-                      Padding(padding: const EdgeInsets.all(8.0), child: IconButton(icon: const Icon(Icons.close, color: Colors.red), onPressed: () {})),
-                    ],
-                  )),
+                  ...List.generate(
+                      3,
+                      (index) => TableRow(
+                            decoration:
+                                const BoxDecoration(color: Colors.white),
+                            children: [
+                              const Padding(
+                                  padding: EdgeInsets.all(8.0),
+                                  child: TextField(
+                                      decoration: InputDecoration(
+                                          border: InputBorder.none))),
+                              const Padding(
+                                  padding: EdgeInsets.all(8.0),
+                                  child: TextField(
+                                      decoration: InputDecoration(
+                                          border: InputBorder.none))),
+                              const Padding(
+                                  padding: EdgeInsets.all(8.0),
+                                  child: TextField(
+                                      decoration: InputDecoration(
+                                          border: InputBorder.none))),
+                              const Padding(
+                                  padding: EdgeInsets.all(8.0),
+                                  child: TextField(
+                                      decoration: InputDecoration(
+                                          border: InputBorder.none))),
+                              const Padding(
+                                  padding: EdgeInsets.all(8.0),
+                                  child: TextField(
+                                      decoration: InputDecoration(
+                                          border: InputBorder.none))),
+                              Padding(
+                                  padding: const EdgeInsets.all(8.0),
+                                  child: IconButton(
+                                      icon: const Icon(Icons.close,
+                                          color: Colors.red),
+                                      onPressed: () {})),
+                            ],
+                          )),
                 ],
               ),
             ),
           ),
           const SizedBox(height: 8),
-          TextButton.icon(onPressed: () {}, icon: const Icon(Icons.add), label: const Text('+ Add')),
+          TextButton.icon(
+              onPressed: () {},
+              icon: const Icon(Icons.add),
+              label: const Text('+ Add')),
           const SizedBox(height: 24),
-          _buildQuestion('1. Has your child ever been admitted to a hospital/treatment center...'),
-          _buildQuestion('2. Has your child been diagnosed with any medical conditions...'),
-          _buildQuestion('3. Has your child been diagnosed with infectious diseases?'),
-          _buildQuestion('4. Does your child have food or other types of allergies...'),
+          _buildQuestion(
+              '1. Has your child ever been admitted to a hospital/treatment center...'),
+          _buildQuestion(
+              '2. Has your child been diagnosed with any medical conditions...'),
+          _buildQuestion(
+              '3. Has your child been diagnosed with infectious diseases?'),
+          _buildQuestion(
+              '4. Does your child have food or other types of allergies...'),
           _buildQuestion('5. Describe your child eating habits:'),
           _buildQuestion('6. Describe your child sleeping habits:'),
           const SizedBox(height: 24),
@@ -244,7 +327,8 @@ class _AdminStudentFormPageState extends State<AdminStudentFormPage> with Single
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppColors.primary,
                   side: const BorderSide(color: AppColors.primary),
-                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
                 ),
                 child: const Text('Previous'),
               ),
@@ -254,7 +338,8 @@ class _AdminStudentFormPageState extends State<AdminStudentFormPage> with Single
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
                 ),
                 child: const Text('Next'),
               ),
@@ -278,7 +363,9 @@ class _AdminStudentFormPageState extends State<AdminStudentFormPage> with Single
             decoration: InputDecoration(
               filled: true,
               fillColor: Colors.white,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+              border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide.none),
             ),
           ),
         ],
@@ -292,7 +379,7 @@ class _AdminStudentFormPageState extends State<AdminStudentFormPage> with Single
         final isNarrow = constraints.maxWidth < 600;
 
         return SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
+          padding: _tabPadding,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -301,11 +388,15 @@ class _AdminStudentFormPageState extends State<AdminStudentFormPage> with Single
                 children: [
                   ElevatedButton.icon(
                     onPressed: () {
-                      showDialog(context: context, builder: (context) => const AdminAddGuardianDialog());
+                      showDialog(
+                          context: context,
+                          builder: (context) => const AdminAddGuardianDialog());
                     },
                     icon: const Icon(Icons.add),
                     label: const Text('Add Guardian'),
-                    style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
+                    style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.white),
                   )
                 ],
               ),
@@ -327,11 +418,20 @@ class _AdminStudentFormPageState extends State<AdminStudentFormPage> with Single
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(8)),
-                child: const Text('Emergency Contact Information', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                decoration: BoxDecoration(
+                    color: AppColors.primary,
+                    borderRadius: BorderRadius.circular(8)),
+                child: const Text('Emergency Contact Information',
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16)),
               ),
               const SizedBox(height: 16),
-              TextButton.icon(onPressed: () {}, icon: const Icon(Icons.add), label: const Text('+ Add')),
+              TextButton.icon(
+                  onPressed: () {},
+                  icon: const Icon(Icons.add),
+                  label: const Text('+ Add')),
               const SizedBox(height: 16),
               if (isNarrow) ...[
                 _buildTextField('Contact Name'),
@@ -344,7 +444,8 @@ class _AdminStudentFormPageState extends State<AdminStudentFormPage> with Single
                 const SizedBox(height: 16),
                 _buildTextField('Email Address'),
                 const SizedBox(height: 16),
-                _buildTextField('Medical & Emergency Instructions', maxLines: 3),
+                _buildTextField('Medical & Emergency Instructions',
+                    maxLines: 3),
               ] else ...[
                 Row(
                   children: [
@@ -358,11 +459,15 @@ class _AdminStudentFormPageState extends State<AdminStudentFormPage> with Single
                 const SizedBox(height: 16),
                 Row(
                   children: [
-                    Expanded(child: _buildTextField('Alternative Phone Number')),
+                    Expanded(
+                        child: _buildTextField('Alternative Phone Number')),
                     const SizedBox(width: 16),
                     Expanded(child: _buildTextField('Email Address')),
                     const SizedBox(width: 16),
-                    Expanded(child: _buildTextField('Medical & Emergency Instructions', maxLines: 3)),
+                    Expanded(
+                        child: _buildTextField(
+                            'Medical & Emergency Instructions',
+                            maxLines: 3)),
                   ],
                 ),
               ],
@@ -375,7 +480,8 @@ class _AdminStudentFormPageState extends State<AdminStudentFormPage> with Single
                     style: OutlinedButton.styleFrom(
                       foregroundColor: AppColors.primary,
                       side: const BorderSide(color: AppColors.primary),
-                      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 32, vertical: 16),
                     ),
                     child: const Text('Previous'),
                   ),
@@ -385,7 +491,8 @@ class _AdminStudentFormPageState extends State<AdminStudentFormPage> with Single
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primary,
                       foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 32, vertical: 16),
                     ),
                     child: const Text('Submit'),
                   ),
@@ -401,11 +508,14 @@ class _AdminStudentFormPageState extends State<AdminStudentFormPage> with Single
   Widget _buildGuardianCard(String title) {
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: Colors.grey.shade200, borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(
+          color: Colors.grey.shade200, borderRadius: BorderRadius.circular(12)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+          Text(title,
+              style: const TextStyle(
+                  fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
           const SizedBox(height: 16),
           _buildInfoRow('Name', 'Not provided'),
           _buildInfoRow('Relationship', 'Not provided'),
@@ -427,9 +537,18 @@ class _AdminStudentFormPageState extends State<AdminStudentFormPage> with Single
       padding: const EdgeInsets.only(bottom: 8.0),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
-          Text(value, style: const TextStyle(color: AppColors.textPrimary, fontSize: 12)),
+          Flexible(
+              child: Text(label,
+                  style: const TextStyle(
+                      color: AppColors.textSecondary, fontSize: 12))),
+          const SizedBox(width: 12),
+          Flexible(
+              child: Text(value,
+                  textAlign: TextAlign.right,
+                  style: const TextStyle(
+                      color: AppColors.textPrimary, fontSize: 12))),
         ],
       ),
     );
@@ -439,15 +558,19 @@ class _AdminStudentFormPageState extends State<AdminStudentFormPage> with Single
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(color: AppColors.textPrimary, fontSize: 12)),
+        Text(label,
+            style: const TextStyle(color: AppColors.textPrimary, fontSize: 12)),
         const SizedBox(height: 8),
         TextField(
           maxLines: maxLines,
           decoration: InputDecoration(
             filled: true,
             fillColor: Colors.white,
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide.none),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
           ),
         ),
       ],

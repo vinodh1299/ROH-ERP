@@ -2,6 +2,44 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 
 // ══════════════════════════════════════════════════════════════════════════════
+// SHARED: x-axis label thinning
+// ══════════════════════════════════════════════════════════════════════════════
+
+/// Which of [count] evenly spaced points (spaced [xStep] apart) get a label so
+/// that labels needing [footprint] px each never overlap. Draws every Nth
+/// label, always keeps the first and last, and drops a regular label that
+/// would crowd the last one. On wide charts every label is kept.
+List<bool> _labelMask(int count, double xStep, double footprint) {
+  if (count <= 2 || xStep <= 0) return List.filled(count, true);
+  final stride = max(1, (footprint / xStep).ceil());
+  if (stride == 1) return List.filled(count, true);
+  final last = count - 1;
+  return List.generate(
+    count,
+    (i) => i == 0 || i == last || (i % stride == 0 && last - i >= stride),
+  );
+}
+
+/// Widest of the x-axis date labels at [style], plus a small gap.
+double _maxLabelWidth(List<Map<String, dynamic>> data, TextStyle style) {
+  final tp = TextPainter(textDirection: TextDirection.ltr);
+  double widest = 0;
+  for (final d in data) {
+    tp.text = TextSpan(text: (d['date'] ?? '').toString(), style: style);
+    tp.layout();
+    if (tp.width > widest) widest = tp.width;
+  }
+  return widest + 6;
+}
+
+/// Footprint of a -45° rotated label along the x axis (roughly its height
+/// times sqrt(2)), plus a small gap.
+const double _rotatedLabelFootprint = 18;
+
+/// Minimum spacing for the small value badges drawn above each point.
+const double _valueBadgeFootprint = 22;
+
+// ══════════════════════════════════════════════════════════════════════════════
 // 1. MANDING TREND LINE CHART (Prompted vs Unprompted)
 // ══════════════════════════════════════════════════════════════════════════════
 class MandingLineChart extends StatelessWidget {
@@ -14,7 +52,8 @@ class MandingLineChart extends StatelessWidget {
       return const Center(
         child: Text(
           'No manding data points recorded for this student in selected date range.',
-          style: TextStyle(color: Color(0xFF6B7280), fontSize: 13, fontFamily: 'Poppins'),
+          style: TextStyle(
+              color: Color(0xFF6B7280), fontSize: 13, fontFamily: 'Poppins'),
         ),
       );
     }
@@ -24,13 +63,18 @@ class MandingLineChart extends StatelessWidget {
         // Legend Row
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              _buildLegendChip('Unprompted (Independent)', const Color(0xFF7C3AED)),
-              const SizedBox(width: 16),
-              _buildLegendChip('Prompted', const Color(0xFFF97316)),
-            ],
+          child: SizedBox(
+            width: double.infinity,
+            child: Wrap(
+              alignment: WrapAlignment.end,
+              spacing: 16,
+              runSpacing: 4,
+              children: [
+                _buildLegendChip(
+                    'Unprompted (Independent)', const Color(0xFF7C3AED)),
+                _buildLegendChip('Prompted', const Color(0xFFF97316)),
+              ],
+            ),
           ),
         ),
         Expanded(
@@ -50,9 +94,14 @@ class MandingLineChart extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Container(width: 10, height: 10, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+        Container(
+            width: 10,
+            height: 10,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
         const SizedBox(width: 6),
-        Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: color)),
+        Text(label,
+            style: TextStyle(
+                fontSize: 11, fontWeight: FontWeight.bold, color: color)),
       ],
     );
   }
@@ -96,23 +145,32 @@ class _MandingChartPainter extends CustomPainter {
         style: const TextStyle(fontSize: 10, color: Color(0xFF6B7280)),
       );
       textPainter.layout();
-      textPainter.paint(canvas, Offset(leftMargin - textPainter.width - 6, y - textPainter.height / 2));
+      textPainter.paint(
+          canvas,
+          Offset(
+              leftMargin - textPainter.width - 6, y - textPainter.height / 2));
     }
 
     if (data.isEmpty) return;
 
     final xStep = data.length == 1 ? chartW / 2 : chartW / (data.length - 1);
 
-    // X-axis labels
+    // X-axis labels (thinned on narrow widths so they never overlap)
+    const dateStyle = TextStyle(
+        fontSize: 10, color: Color(0xFF4B5563), fontWeight: FontWeight.w600);
+    final labelMask =
+        _labelMask(data.length, xStep, _maxLabelWidth(data, dateStyle));
     for (int i = 0; i < data.length; i++) {
+      if (!labelMask[i]) continue;
       final x = leftMargin + (data.length == 1 ? chartW / 2 : i * xStep);
       final dateStr = (data[i]['date'] ?? '').toString();
       textPainter.text = TextSpan(
         text: dateStr,
-        style: const TextStyle(fontSize: 10, color: Color(0xFF4B5563), fontWeight: FontWeight.w600),
+        style: dateStyle,
       );
       textPainter.layout();
-      textPainter.paint(canvas, Offset(x - textPainter.width / 2, size.height - bottomMargin + 6));
+      textPainter.paint(canvas,
+          Offset(x - textPainter.width / 2, size.height - bottomMargin + 6));
     }
 
     // Draw Unprompted line (Purple)
@@ -182,19 +240,23 @@ class _MandingChartPainter extends CustomPainter {
 
     canvas.drawPath(path, linePaint);
 
+    final valueMask = _labelMask(points.length, xStep, _valueBadgeFootprint);
     final textPainter = TextPainter(textDirection: TextDirection.ltr);
     for (int i = 0; i < points.length; i++) {
       final pt = points[i];
       canvas.drawCircle(pt, 5, dotPaint);
       canvas.drawCircle(pt, 2.5, whitePaint);
+      if (!valueMask[i]) continue;
 
       // Value label badge
       textPainter.text = TextSpan(
         text: '${values[i]}',
-        style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: color),
+        style:
+            TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: color),
       );
       textPainter.layout();
-      textPainter.paint(canvas, Offset(pt.dx - textPainter.width / 2, pt.dy - 16));
+      textPainter.paint(
+          canvas, Offset(pt.dx - textPainter.width / 2, pt.dy - 16));
     }
   }
 
@@ -215,7 +277,8 @@ class AcquisitionLineChart extends StatelessWidget {
       return const Center(
         child: Text(
           'No cumulative target acquisition points recorded.',
-          style: TextStyle(color: Color(0xFF6B7280), fontSize: 13, fontFamily: 'Poppins'),
+          style: TextStyle(
+              color: Color(0xFF6B7280), fontSize: 13, fontFamily: 'Poppins'),
         ),
       );
     }
@@ -265,22 +328,31 @@ class _AcquisitionChartPainter extends CustomPainter {
         style: const TextStyle(fontSize: 10, color: Color(0xFF6B7280)),
       );
       textPainter.layout();
-      textPainter.paint(canvas, Offset(leftMargin - textPainter.width - 6, y - textPainter.height / 2));
+      textPainter.paint(
+          canvas,
+          Offset(
+              leftMargin - textPainter.width - 6, y - textPainter.height / 2));
     }
 
     if (data.isEmpty) return;
     final xStep = data.length == 1 ? chartW / 2 : chartW / (data.length - 1);
 
-    // X-axis dates
+    // X-axis dates (thinned on narrow widths so they never overlap)
+    const dateStyle = TextStyle(
+        fontSize: 10, color: Color(0xFF4B5563), fontWeight: FontWeight.w600);
+    final labelMask =
+        _labelMask(data.length, xStep, _maxLabelWidth(data, dateStyle));
     for (int i = 0; i < data.length; i++) {
+      if (!labelMask[i]) continue;
       final x = leftMargin + (data.length == 1 ? chartW / 2 : i * xStep);
       final dateStr = (data[i]['date'] ?? '').toString();
       textPainter.text = TextSpan(
         text: dateStr,
-        style: const TextStyle(fontSize: 10, color: Color(0xFF4B5563), fontWeight: FontWeight.w600),
+        style: dateStyle,
       );
       textPainter.layout();
-      textPainter.paint(canvas, Offset(x - textPainter.width / 2, size.height - bottomMargin + 6));
+      textPainter.paint(canvas,
+          Offset(x - textPainter.width / 2, size.height - bottomMargin + 6));
     }
 
     // Cumulative Line & Area fill
@@ -332,17 +404,23 @@ class _AcquisitionChartPainter extends CustomPainter {
     final dotPaint = Paint()..color = const Color(0xFF7E22CE);
     final whitePaint = Paint()..color = Colors.white;
 
+    final valueMask = _labelMask(points.length, xStep, _valueBadgeFootprint);
     for (int i = 0; i < points.length; i++) {
       final pt = points[i];
       canvas.drawCircle(pt, 5, dotPaint);
       canvas.drawCircle(pt, 2.5, whitePaint);
+      if (!valueMask[i]) continue;
 
       textPainter.text = TextSpan(
         text: '${values[i]}',
-        style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFF7E22CE)),
+        style: const TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF7E22CE)),
       );
       textPainter.layout();
-      textPainter.paint(canvas, Offset(pt.dx - textPainter.width / 2, pt.dy - 16));
+      textPainter.paint(
+          canvas, Offset(pt.dx - textPainter.width / 2, pt.dy - 16));
     }
   }
 
@@ -363,7 +441,8 @@ class PbDurationLineChart extends StatelessWidget {
       return const Center(
         child: Text(
           'No duration trend points recorded for this student.',
-          style: TextStyle(color: Color(0xFF6B7280), fontSize: 13, fontFamily: 'Poppins'),
+          style: TextStyle(
+              color: Color(0xFF6B7280), fontSize: 13, fontFamily: 'Poppins'),
         ),
       );
     }
@@ -414,19 +493,25 @@ class _PbDurationChartPainter extends CustomPainter {
         style: const TextStyle(fontSize: 10, color: Color(0xFF64748B)),
       );
       textPainter.layout();
-      textPainter.paint(canvas, Offset(leftMargin - textPainter.width - 6, y - textPainter.height / 2));
+      textPainter.paint(
+          canvas,
+          Offset(
+              leftMargin - textPainter.width - 6, y - textPainter.height / 2));
     }
 
     if (data.isEmpty) return;
     final xStep = data.length == 1 ? chartW / 2 : chartW / (data.length - 1);
 
-    // X-axis rotated dates
+    // X-axis rotated dates (thinned on narrow widths so they never overlap)
+    final labelMask = _labelMask(data.length, xStep, _rotatedLabelFootprint);
     for (int i = 0; i < data.length; i++) {
+      if (!labelMask[i]) continue;
       final x = leftMargin + (data.length == 1 ? chartW / 2 : i * xStep);
       final dateStr = (data[i]['date'] ?? '').toString();
       textPainter.text = TextSpan(
         text: dateStr,
-        style: const TextStyle(fontSize: 9, color: Color(0xFF475569), fontWeight: FontWeight.w500),
+        style: const TextStyle(
+            fontSize: 9, color: Color(0xFF475569), fontWeight: FontWeight.w500),
       );
       textPainter.layout();
 
@@ -467,17 +552,23 @@ class _PbDurationChartPainter extends CustomPainter {
 
     canvas.drawPath(path, linePaint);
 
+    final valueMask = _labelMask(points.length, xStep, _valueBadgeFootprint);
     for (int i = 0; i < points.length; i++) {
       final pt = points[i];
       canvas.drawCircle(pt, 4.5, dotPaint);
       canvas.drawCircle(pt, 2, whitePaint);
+      if (!valueMask[i]) continue;
 
       textPainter.text = TextSpan(
         text: '${values[i]}',
-        style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: Color(0xFFB91C1C)),
+        style: const TextStyle(
+            fontSize: 9.5,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFFB91C1C)),
       );
       textPainter.layout();
-      textPainter.paint(canvas, Offset(pt.dx - textPainter.width / 2, pt.dy - 14));
+      textPainter.paint(
+          canvas, Offset(pt.dx - textPainter.width / 2, pt.dy - 14));
     }
   }
 
@@ -498,7 +589,8 @@ class PbMultiBehaviorLineChart extends StatelessWidget {
       return const Center(
         child: Text(
           'No multi-behavior incident frequencies recorded for this student.',
-          style: TextStyle(color: Color(0xFF6B7280), fontSize: 13, fontFamily: 'Poppins'),
+          style: TextStyle(
+              color: Color(0xFF6B7280), fontSize: 13, fontFamily: 'Poppins'),
         ),
       );
     }
@@ -560,14 +652,19 @@ class _PbMultiBehaviorChartPainter extends CustomPainter {
         style: const TextStyle(fontSize: 9.5, color: Color(0xFF64748B)),
       );
       textPainter.layout();
-      textPainter.paint(canvas, Offset(leftMargin - textPainter.width - 6, y - textPainter.height / 2));
+      textPainter.paint(
+          canvas,
+          Offset(
+              leftMargin - textPainter.width - 6, y - textPainter.height / 2));
     }
 
     if (data.isEmpty) return;
     final xStep = data.length == 1 ? chartW / 2 : chartW / (data.length - 1);
 
-    // X-axis dates
+    // X-axis dates (thinned on narrow widths so they never overlap)
+    final labelMask = _labelMask(data.length, xStep, _rotatedLabelFootprint);
     for (int i = 0; i < data.length; i++) {
+      if (!labelMask[i]) continue;
       final x = leftMargin + (data.length == 1 ? chartW / 2 : i * xStep);
       final dateStr = (data[i]['date'] ?? '').toString();
       textPainter.text = TextSpan(
@@ -621,5 +718,6 @@ class _PbMultiBehaviorChartPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _PbMultiBehaviorChartPainter oldDelegate) => true;
+  bool shouldRepaint(covariant _PbMultiBehaviorChartPainter oldDelegate) =>
+      true;
 }

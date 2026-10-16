@@ -1,6 +1,7 @@
 // lib/features/parent/graphs/graphs_page.dart
 import 'package:flutter/material.dart';
 import 'package:roh_erp/core/constants/app_colors.dart';
+import 'package:roh_erp/core/layout/responsive.dart';
 import 'package:roh_erp/core/services/api_service.dart';
 
 class GraphsPage extends StatefulWidget {
@@ -38,8 +39,10 @@ class _GraphsPageState extends State<GraphsPage> {
         int physCount = 0;
 
         for (final row in res) {
-          final trials = int.tryParse(row['trials_completed']?.toString() ?? '0') ?? 0;
-          final succ = int.tryParse(row['trials_successful']?.toString() ?? '0') ?? 0;
+          final trials =
+              int.tryParse(row['trials_completed']?.toString() ?? '0') ?? 0;
+          final succ =
+              int.tryParse(row['trials_successful']?.toString() ?? '0') ?? 0;
           total += trials;
           successful += succ;
 
@@ -82,7 +85,7 @@ class _GraphsPageState extends State<GraphsPage> {
       onRefresh: _loadLiveGraphMetrics,
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(24.0),
+        padding: Breakpoints.pagePadding(context),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -146,25 +149,35 @@ class _GraphsPageState extends State<GraphsPage> {
                 children: [
                   Row(
                     children: [
-                      const Icon(Icons.show_chart, color: AppColors.primary, size: 20),
+                      const Icon(Icons.show_chart,
+                          color: AppColors.primary, size: 20),
                       const SizedBox(width: 8),
                       const Expanded(
                         child: Text(
                           'Cumulative Targets Mastered (Last 6 Months)',
-                          style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                          style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.textPrimary),
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
                       const SizedBox(width: 8),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(
                           color: const Color(0xFFE8F5E9),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Text(
-                          _successfulTrials > 0 ? '+${_successfulTrials * 3}% Velocity' : '0.0% Velocity',
-                          style: const TextStyle(color: Color(0xFF2E7D32), fontSize: 11, fontWeight: FontWeight.bold),
+                          _successfulTrials > 0
+                              ? '+${_successfulTrials * 3}% Velocity'
+                              : '0.0% Velocity',
+                          style: const TextStyle(
+                              color: Color(0xFF2E7D32),
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold),
                         ),
                       ),
                     ],
@@ -174,21 +187,30 @@ class _GraphsPageState extends State<GraphsPage> {
                     _isLoading
                         ? 'Connecting to live discrete trials...'
                         : 'Verified under BACB mastery criteria • Live DB: $_totalTrials trials logged, $_successfulTrials successful',
-                    style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                    style: const TextStyle(
+                        fontSize: 12, color: AppColors.textSecondary),
                   ),
                   const SizedBox(height: 24),
 
                   // Stylized Visual Bar Chart
                   LayoutBuilder(
                     builder: (context, constraints) {
-                      final maxVal = _currentMonthAcquired > 10 ? _currentMonthAcquired : 10;
+                      final maxVal = _currentMonthAcquired > 10
+                          ? _currentMonthAcquired
+                          : 10;
                       final months = [
                         {'m': 'Apr', 'v': 0, 'pct': 0.0},
                         {'m': 'May', 'v': 0, 'pct': 0.0},
                         {'m': 'Jun', 'v': 0, 'pct': 0.0},
                         {'m': 'Jul', 'v': 0, 'pct': 0.0},
                         {'m': 'Aug', 'v': 0, 'pct': 0.0},
-                        {'m': 'Sep (Live)', 'v': _currentMonthAcquired, 'pct': maxVal > 0 ? (_currentMonthAcquired / maxVal) : 0.0},
+                        {
+                          'm': 'Sep (Live)',
+                          'v': _currentMonthAcquired,
+                          'pct': maxVal > 0
+                              ? (_currentMonthAcquired / maxVal)
+                              : 0.0
+                        },
                       ];
 
                       return Row(
@@ -199,7 +221,8 @@ class _GraphsPageState extends State<GraphsPage> {
                           final pct = ((data['pct'] as double)).clamp(0.0, 1.0);
                           final monthName = data['m'] as String;
                           final isCurrent = monthName.contains('Sep');
-                          final barHeight = val == 0 ? 4.0 : (150.0 * pct).clamp(8.0, 150.0);
+                          final barHeight =
+                              val == 0 ? 4.0 : (150.0 * pct).clamp(8.0, 150.0);
 
                           return Column(
                             mainAxisAlignment: MainAxisAlignment.end,
@@ -209,7 +232,9 @@ class _GraphsPageState extends State<GraphsPage> {
                                 style: TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.bold,
-                                  color: isCurrent ? AppColors.primary : AppColors.textPrimary,
+                                  color: isCurrent
+                                      ? AppColors.primary
+                                      : AppColors.textPrimary,
                                 ),
                               ),
                               const SizedBox(height: 8),
@@ -217,7 +242,11 @@ class _GraphsPageState extends State<GraphsPage> {
                                 width: constraints.maxWidth > 500 ? 44 : 26,
                                 height: barHeight,
                                 decoration: BoxDecoration(
-                                  color: val == 0 ? AppColors.divider : (isCurrent ? AppColors.primary : AppColors.primaryLight),
+                                  color: val == 0
+                                      ? AppColors.divider
+                                      : (isCurrent
+                                          ? AppColors.primary
+                                          : AppColors.primaryLight),
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                               ),
@@ -225,9 +254,14 @@ class _GraphsPageState extends State<GraphsPage> {
                               Text(
                                 monthName,
                                 style: TextStyle(
-                                  fontSize: constraints.maxWidth > 500 ? 12 : 9.5,
-                                  color: isCurrent ? AppColors.primary : AppColors.textSecondary,
-                                  fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
+                                  fontSize:
+                                      constraints.maxWidth > 500 ? 12 : 9.5,
+                                  color: isCurrent
+                                      ? AppColors.primary
+                                      : AppColors.textSecondary,
+                                  fontWeight: isCurrent
+                                      ? FontWeight.bold
+                                      : FontWeight.normal,
                                 ),
                               ),
                             ],
@@ -254,12 +288,16 @@ class _GraphsPageState extends State<GraphsPage> {
                 children: [
                   const Row(
                     children: [
-                      Icon(Icons.auto_awesome_motion, color: AppColors.primary, size: 20),
+                      Icon(Icons.auto_awesome_motion,
+                          color: AppColors.primary, size: 20),
                       SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           'Prompt Fading Hierarchy & Independence Level',
-                          style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                          style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.textPrimary),
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
@@ -268,10 +306,10 @@ class _GraphsPageState extends State<GraphsPage> {
                   const SizedBox(height: 6),
                   Text(
                     'Live prompt distribution across $_totalTrials recorded trial sets',
-                    style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                    style: const TextStyle(
+                        fontSize: 12, color: AppColors.textSecondary),
                   ),
                   const SizedBox(height: 20),
-
                   _buildPromptLevelRow(
                     'Independent (Unprompted)',
                     _independentRatio,
@@ -308,7 +346,8 @@ class _GraphsPageState extends State<GraphsPage> {
     );
   }
 
-  Widget _buildPromptLevelRow(String label, double ratio, String percentageText, Color color) {
+  Widget _buildPromptLevelRow(
+      String label, double ratio, String percentageText, Color color) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -318,12 +357,17 @@ class _GraphsPageState extends State<GraphsPage> {
             Expanded(
               child: Text(
                 label,
-                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+                style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary),
                 overflow: TextOverflow.ellipsis,
               ),
             ),
             const SizedBox(width: 8),
-            Text(percentageText, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color)),
+            Text(percentageText,
+                style: TextStyle(
+                    fontSize: 12, fontWeight: FontWeight.bold, color: color)),
           ],
         ),
         const SizedBox(height: 6),

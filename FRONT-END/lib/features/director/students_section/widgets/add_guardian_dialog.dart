@@ -44,7 +44,9 @@ class _AddGuardianDialogState extends State<AddGuardianDialog> {
   Widget build(BuildContext context) {
     return Dialog(
       backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+      insetPadding: MediaQuery.sizeOf(context).width < 600
+          ? const EdgeInsets.symmetric(horizontal: 12, vertical: 24)
+          : const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 420),
         child: Container(
@@ -67,87 +69,126 @@ class _AddGuardianDialogState extends State<AddGuardianDialog> {
                 padding: const EdgeInsets.fromLTRB(20, 18, 16, 4),
                 child: Row(
                   children: [
-                    const Text('Add Guardian',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
-                    const Spacer(),
+                    const Expanded(
+                      child: Text('Add Guardian',
+                          style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.textPrimary)),
+                    ),
                     IconButton(
-                      icon: const Icon(Icons.close, color: AppColors.textSecondary, size: 20),
+                      icon: const Icon(Icons.close,
+                          color: AppColors.textSecondary, size: 20),
                       onPressed: () => Navigator.of(context).pop(),
                     ),
                   ],
                 ),
               ),
-              Container(
-                margin: const EdgeInsets.fromLTRB(10, 4, 10, 10),
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: AppColors.background,
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Form(
-                  key: _formKey,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Row(children: [
-                        Expanded(child: _field(_name, 'Name', 'enter therapist name', required: true)),
-                        const SizedBox(width: 10),
-                        Expanded(child: _field(_email, 'Email Id', 'enter therapist email id')),
-                      ]),
-                      const SizedBox(height: 12),
-                      Row(children: [
-                        Expanded(child: _field(_phone, 'Phone Number', 'enter therapist Phone no.')),
-                        const SizedBox(width: 10),
-                        Expanded(child: _field(_relationship, 'Relationship', 'enter relation')),
-                      ]),
-                      const SizedBox(height: 12),
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text('About', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
-                      ),
-                      const SizedBox(height: 4),
-                      TextFormField(
-                        controller: _about,
-                        maxLines: 3,
-                        decoration: InputDecoration(
-                          hintText: 'enter therapist about',
-                          hintStyle: TextStyle(fontSize: 11, color: Colors.grey.shade400),
-                          contentPadding: const EdgeInsets.all(10),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: Colors.grey.shade300)),
-                          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: Colors.grey.shade300)),
-                          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: AppColors.primary)),
-                          filled: true,
-                          fillColor: Colors.white,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
+              Flexible(
+                child: SingleChildScrollView(
+                  child: Container(
+                    margin: const EdgeInsets.fromLTRB(10, 4, 10, 10),
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: AppColors.background,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Form(
+                      key: _formKey,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          OutlinedButton(
-                            onPressed: () => Navigator.of(context).pop(),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: AppColors.primary,
-                              side: const BorderSide(color: AppColors.primary),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                            ),
-                            child: const Text('Cancel', style: TextStyle(fontSize: 13)),
+                          Row(children: [
+                            Expanded(
+                                child: _field(
+                                    _name, 'Name', 'enter therapist name',
+                                    required: true)),
+                            const SizedBox(width: 10),
+                            Expanded(
+                                child: _field(_email, 'Email Id',
+                                    'enter therapist email id')),
+                          ]),
+                          const SizedBox(height: 12),
+                          Row(children: [
+                            Expanded(
+                                child: _field(_phone, 'Phone Number',
+                                    'enter therapist Phone no.')),
+                            const SizedBox(width: 10),
+                            Expanded(
+                                child: _field(_relationship, 'Relationship',
+                                    'enter relation')),
+                          ]),
+                          const SizedBox(height: 12),
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: Text('About',
+                                style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.grey.shade700)),
                           ),
-                          const SizedBox(width: 10),
-                          ElevatedButton(
-                            onPressed: _submit,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.primary,
-                              foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                          const SizedBox(height: 4),
+                          TextFormField(
+                            controller: _about,
+                            maxLines: 3,
+                            decoration: InputDecoration(
+                              hintText: 'enter therapist about',
+                              hintStyle: TextStyle(
+                                  fontSize: 11, color: Colors.grey.shade400),
+                              contentPadding: const EdgeInsets.all(10),
+                              border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  borderSide:
+                                      BorderSide(color: Colors.grey.shade300)),
+                              enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  borderSide:
+                                      BorderSide(color: Colors.grey.shade300)),
+                              focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  borderSide: const BorderSide(
+                                      color: AppColors.primary)),
+                              filled: true,
+                              fillColor: Colors.white,
                             ),
-                            child: const Text('Submit', style: TextStyle(fontSize: 13)),
+                          ),
+                          const SizedBox(height: 16),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              OutlinedButton(
+                                onPressed: () => Navigator.of(context).pop(),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: AppColors.primary,
+                                  side: const BorderSide(
+                                      color: AppColors.primary),
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8)),
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 20, vertical: 8),
+                                ),
+                                child: const Text('Cancel',
+                                    style: TextStyle(fontSize: 13)),
+                              ),
+                              const SizedBox(width: 10),
+                              ElevatedButton(
+                                onPressed: _submit,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppColors.primary,
+                                  foregroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8)),
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 20, vertical: 8),
+                                ),
+                                child: const Text('Submit',
+                                    style: TextStyle(fontSize: 13)),
+                              ),
+                            ],
                           ),
                         ],
                       ),
-                    ],
+                    ),
                   ),
                 ),
               ),
@@ -158,22 +199,36 @@ class _AddGuardianDialogState extends State<AddGuardianDialog> {
     );
   }
 
-  Widget _field(TextEditingController ctrl, String label, String hint, {bool required = false}) {
+  Widget _field(TextEditingController ctrl, String label, String hint,
+      {bool required = false}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+        Text(label,
+            style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey.shade700)),
         const SizedBox(height: 4),
         TextFormField(
           controller: ctrl,
-          validator: required ? (v) => v == null || v.isEmpty ? 'Required' : null : null,
+          validator: required
+              ? (v) => v == null || v.isEmpty ? 'Required' : null
+              : null,
           decoration: InputDecoration(
             hintText: hint,
             hintStyle: TextStyle(fontSize: 11, color: Colors.grey.shade400),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: Colors.grey.shade300)),
-            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: Colors.grey.shade300)),
-            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: AppColors.primary)),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide(color: Colors.grey.shade300)),
+            enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide(color: Colors.grey.shade300)),
+            focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: const BorderSide(color: AppColors.primary)),
             filled: true,
             fillColor: Colors.white,
           ),

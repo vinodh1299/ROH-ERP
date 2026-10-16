@@ -6,7 +6,12 @@ class AdminAddGuardianDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isPhone = MediaQuery.sizeOf(context).width < 600;
     return Dialog(
+      // Near full-width on phones.
+      insetPadding: isPhone
+          ? const EdgeInsets.symmetric(horizontal: 12, vertical: 24)
+          : const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Container(
         width: 400,
@@ -15,13 +20,17 @@ class AdminAddGuardianDialog extends StatelessWidget {
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: AppColors.border),
         ),
-        padding: const EdgeInsets.all(24),
+        padding: EdgeInsets.all(isPhone ? 18 : 24),
         child: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text('Add Guardian', style: TextStyle(color: AppColors.textPrimary, fontSize: 20, fontWeight: FontWeight.bold)),
+              const Text('Add Guardian',
+                  style: TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold)),
               Container(
                 width: 60,
                 height: 3,
@@ -49,7 +58,8 @@ class AdminAddGuardianDialog extends StatelessWidget {
                     style: OutlinedButton.styleFrom(
                       foregroundColor: AppColors.textSecondary,
                       side: const BorderSide(color: AppColors.border),
-                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 24, vertical: 12),
                     ),
                     child: const Text('Cancel'),
                   ),
@@ -59,7 +69,8 @@ class AdminAddGuardianDialog extends StatelessWidget {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primary,
                       foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 24, vertical: 12),
                     ),
                     child: const Text('Submit'),
                   ),
@@ -76,7 +87,11 @@ class AdminAddGuardianDialog extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500)),
+        Text(label,
+            style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 13,
+                fontWeight: FontWeight.w500)),
         const SizedBox(height: 8),
         TextField(
           maxLines: maxLines,
@@ -93,7 +108,8 @@ class AdminAddGuardianDialog extends StatelessWidget {
               borderRadius: BorderRadius.circular(10),
               borderSide: const BorderSide(color: AppColors.border),
             ),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           ),
         ),
       ],

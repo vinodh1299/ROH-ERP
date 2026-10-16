@@ -9,19 +9,22 @@ class DirectorPasswordResetsView extends StatefulWidget {
   static void show(BuildContext context) {
     showDialog(
       context: context,
-      builder: (ctx) => const Dialog(
+      builder: (ctx) => Dialog(
         backgroundColor: Colors.transparent,
-        insetPadding: EdgeInsets.all(24),
-        child: DirectorPasswordResetsView(),
+        insetPadding:
+            EdgeInsets.all(MediaQuery.sizeOf(ctx).width < 600 ? 12 : 24),
+        child: const DirectorPasswordResetsView(),
       ),
     );
   }
 
   @override
-  State<DirectorPasswordResetsView> createState() => _DirectorPasswordResetsViewState();
+  State<DirectorPasswordResetsView> createState() =>
+      _DirectorPasswordResetsViewState();
 }
 
-class _DirectorPasswordResetsViewState extends State<DirectorPasswordResetsView> {
+class _DirectorPasswordResetsViewState
+    extends State<DirectorPasswordResetsView> {
   final ApiService _api = ApiService();
   List<Map<String, dynamic>> _requests = [];
   bool _isLoading = true;
@@ -38,7 +41,8 @@ class _DirectorPasswordResetsViewState extends State<DirectorPasswordResetsView>
       final res = await _api.get('list_pending_password_resets');
       if (res is List) {
         setState(() {
-          _requests = res.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+          _requests =
+              res.map((e) => Map<String, dynamic>.from(e as Map)).toList();
           _isLoading = false;
         });
         return;
@@ -57,8 +61,10 @@ class _DirectorPasswordResetsViewState extends State<DirectorPasswordResetsView>
       final confirm = await showDialog<bool>(
         context: context,
         builder: (ctx) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Text('Reject Password Reset', style: TextStyle(fontWeight: FontWeight.bold)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text('Reject Password Reset',
+              style: TextStyle(fontWeight: FontWeight.bold)),
           content: TextField(
             controller: reasonController,
             decoration: const InputDecoration(
@@ -67,11 +73,15 @@ class _DirectorPasswordResetsViewState extends State<DirectorPasswordResetsView>
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
+            TextButton(
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: const Text('Cancel')),
             ElevatedButton(
               onPressed: () => Navigator.of(ctx).pop(true),
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFDC2626)),
-              child: const Text('Reject', style: TextStyle(color: Colors.white)),
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFDC2626)),
+              child:
+                  const Text('Reject', style: TextStyle(color: Colors.white)),
             ),
           ],
         ),
@@ -91,22 +101,27 @@ class _DirectorPasswordResetsViewState extends State<DirectorPasswordResetsView>
         await showDialog(
           context: context,
           builder: (ctx) => AlertDialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             title: const Row(
               children: [
                 Icon(Icons.check_circle, color: Color(0xFF16A34A)),
                 SizedBox(width: 8),
-                Text('Reset Approved', style: TextStyle(fontWeight: FontWeight.bold)),
+                Flexible(
+                    child: Text('Reset Approved',
+                        style: TextStyle(fontWeight: FontWeight.bold))),
               ],
             ),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('A temporary password was generated. Deliver this securely to the user:'),
+                const Text(
+                    'A temporary password was generated. Deliver this securely to the user:'),
                 const SizedBox(height: 12),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                   decoration: BoxDecoration(
                     color: const Color(0xFFF1F5F9),
                     borderRadius: BorderRadius.circular(8),
@@ -114,15 +129,23 @@ class _DirectorPasswordResetsViewState extends State<DirectorPasswordResetsView>
                   ),
                   child: SelectableText(
                     '${res['temporary_password']}',
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.primary, letterSpacing: 1),
+                    style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                        color: AppColors.primary,
+                        letterSpacing: 1),
                   ),
                 ),
                 const SizedBox(height: 8),
-                const Text('The user will be forced to change this password on their next login.', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                const Text(
+                    'The user will be forced to change this password on their next login.',
+                    style: TextStyle(fontSize: 12, color: Colors.grey)),
               ],
             ),
             actions: [
-              TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Done')),
+              TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  child: const Text('Done')),
             ],
           ),
         );
@@ -134,10 +157,11 @@ class _DirectorPasswordResetsViewState extends State<DirectorPasswordResetsView>
 
   @override
   Widget build(BuildContext context) {
+    final isPhone = MediaQuery.sizeOf(context).width < 600;
     return Container(
       width: 720,
       constraints: const BoxConstraints(maxHeight: 600),
-      padding: const EdgeInsets.all(28),
+      padding: EdgeInsets.all(isPhone ? 16 : 28),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
@@ -154,36 +178,44 @@ class _DirectorPasswordResetsViewState extends State<DirectorPasswordResetsView>
                   color: AppColors.primaryLight.withOpacity(0.15),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Icon(Icons.verified_user_rounded, color: AppColors.primary, size: 26),
+                child: const Icon(Icons.verified_user_rounded,
+                    color: AppColors.primary, size: 26),
               ),
               const SizedBox(width: 14),
-              const Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Director Password Reset Approvals',
-                    style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800, color: AppColors.textPrimary),
-                  ),
-                  Text(
-                    'FRS 3.0 Governance • Zero plaintext passwords • 10-point audit log',
-                    style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                  ),
-                ],
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Director Password Reset Approvals',
+                      style: TextStyle(
+                          fontSize: 19,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.textPrimary),
+                    ),
+                    Text(
+                      'FRS 3.0 Governance • Zero plaintext passwords • 10-point audit log',
+                      style: TextStyle(
+                          fontSize: 12, color: AppColors.textSecondary),
+                    ),
+                  ],
+                ),
               ),
-              const Spacer(),
-              IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.of(context).pop()),
+              IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () => Navigator.of(context).pop()),
             ],
           ),
           const SizedBox(height: 20),
           const Divider(height: 1, color: Color(0xFFF1F5F9)),
           const SizedBox(height: 16),
-
           Expanded(
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : _requests.isEmpty
                     ? const Center(
-                        child: Text('No pending password reset requests.', style: TextStyle(color: Colors.grey, fontSize: 14)),
+                        child: Text('No pending password reset requests.',
+                            style: TextStyle(color: Colors.grey, fontSize: 14)),
                       )
                     : ListView.separated(
                         itemCount: _requests.length,
@@ -197,7 +229,8 @@ class _DirectorPasswordResetsViewState extends State<DirectorPasswordResetsView>
                             decoration: BoxDecoration(
                               color: const Color(0xFFF8FAFC),
                               borderRadius: BorderRadius.circular(14),
-                              border: Border.all(color: const Color(0xFFE2E8F0)),
+                              border:
+                                  Border.all(color: const Color(0xFFE2E8F0)),
                             ),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -206,23 +239,31 @@ class _DirectorPasswordResetsViewState extends State<DirectorPasswordResetsView>
                                   children: [
                                     Expanded(
                                       child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
                                         children: [
                                           Text(
                                             '${req['user_name']} (${req['user_role']?.toString().toUpperCase()})',
-                                            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5),
+                                            style: const TextStyle(
+                                                fontWeight: FontWeight.w700,
+                                                fontSize: 14.5),
                                           ),
                                           Text(
                                             'Email: ${req['user_email']} • Requested by: ${req['admin_name']}',
-                                            style: const TextStyle(fontSize: 12.5, color: AppColors.textSecondary),
+                                            style: const TextStyle(
+                                                fontSize: 12.5,
+                                                color: AppColors.textSecondary),
                                           ),
                                         ],
                                       ),
                                     ),
                                     Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 10, vertical: 4),
                                       decoration: BoxDecoration(
-                                        color: isPending ? const Color(0xFFFEF3C7) : const Color(0xFFDCFCE7),
+                                        color: isPending
+                                            ? const Color(0xFFFEF3C7)
+                                            : const Color(0xFFDCFCE7),
                                         borderRadius: BorderRadius.circular(8),
                                       ),
                                       child: Text(
@@ -230,7 +271,9 @@ class _DirectorPasswordResetsViewState extends State<DirectorPasswordResetsView>
                                         style: TextStyle(
                                           fontWeight: FontWeight.bold,
                                           fontSize: 12,
-                                          color: isPending ? const Color(0xFFB45309) : const Color(0xFF15803D),
+                                          color: isPending
+                                              ? const Color(0xFFB45309)
+                                              : const Color(0xFF15803D),
                                         ),
                                       ),
                                     ),
@@ -239,38 +282,65 @@ class _DirectorPasswordResetsViewState extends State<DirectorPasswordResetsView>
                                 const SizedBox(height: 10),
                                 Text(
                                   'Reason: ${req['rejection_reason'] ?? "N/A"}',
-                                  style: const TextStyle(fontSize: 12.5, fontStyle: FontStyle.italic, color: Color(0xFF475569)),
+                                  style: const TextStyle(
+                                      fontSize: 12.5,
+                                      fontStyle: FontStyle.italic,
+                                      color: Color(0xFF475569)),
                                 ),
                                 const SizedBox(height: 6),
                                 Text(
                                   'Expires: ${req['expires_at']} (48h rule) • Requester IP: ${req['requester_ip']}',
-                                  style: const TextStyle(fontSize: 11.5, color: Color(0xFF94A3B8)),
+                                  style: const TextStyle(
+                                      fontSize: 11.5, color: Color(0xFF94A3B8)),
                                 ),
                                 if (isPending) ...[
                                   const SizedBox(height: 14),
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.end,
-                                    children: [
-                                      OutlinedButton(
-                                        onPressed: () => _decide(req['id'], 'Rejected'),
-                                        style: OutlinedButton.styleFrom(
-                                          side: const BorderSide(color: Color(0xFFDC2626)),
-                                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                  SizedBox(
+                                    width: double.infinity,
+                                    child: Wrap(
+                                      alignment: WrapAlignment.end,
+                                      spacing: 12,
+                                      runSpacing: 8,
+                                      children: [
+                                        OutlinedButton(
+                                          onPressed: () =>
+                                              _decide(req['id'], 'Rejected'),
+                                          style: OutlinedButton.styleFrom(
+                                            side: const BorderSide(
+                                                color: Color(0xFFDC2626)),
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 16, vertical: 8),
+                                            shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(8)),
+                                          ),
+                                          child: const Text('Reject',
+                                              style: TextStyle(
+                                                  color: Color(0xFFDC2626),
+                                                  fontWeight: FontWeight.w600,
+                                                  fontSize: 13)),
                                         ),
-                                        child: const Text('Reject', style: TextStyle(color: Color(0xFFDC2626), fontWeight: FontWeight.w600, fontSize: 13)),
-                                      ),
-                                      const SizedBox(width: 12),
-                                      ElevatedButton(
-                                        onPressed: () => _decide(req['id'], 'Approved'),
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: const Color(0xFF16A34A),
-                                          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
-                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                        ElevatedButton(
+                                          onPressed: () =>
+                                              _decide(req['id'], 'Approved'),
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor:
+                                                const Color(0xFF16A34A),
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 18, vertical: 8),
+                                            shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(8)),
+                                          ),
+                                          child: const Text(
+                                              'Approve & Generate Temp Password',
+                                              style: TextStyle(
+                                                  color: Colors.white,
+                                                  fontWeight: FontWeight.w700,
+                                                  fontSize: 13)),
                                         ),
-                                        child: const Text('Approve & Generate Temp Password', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13)),
-                                      ),
-                                    ],
+                                      ],
+                                    ),
                                   ),
                                 ],
                               ],

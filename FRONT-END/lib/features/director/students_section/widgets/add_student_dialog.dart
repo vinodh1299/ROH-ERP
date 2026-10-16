@@ -49,7 +49,9 @@ class _AddStudentDialogState extends State<AddStudentDialog> {
       if (result == null) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to save student info.'), backgroundColor: Colors.red),
+          const SnackBar(
+              content: Text('Failed to save student info.'),
+              backgroundColor: Colors.red),
         );
         return;
       }
@@ -73,12 +75,16 @@ class _AddStudentDialogState extends State<AddStudentDialog> {
     widget.onSaved();
     Navigator.of(context).pop();
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Student added successfully!'), backgroundColor: Colors.green),
+      const SnackBar(
+          content: Text('Student added successfully!'),
+          backgroundColor: Colors.green),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    // Tighter side padding inside the dialog on phones.
+    final hPad = MediaQuery.sizeOf(context).width < 600 ? 14.0 : 24.0;
     return Dialog(
       backgroundColor: Colors.transparent,
       insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
@@ -93,12 +99,16 @@ class _AddStudentDialogState extends State<AddStudentDialog> {
             children: [
               // ── Header ──────────────────────────────────────────────
               Padding(
-                padding: const EdgeInsets.fromLTRB(24, 20, 16, 12),
+                padding: EdgeInsets.fromLTRB(hPad, 20, 16, 12),
                 child: Row(
                   children: [
-                    const Text('Add Student',
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
-                    const Spacer(),
+                    const Expanded(
+                      child: Text('Add Student',
+                          style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.textPrimary)),
+                    ),
                     IconButton(
                       icon: const Icon(Icons.close),
                       onPressed: () => Navigator.of(context).pop(),
@@ -108,7 +118,7 @@ class _AddStudentDialogState extends State<AddStudentDialog> {
               ),
               // ── Tab bar ─────────────────────────────────────────────
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
+                padding: EdgeInsets.symmetric(horizontal: hPad),
                 child: Container(
                   decoration: BoxDecoration(
                     color: AppColors.primary,
@@ -117,9 +127,18 @@ class _AddStudentDialogState extends State<AddStudentDialog> {
                   padding: const EdgeInsets.all(4),
                   child: Row(
                     children: [
-                      _TabButton(label: 'Students Information', index: 0, current: _currentTab),
-                      _TabButton(label: 'Medication History', index: 1, current: _currentTab),
-                      _TabButton(label: 'Emergency Contact Info', index: 2, current: _currentTab),
+                      _TabButton(
+                          label: 'Students Information',
+                          index: 0,
+                          current: _currentTab),
+                      _TabButton(
+                          label: 'Medication History',
+                          index: 1,
+                          current: _currentTab),
+                      _TabButton(
+                          label: 'Emergency Contact Info',
+                          index: 2,
+                          current: _currentTab),
                     ],
                   ),
                 ),
@@ -128,13 +147,15 @@ class _AddStudentDialogState extends State<AddStudentDialog> {
               // ── Tab content ─────────────────────────────────────────
               Expanded(
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  padding: EdgeInsets.symmetric(horizontal: hPad),
                   child: IndexedStack(
                     index: _currentTab,
                     children: [
                       StudentInfoTab(key: studentInfoKey),
-                      MedicationHistoryTab(key: medicationKey, studentId: _studentId),
-                      EmergencyContactTab(key: emergencyKey, studentId: _studentId),
+                      MedicationHistoryTab(
+                          key: medicationKey, studentId: _studentId),
+                      EmergencyContactTab(
+                          key: emergencyKey, studentId: _studentId),
                     ],
                   ),
                 ),
@@ -154,8 +175,10 @@ class _AddStudentDialogState extends State<AddStudentDialog> {
                       style: OutlinedButton.styleFrom(
                         foregroundColor: AppColors.primary,
                         side: const BorderSide(color: AppColors.primary),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8)),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 24, vertical: 10),
                       ),
                       child: Text(_currentTab == 0 ? 'Cancel' : 'Previous'),
                     ),
@@ -167,13 +190,17 @@ class _AddStudentDialogState extends State<AddStudentDialog> {
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.primary,
                         foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8)),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 24, vertical: 10),
                       ),
                       child: _submitting
                           ? const SizedBox(
-                              width: 16, height: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2, color: Colors.white),
                             )
                           : Text(_currentTab < 2 ? 'Next' : 'Submit'),
                     ),
@@ -192,7 +219,8 @@ class _TabButton extends StatelessWidget {
   final String label;
   final int index;
   final int current;
-  const _TabButton({required this.label, required this.index, required this.current});
+  const _TabButton(
+      {required this.label, required this.index, required this.current});
 
   @override
   Widget build(BuildContext context) {

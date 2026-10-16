@@ -16,8 +16,16 @@ class EmergencyContactTabState extends State<EmergencyContactTab> {
   final List<Map<String, String>> _guardians = [];
 
   // 3 contact-name + message slots (matches the Figma's 3-column layout)
-  final List<TextEditingController> _names = [TextEditingController(), TextEditingController(), TextEditingController()];
-  final List<TextEditingController> _messages = [TextEditingController(), TextEditingController(), TextEditingController()];
+  final List<TextEditingController> _names = [
+    TextEditingController(),
+    TextEditingController(),
+    TextEditingController()
+  ];
+  final List<TextEditingController> _messages = [
+    TextEditingController(),
+    TextEditingController(),
+    TextEditingController()
+  ];
 
   @override
   void dispose() {
@@ -70,7 +78,11 @@ class EmergencyContactTabState extends State<EmergencyContactTab> {
           // ── Guardian cards ─────────────────────────────────────────────
           Row(
             children: [
-              const Text('Guardians', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+              const Text('Guardians',
+                  style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textPrimary)),
               const Spacer(),
               TextButton.icon(
                 onPressed: _openAddGuardian,
@@ -92,34 +104,62 @@ class EmergencyContactTabState extends State<EmergencyContactTab> {
                   child: Center(
                     child: Text(
                       'No guardians added yet. Tap "Add" to add Guardian #1, #2, etc.',
-                      style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                      style:
+                          TextStyle(fontSize: 12, color: Colors.grey.shade500),
                     ),
                   ),
                 )
               : Wrap(
                   spacing: 12,
                   runSpacing: 12,
-                  children: List.generate(_guardians.length, (i) => _GuardianCard(
-                        index: i + 1,
-                        data: _guardians[i],
-                        onRemove: () => setState(() => _guardians.removeAt(i)),
-                      )),
+                  children: List.generate(
+                      _guardians.length,
+                      (i) => _GuardianCard(
+                            index: i + 1,
+                            data: _guardians[i],
+                            onRemove: () =>
+                                setState(() => _guardians.removeAt(i)),
+                          )),
                 ),
           const SizedBox(height: 20),
 
           // ── Emergency contact info ──────────────────────────────────────
           const Text('Emergency Contact Information',
-              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+              style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textPrimary)),
           const SizedBox(height: 12),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(child: _ContactSlot(nameCtrl: _names[0], messageCtrl: _messages[0])),
-              const SizedBox(width: 12),
-              Expanded(child: _ContactSlot(nameCtrl: _names[1], messageCtrl: _messages[1])),
-              const SizedBox(width: 12),
-              Expanded(child: _ContactSlot(nameCtrl: _names[2], messageCtrl: _messages[2])),
-            ],
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final slots = [
+                for (var i = 0; i < 3; i++)
+                  _ContactSlot(nameCtrl: _names[i], messageCtrl: _messages[i]),
+              ];
+              // Narrow (phone dialog): stack the three contact slots.
+              if (constraints.maxWidth < 520) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    slots[0],
+                    const SizedBox(height: 12),
+                    slots[1],
+                    const SizedBox(height: 12),
+                    slots[2]
+                  ],
+                );
+              }
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: slots[0]),
+                  const SizedBox(width: 12),
+                  Expanded(child: slots[1]),
+                  const SizedBox(width: 12),
+                  Expanded(child: slots[2]),
+                ],
+              );
+            },
           ),
           const SizedBox(height: 12),
         ],
@@ -133,7 +173,8 @@ class _GuardianCard extends StatelessWidget {
   final int index;
   final Map<String, String> data;
   final VoidCallback onRemove;
-  const _GuardianCard({required this.index, required this.data, required this.onRemove});
+  const _GuardianCard(
+      {required this.index, required this.data, required this.onRemove});
 
   @override
   Widget build(BuildContext context) {
@@ -158,7 +199,10 @@ class _GuardianCard extends StatelessWidget {
           Row(
             children: [
               Text('GUARDIAN #$index',
-                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.primary)),
+                  style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.primary)),
               const Spacer(),
               InkWell(
                 onTap: onRemove,
@@ -167,11 +211,16 @@ class _GuardianCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 6),
-          Text(data['name'] ?? '', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-          Text(data['relationship'] ?? '', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+          Text(data['name'] ?? '',
+              style:
+                  const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+          Text(data['relationship'] ?? '',
+              style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
           const SizedBox(height: 4),
-          Text(data['phone_number'] ?? '', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
-          Text(data['email'] ?? '', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+          Text(data['phone_number'] ?? '',
+              style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+          Text(data['email'] ?? '',
+              style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
         ],
       ),
     );
@@ -189,23 +238,38 @@ class _ContactSlot extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Name', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+        const Text('Name',
+            style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary)),
         const SizedBox(height: 4),
         TextFormField(
           controller: nameCtrl,
           decoration: InputDecoration(
             hintText: 'Value',
             hintStyle: TextStyle(fontSize: 11, color: Colors.grey.shade400),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
             filled: true,
             fillColor: const Color(0xFFF9FAFB),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(6), borderSide: BorderSide(color: Colors.grey.shade300)),
-            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(6), borderSide: BorderSide(color: Colors.grey.shade300)),
-            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(6), borderSide: const BorderSide(color: AppColors.primary)),
+            border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(6),
+                borderSide: BorderSide(color: Colors.grey.shade300)),
+            enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(6),
+                borderSide: BorderSide(color: Colors.grey.shade300)),
+            focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(6),
+                borderSide: const BorderSide(color: AppColors.primary)),
           ),
         ),
         const SizedBox(height: 10),
-        const Text('Message', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+        const Text('Message',
+            style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary)),
         const SizedBox(height: 4),
         TextFormField(
           controller: messageCtrl,
@@ -213,12 +277,19 @@ class _ContactSlot extends StatelessWidget {
           decoration: InputDecoration(
             hintText: 'Value',
             hintStyle: TextStyle(fontSize: 11, color: Colors.grey.shade400),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
             filled: true,
             fillColor: const Color(0xFFF9FAFB),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(6), borderSide: BorderSide(color: Colors.grey.shade300)),
-            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(6), borderSide: BorderSide(color: Colors.grey.shade300)),
-            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(6), borderSide: const BorderSide(color: AppColors.primary)),
+            border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(6),
+                borderSide: BorderSide(color: Colors.grey.shade300)),
+            enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(6),
+                borderSide: BorderSide(color: Colors.grey.shade300)),
+            focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(6),
+                borderSide: const BorderSide(color: AppColors.primary)),
           ),
         ),
       ],

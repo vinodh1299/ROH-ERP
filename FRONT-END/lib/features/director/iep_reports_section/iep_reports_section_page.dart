@@ -2,11 +2,14 @@
 import 'package:flutter/material.dart';
 import 'package:roh_erp/core/constants/app_colors.dart';
 import 'package:roh_erp/core/services/api_service.dart';
+import 'package:roh_erp/core/layout/responsive.dart';
 
 enum IepStatus {
   pending('Pending Audit', AppColors.statusPending, AppColors.statusPendingBg),
-  approved('Approved & Active', AppColors.statusActive, AppColors.statusActiveBg),
-  returned('Revision Needed', AppColors.statusDeactivated, AppColors.statusDeactivatedBg);
+  approved(
+      'Approved & Active', AppColors.statusActive, AppColors.statusActiveBg),
+  returned('Revision Needed', AppColors.statusDeactivated,
+      AppColors.statusDeactivatedBg);
 
   final String label;
   final Color color;
@@ -68,14 +71,19 @@ class _IepReportsSectionPageState extends State<IepReportsSectionPage> {
           final sName = r['student_name'] ?? 'Student';
           final tName = r['therapist_name'] ?? 'Clinician';
           final cycle = r['cycle_term'] ?? 'Q3 2026 Treatment Plan';
-          final goals = r['goals_summary'] ?? 'Clinical Protocol & Behavioral Milestones';
-          final subDate = r['created_at'] != null ? r['created_at'].toString().split('T')[0] : '—';
-          final statusStr = (r['status'] ?? 'Pending Approval').toString().toLowerCase();
+          final goals =
+              r['goals_summary'] ?? 'Clinical Protocol & Behavioral Milestones';
+          final subDate = r['created_at'] != null
+              ? r['created_at'].toString().split('T')[0]
+              : '—';
+          final statusStr =
+              (r['status'] ?? 'Pending Approval').toString().toLowerCase();
 
           IepStatus status;
           if (statusStr.contains('active') || statusStr.contains('approved')) {
             status = IepStatus.approved;
-          } else if (statusStr.contains('return') || statusStr.contains('revision')) {
+          } else if (statusStr.contains('return') ||
+              statusStr.contains('revision')) {
             status = IepStatus.returned;
           } else {
             status = IepStatus.pending;
@@ -84,14 +92,16 @@ class _IepReportsSectionPageState extends State<IepReportsSectionPage> {
           return IepReportItem(
             id: id,
             studentName: sName,
-            age: 14,
+            age: _ageFromDob(r['student_dob']),
             therapistName: tName,
             cycle: cycle,
             targetDomains: goals,
             submittedDate: subDate,
             status: status,
             directorNotes: r['director_notes'],
-            signDate: r['director_signed_at'] != null ? r['director_signed_at'].toString().split('T')[0] : null,
+            signDate: r['director_signed_at'] != null
+                ? r['director_signed_at'].toString().split('T')[0]
+                : null,
           );
         }).toList();
 
@@ -111,9 +121,12 @@ class _IepReportsSectionPageState extends State<IepReportsSectionPage> {
 
   List<IepReportItem> get _filteredReports {
     return _reports.where((item) {
-      if (_selectedFilterIndex == 1 && item.status != IepStatus.pending) return false;
-      if (_selectedFilterIndex == 2 && item.status != IepStatus.approved) return false;
-      if (_selectedFilterIndex == 3 && item.status != IepStatus.returned) return false;
+      if (_selectedFilterIndex == 1 && item.status != IepStatus.pending)
+        return false;
+      if (_selectedFilterIndex == 2 && item.status != IepStatus.approved)
+        return false;
+      if (_selectedFilterIndex == 3 && item.status != IepStatus.returned)
+        return false;
       if (_searchQuery.isNotEmpty) {
         final query = _searchQuery.toLowerCase();
         final match = item.studentName.toLowerCase().contains(query) ||
@@ -126,7 +139,8 @@ class _IepReportsSectionPageState extends State<IepReportsSectionPage> {
   }
 
   void _openAuditDialog(IepReportItem report) {
-    final notesController = TextEditingController(text: report.directorNotes ?? '');
+    final notesController =
+        TextEditingController(text: report.directorNotes ?? '');
 
     showDialog(
       context: context,
@@ -134,8 +148,13 @@ class _IepReportsSectionPageState extends State<IepReportsSectionPage> {
         final screenWidth = MediaQuery.of(ctx).size.width;
         return StatefulBuilder(
           builder: (context, setDialogState) {
+            final isPhone = screenWidth < Breakpoints.compact;
             return Dialog(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              insetPadding: isPhone
+                  ? const EdgeInsets.symmetric(horizontal: 12, vertical: 24)
+                  : const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16)),
               child: Container(
                 width: screenWidth > 860 ? 820 : screenWidth * 0.94,
                 constraints: const BoxConstraints(maxHeight: 700),
@@ -152,7 +171,8 @@ class _IepReportsSectionPageState extends State<IepReportsSectionPage> {
                             color: AppColors.primary.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(10),
                           ),
-                          child: const Icon(Icons.verified_user_outlined, color: AppColors.primary, size: 28),
+                          child: const Icon(Icons.verified_user_outlined,
+                              color: AppColors.primary, size: 28),
                         ),
                         const SizedBox(width: 14),
                         Expanded(
@@ -161,22 +181,28 @@ class _IepReportsSectionPageState extends State<IepReportsSectionPage> {
                             children: [
                               Text(
                                 'Clinical Director IEP Audit: ${report.studentName}',
-                                style: TextStyle(fontSize: screenWidth < 600 ? 15 : 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                                style: TextStyle(
+                                    fontSize: screenWidth < 600 ? 15 : 18,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.textPrimary),
                               ),
                               Text(
                                 'Program Cycle: ${report.cycle} | Submitted by: ${report.therapistName}',
-                                style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                                style: const TextStyle(
+                                    fontSize: 11,
+                                    color: AppColors.textSecondary),
                               ),
+                              if (isPhone) ...[
+                                const SizedBox(height: 6),
+                                _statusChip(report.status),
+                              ],
                             ],
                           ),
                         ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(color: report.status.bgColor, borderRadius: BorderRadius.circular(12)),
-                          child: Text(report.status.label, style: TextStyle(color: report.status.color, fontWeight: FontWeight.bold, fontSize: 11)),
-                        ),
+                        if (!isPhone) _statusChip(report.status),
                         IconButton(
-                          icon: const Icon(Icons.close, color: AppColors.textHint),
+                          icon: const Icon(Icons.close,
+                              color: AppColors.textHint),
                           onPressed: () => Navigator.of(ctx).pop(),
                         ),
                       ],
@@ -194,21 +220,45 @@ class _IepReportsSectionPageState extends State<IepReportsSectionPage> {
                                 if (isNarrow) {
                                   return Column(
                                     children: [
-                                      _auditSummaryCard('Student Age', '${report.age} Years', Icons.person_outline, Colors.blue),
+                                      _auditSummaryCard(
+                                          'Student Age',
+                                          '${report.age} Years',
+                                          Icons.person_outline,
+                                          Colors.blue),
                                       const SizedBox(height: 8),
-                                      _auditSummaryCard('Mastery Criteria', '80% across 3 days', Icons.track_changes_outlined, Colors.purple),
+                                      _auditSummaryCard(
+                                          'Mastery Criteria',
+                                          '80% across 3 days',
+                                          Icons.track_changes_outlined,
+                                          Colors.purple),
                                       const SizedBox(height: 8),
-                                      _auditSummaryCard('Target Load', report.targetDomains, Icons.checklist_outlined, Colors.teal),
+                                      _auditSummaryCard(
+                                          'Target Load',
+                                          report.targetDomains,
+                                          Icons.checklist_outlined,
+                                          Colors.teal),
                                     ],
                                   );
                                 }
                                 return Row(
                                   children: [
-                                    _auditSummaryCard('Student Age', '${report.age} Years', Icons.person_outline, Colors.blue),
+                                    _auditSummaryCard(
+                                        'Student Age',
+                                        '${report.age} Years',
+                                        Icons.person_outline,
+                                        Colors.blue),
                                     const SizedBox(width: 12),
-                                    _auditSummaryCard('Mastery Criteria', '80% across 3 days', Icons.track_changes_outlined, Colors.purple),
+                                    _auditSummaryCard(
+                                        'Mastery Criteria',
+                                        '80% across 3 days',
+                                        Icons.track_changes_outlined,
+                                        Colors.purple),
                                     const SizedBox(width: 12),
-                                    _auditSummaryCard('Target Load', report.targetDomains, Icons.checklist_outlined, Colors.teal),
+                                    _auditSummaryCard(
+                                        'Target Load',
+                                        report.targetDomains,
+                                        Icons.checklist_outlined,
+                                        Colors.teal),
                                   ],
                                 );
                               },
@@ -216,21 +266,39 @@ class _IepReportsSectionPageState extends State<IepReportsSectionPage> {
                             const SizedBox(height: 20),
 
                             // Proposed Goals & Target Breakdown
-                            const Text('Clinical Objectives & Target Breakdown', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.textPrimary)),
-                            _buildTargetRow('Treatment Focus', report.targetDomains, 'Assigned Targets'),
-                            _buildTargetRow('Reporting Cycle', report.cycle, report.status.label),
+                            const Text('Clinical Objectives & Target Breakdown',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                    color: AppColors.textPrimary)),
+                            _buildTargetRow('Treatment Focus',
+                                report.targetDomains, 'Assigned Targets'),
+                            _buildTargetRow('Reporting Cycle', report.cycle,
+                                report.status.label),
 
                             const SizedBox(height: 20),
                             // Director Review Notes
-                            const Text('Clinical Director Review & Supervision Notes', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.textPrimary)),
+                            const Text(
+                                'Clinical Director Review & Supervision Notes',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                    color: AppColors.textPrimary)),
                             const SizedBox(height: 8),
                             TextField(
                               controller: notesController,
                               maxLines: 3,
                               decoration: InputDecoration(
-                                hintText: 'Enter clinical observations, prompt hierarchy adjustments, or notes for the therapist...',
-                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: AppColors.divider)),
-                                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: AppColors.primary)),
+                                hintText:
+                                    'Enter clinical observations, prompt hierarchy adjustments, or notes for the therapist...',
+                                border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                    borderSide: const BorderSide(
+                                        color: AppColors.divider)),
+                                focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                    borderSide: const BorderSide(
+                                        color: AppColors.primary)),
                                 filled: true,
                                 fillColor: Colors.white,
                               ),
@@ -243,7 +311,9 @@ class _IepReportsSectionPageState extends State<IepReportsSectionPage> {
                               decoration: BoxDecoration(
                                 color: const Color(0xFFFBF8FE),
                                 borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+                                border: Border.all(
+                                    color: AppColors.primary
+                                        .withValues(alpha: 0.2)),
                               ),
                               child: Row(
                                 children: [
@@ -252,28 +322,49 @@ class _IepReportsSectionPageState extends State<IepReportsSectionPage> {
                                     height: 44,
                                     decoration: BoxDecoration(
                                       shape: BoxShape.circle,
-                                      color: AppColors.primary.withValues(alpha: 0.1),
+                                      color: AppColors.primary
+                                          .withValues(alpha: 0.1),
                                     ),
-                                    child: const Icon(Icons.draw, color: AppColors.primary),
+                                    child: const Icon(Icons.draw,
+                                        color: AppColors.primary),
                                   ),
                                   const SizedBox(width: 14),
                                   const Expanded(
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
-                                        Text('Clinical Director Authorization Stamp', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textPrimary)),
-                                        Text('BCBA-D Board Certified Behavior Analyst • Ray of Hope Center for Autism', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                                        Text(
+                                            'Clinical Director Authorization Stamp',
+                                            style: TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 13,
+                                                color: AppColors.textPrimary)),
+                                        Text(
+                                            'BCBA-D Board Certified Behavior Analyst • Ray of Hope Center for Autism',
+                                            style: TextStyle(
+                                                fontSize: 11,
+                                                color:
+                                                    AppColors.textSecondary)),
                                       ],
                                     ),
                                   ),
                                   Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 12, vertical: 6),
                                     decoration: BoxDecoration(
-                                      border: Border.all(color: AppColors.primary),
+                                      border:
+                                          Border.all(color: AppColors.primary),
                                       borderRadius: BorderRadius.circular(8),
                                       color: Colors.white,
                                     ),
-                                    child: const Text('Clinical Director, BCBA-D ✍️', style: TextStyle(fontFamily: 'serif', fontStyle: FontStyle.italic, fontWeight: FontWeight.bold, color: AppColors.primary)),
+                                    child: const Text(
+                                        'Clinical Director, BCBA-D ✍️',
+                                        style: TextStyle(
+                                            fontFamily: 'serif',
+                                            fontStyle: FontStyle.italic,
+                                            fontWeight: FontWeight.bold,
+                                            color: AppColors.primary)),
                                   ),
                                 ],
                               ),
@@ -284,66 +375,89 @@ class _IepReportsSectionPageState extends State<IepReportsSectionPage> {
                     ),
                     const Divider(height: 24, color: AppColors.divider),
                     // Action Buttons
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        OutlinedButton.icon(
-                          icon: const Icon(Icons.replay, color: AppColors.statusDeactivated, size: 18),
-                          label: const Text('Request Revision', style: TextStyle(color: AppColors.statusDeactivated, fontWeight: FontWeight.bold)),
-                          style: OutlinedButton.styleFrom(
-                            side: const BorderSide(color: AppColors.statusDeactivated),
-                            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    SizedBox(
+                      width: double.infinity,
+                      child: Wrap(
+                        alignment: WrapAlignment.end,
+                        spacing: 12,
+                        runSpacing: 8,
+                        children: [
+                          OutlinedButton.icon(
+                            icon: const Icon(Icons.replay,
+                                color: AppColors.statusDeactivated, size: 18),
+                            label: const Text('Request Revision',
+                                style: TextStyle(
+                                    color: AppColors.statusDeactivated,
+                                    fontWeight: FontWeight.bold)),
+                            style: OutlinedButton.styleFrom(
+                              side: const BorderSide(
+                                  color: AppColors.statusDeactivated),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 18, vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8)),
+                            ),
+                            onPressed: () {
+                              setState(() {
+                                report.status = IepStatus.returned;
+                                report.directorNotes = notesController.text
+                                        .trim()
+                                        .isNotEmpty
+                                    ? notesController.text.trim()
+                                    : 'Clinical revisions requested by Director.';
+                              });
+                              Navigator.of(ctx).pop();
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                      'IEP for ${report.studentName} returned to therapist for revisions.'),
+                                  backgroundColor: AppColors.statusDeactivated,
+                                ),
+                              );
+                            },
                           ),
-                          onPressed: () {
-                            setState(() {
-                              report.status = IepStatus.returned;
-                              report.directorNotes = notesController.text.trim().isNotEmpty
-                                  ? notesController.text.trim()
-                                  : 'Clinical revisions requested by Director.';
-                            });
-                            Navigator.of(ctx).pop();
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text('IEP for ${report.studentName} returned to therapist for revisions.'),
-                                backgroundColor: AppColors.statusDeactivated,
-                              ),
-                            );
-                          },
-                        ),
-                        const SizedBox(width: 12),
-                        ElevatedButton.icon(
-                          icon: const Icon(Icons.verified, color: Colors.white, size: 18),
-                          label: const Text('Sign & Clinically Approve', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.primary,
-                            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                          ),
-                          onPressed: () {
-                            final notes = notesController.text.trim();
-                            setState(() {
-                              report.status = IepStatus.approved;
-                              report.signDate = '10-09-2026';
-                              report.directorNotes = notes;
-                            });
-                            // Asynchronously sync digital sign-off with backend
-                            final iepNumericId = int.tryParse(report.id.replaceAll(RegExp(r'[^0-9]'), '')) ?? 1;
-                            ApiService().post('sign_off_iep', {
-                              'iep_id': iepNumericId,
-                              'director_notes': notes,
-                            }).catchError((_) => null);
+                          ElevatedButton.icon(
+                            icon: const Icon(Icons.verified,
+                                color: Colors.white, size: 18),
+                            label: const Text('Sign & Clinically Approve',
+                                style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold)),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primary,
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 24, vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8)),
+                            ),
+                            onPressed: () {
+                              final notes = notesController.text.trim();
+                              setState(() {
+                                report.status = IepStatus.approved;
+                                report.signDate = '10-09-2026';
+                                report.directorNotes = notes;
+                              });
+                              // Asynchronously sync digital sign-off with backend
+                              final iepNumericId = int.tryParse(report.id
+                                      .replaceAll(RegExp(r'[^0-9]'), '')) ??
+                                  1;
+                              ApiService().post('sign_off_iep', {
+                                'iep_id': iepNumericId,
+                                'director_notes': notes,
+                              }).catchError((_) => null);
 
-                            Navigator.of(ctx).pop();
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text('IEP for ${report.studentName} clinically approved & signed!'),
-                                backgroundColor: AppColors.statusActive,
-                              ),
-                            );
-                          },
-                        ),
-                      ],
+                              Navigator.of(ctx).pop();
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                      'IEP for ${report.studentName} clinically approved & signed!'),
+                                  backgroundColor: AppColors.statusActive,
+                                ),
+                              );
+                            },
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
@@ -355,7 +469,8 @@ class _IepReportsSectionPageState extends State<IepReportsSectionPage> {
     );
   }
 
-  Widget _auditSummaryCard(String title, String val, IconData icon, Color color) {
+  Widget _auditSummaryCard(
+      String title, String val, IconData icon, Color color) {
     return Expanded(
       child: Container(
         padding: const EdgeInsets.all(12),
@@ -372,9 +487,17 @@ class _IepReportsSectionPageState extends State<IepReportsSectionPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                  Text(title,
+                      style: const TextStyle(
+                          fontSize: 11, color: AppColors.textSecondary)),
                   const SizedBox(height: 2),
-                  Text(val, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: color)),
+                  Text(val,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: color)),
                 ],
               ),
             ),
@@ -385,6 +508,19 @@ class _IepReportsSectionPageState extends State<IepReportsSectionPage> {
   }
 
   Widget _buildTargetRow(String domain, String description, String progress) {
+    final progressChip = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: AppColors.divider)),
+      child: Text(progress,
+          style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textSecondary)),
+    );
+    final isPhone = Breakpoints.isCompact(context);
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(10),
@@ -403,18 +539,38 @@ class _IepReportsSectionPageState extends State<IepReportsSectionPage> {
               color: AppColors.primary.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(6),
             ),
-            child: Text(domain, style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold, fontSize: 11), textAlign: TextAlign.center),
+            child: Text(domain,
+                style: const TextStyle(
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 11),
+                textAlign: TextAlign.center),
           ),
           const SizedBox(width: 12),
-          Expanded(
-            child: Text(description, style: const TextStyle(fontSize: 12, color: AppColors.textPrimary)),
-          ),
-          const SizedBox(width: 12),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(6), border: Border.all(color: AppColors.divider)),
-            child: Text(progress, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
-          ),
+          if (isPhone)
+            // Phone: stack the progress chip under the description so the
+            // text column keeps a readable width.
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(description,
+                      style: const TextStyle(
+                          fontSize: 12, color: AppColors.textPrimary)),
+                  const SizedBox(height: 6),
+                  progressChip,
+                ],
+              ),
+            )
+          else ...[
+            Expanded(
+              child: Text(description,
+                  style: const TextStyle(
+                      fontSize: 12, color: AppColors.textPrimary)),
+            ),
+            const SizedBox(width: 12),
+            progressChip,
+          ],
         ],
       ),
     );
@@ -422,12 +578,15 @@ class _IepReportsSectionPageState extends State<IepReportsSectionPage> {
 
   @override
   Widget build(BuildContext context) {
-    final pendingCount = _reports.where((r) => r.status == IepStatus.pending).length;
-    final approvedCount = _reports.where((r) => r.status == IepStatus.approved).length;
-    final returnedCount = _reports.where((r) => r.status == IepStatus.returned).length;
+    final pendingCount =
+        _reports.where((r) => r.status == IepStatus.pending).length;
+    final approvedCount =
+        _reports.where((r) => r.status == IepStatus.approved).length;
+    final returnedCount =
+        _reports.where((r) => r.status == IepStatus.returned).length;
 
     return Padding(
-      padding: const EdgeInsets.all(24.0),
+      padding: Breakpoints.pagePadding(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -440,27 +599,40 @@ class _IepReportsSectionPageState extends State<IepReportsSectionPage> {
                 children: [
                   Text(
                     'Clinical Approvals & IEP Sign-Off Portal',
-                    style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 20),
+                    style: TextStyle(
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 20),
                   ),
                   SizedBox(height: 4),
                   Text(
                     'Review, audit, and provide BCBA-D digital sign-off for student individualized education plans.',
-                    style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                    style:
+                        TextStyle(color: AppColors.textSecondary, fontSize: 13),
                   ),
                 ],
               );
 
               final exportBtn = ElevatedButton.icon(
-                icon: const Icon(Icons.picture_as_pdf, color: Colors.white, size: 16),
-                label: const Text('Export Clinical Audit', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                icon: const Icon(Icons.picture_as_pdf,
+                    color: Colors.white, size: 16),
+                label: const Text('Export Clinical Audit',
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold)),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8)),
                 ),
                 onPressed: () {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Generating comprehensive clinical audit report PDF...')),
+                    const SnackBar(
+                        content: Text(
+                            'Generating comprehensive clinical audit report PDF...')),
                   );
                 },
               );
@@ -496,13 +668,17 @@ class _IepReportsSectionPageState extends State<IepReportsSectionPage> {
                 scrollDirection: Axis.horizontal,
                 child: Row(
                   children: [
-                    _buildPipelineTab(0, 'All Reports (${_reports.length})', null),
+                    _buildPipelineTab(
+                        0, 'All Reports (${_reports.length})', null),
                     const SizedBox(width: 8),
-                    _buildPipelineTab(1, 'Pending Audit ($pendingCount)', AppColors.statusPending),
+                    _buildPipelineTab(1, 'Pending Audit ($pendingCount)',
+                        AppColors.statusPending),
                     const SizedBox(width: 8),
-                    _buildPipelineTab(2, 'Approved ($approvedCount)', AppColors.statusActive),
+                    _buildPipelineTab(
+                        2, 'Approved ($approvedCount)', AppColors.statusActive),
                     const SizedBox(width: 8),
-                    _buildPipelineTab(3, 'Revision Needed ($returnedCount)', AppColors.statusDeactivated),
+                    _buildPipelineTab(3, 'Revision Needed ($returnedCount)',
+                        AppColors.statusDeactivated),
                   ],
                 ),
               );
@@ -523,13 +699,15 @@ class _IepReportsSectionPageState extends State<IepReportsSectionPage> {
                         onChanged: (val) => setState(() => _searchQuery = val),
                         decoration: const InputDecoration(
                           hintText: 'Search student or therapist...',
-                          hintStyle: TextStyle(fontSize: 12, color: AppColors.textHint),
+                          hintStyle: TextStyle(
+                              fontSize: 12, color: AppColors.textHint),
                           border: InputBorder.none,
                           isDense: true,
                         ),
                       ),
                     ),
-                    const Icon(Icons.search, color: AppColors.textHint, size: 18),
+                    const Icon(Icons.search,
+                        color: AppColors.textHint, size: 18),
                   ],
                 ),
               );
@@ -564,33 +742,87 @@ class _IepReportsSectionPageState extends State<IepReportsSectionPage> {
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(color: AppColors.divider),
                 boxShadow: [
-                  BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 10, offset: const Offset(0, 4)),
+                  BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.02),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4)),
                 ],
               ),
               child: LayoutBuilder(
                 builder: (context, constraints) {
+                  // Phone: one card per report instead of a 7-column table.
+                  if (constraints.maxWidth < Breakpoints.compact) {
+                    return _buildReportCards();
+                  }
                   return SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
                     child: SizedBox(
-                      width: constraints.maxWidth < 750 ? 750 : constraints.maxWidth,
+                      width: constraints.maxWidth < 750
+                          ? 750
+                          : constraints.maxWidth,
                       child: Column(
                         children: [
                           // Table Header
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 20, vertical: 14),
                             decoration: const BoxDecoration(
                               color: Color(0xFFF3E8FF),
-                              borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+                              borderRadius: BorderRadius.vertical(
+                                  top: Radius.circular(16)),
                             ),
                             child: const Row(
                               children: [
-                                SizedBox(width: 50, child: Text('Photo', style: TextStyle(color: AppColors.tableHeaderText, fontWeight: FontWeight.bold, fontSize: 13))),
-                                Expanded(flex: 2, child: Text('Student Name', style: TextStyle(color: AppColors.tableHeaderText, fontWeight: FontWeight.bold, fontSize: 13))),
-                                Expanded(flex: 2, child: Text('Assigned Clinician', style: TextStyle(color: AppColors.tableHeaderText, fontWeight: FontWeight.bold, fontSize: 13))),
-                                Expanded(flex: 2, child: Text('Program Cycle', style: TextStyle(color: AppColors.tableHeaderText, fontWeight: FontWeight.bold, fontSize: 13))),
-                                Expanded(flex: 3, child: Text('Target Objectives', style: TextStyle(color: AppColors.tableHeaderText, fontWeight: FontWeight.bold, fontSize: 13))),
-                                Expanded(flex: 2, child: Text('Status', style: TextStyle(color: AppColors.tableHeaderText, fontWeight: FontWeight.bold, fontSize: 13))),
-                                SizedBox(width: 110, child: Text('Action', style: TextStyle(color: AppColors.tableHeaderText, fontWeight: FontWeight.bold, fontSize: 13), textAlign: TextAlign.center)),
+                                SizedBox(
+                                    width: 50,
+                                    child: Text('Photo',
+                                        style: TextStyle(
+                                            color: AppColors.tableHeaderText,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 13))),
+                                Expanded(
+                                    flex: 2,
+                                    child: Text('Student Name',
+                                        style: TextStyle(
+                                            color: AppColors.tableHeaderText,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 13))),
+                                Expanded(
+                                    flex: 2,
+                                    child: Text('Assigned Clinician',
+                                        style: TextStyle(
+                                            color: AppColors.tableHeaderText,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 13))),
+                                Expanded(
+                                    flex: 2,
+                                    child: Text('Program Cycle',
+                                        style: TextStyle(
+                                            color: AppColors.tableHeaderText,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 13))),
+                                Expanded(
+                                    flex: 3,
+                                    child: Text('Target Objectives',
+                                        style: TextStyle(
+                                            color: AppColors.tableHeaderText,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 13))),
+                                Expanded(
+                                    flex: 2,
+                                    child: Text('Status',
+                                        style: TextStyle(
+                                            color: AppColors.tableHeaderText,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 13))),
+                                SizedBox(
+                                    width: 110,
+                                    child: Text('Action',
+                                        style: TextStyle(
+                                            color: AppColors.tableHeaderText,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 13),
+                                        textAlign: TextAlign.center)),
                               ],
                             ),
                           ),
@@ -599,87 +831,106 @@ class _IepReportsSectionPageState extends State<IepReportsSectionPage> {
                           Expanded(
                             child: _filteredReports.isEmpty
                                 ? const Center(
-                                    child: Text('No IEP reports match your current filter.', style: TextStyle(color: AppColors.textSecondary)),
+                                    child: Text(
+                                        'No IEP reports match your current filter.',
+                                        style: TextStyle(
+                                            color: AppColors.textSecondary)),
                                   )
                                 : ListView.separated(
                                     itemCount: _filteredReports.length,
-                                    separatorBuilder: (_, __) => const Divider(height: 1, color: AppColors.divider),
+                                    separatorBuilder: (_, __) => const Divider(
+                                        height: 1, color: AppColors.divider),
                                     itemBuilder: (ctx, i) {
                                       final item = _filteredReports[i];
                                       return Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                                        color: i % 2 == 0 ? Colors.white : const Color(0xFFFAF7FC),
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 20, vertical: 12),
+                                        color: i % 2 == 0
+                                            ? Colors.white
+                                            : const Color(0xFFFAF7FC),
                                         child: Row(
                                           children: [
                                             SizedBox(
                                               width: 50,
                                               child: CircleAvatar(
                                                 radius: 18,
-                                                backgroundColor: AppColors.primary.withValues(alpha: 0.1),
+                                                backgroundColor: AppColors
+                                                    .primary
+                                                    .withValues(alpha: 0.1),
                                                 child: Text(
-                                                  item.studentName.substring(0, 1),
-                                                  style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold, fontSize: 14),
+                                                  item.studentName
+                                                      .substring(0, 1),
+                                                  style: const TextStyle(
+                                                      color: AppColors.primary,
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                      fontSize: 14),
                                                 ),
                                               ),
                                             ),
                                             Expanded(
                                               flex: 2,
                                               child: Column(
-                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
                                                 children: [
-                                                  Text(item.studentName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textPrimary)),
-                                                  Text('Age: ${item.age} yrs • Sub: ${item.submittedDate}', style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                                                  Text(item.studentName,
+                                                      style: const TextStyle(
+                                                          fontWeight:
+                                                              FontWeight.bold,
+                                                          fontSize: 13,
+                                                          color: AppColors
+                                                              .textPrimary)),
+                                                  Text(
+                                                      'Age: ${item.age} yrs • Sub: ${item.submittedDate}',
+                                                      style: const TextStyle(
+                                                          fontSize: 11,
+                                                          color: AppColors
+                                                              .textSecondary)),
                                                 ],
                                               ),
                                             ),
                                             Expanded(
                                               flex: 2,
-                                              child: Text(item.therapistName, style: const TextStyle(fontSize: 12, color: AppColors.textPrimary)),
+                                              child: Text(item.therapistName,
+                                                  style: const TextStyle(
+                                                      fontSize: 12,
+                                                      color: AppColors
+                                                          .textPrimary)),
                                             ),
                                             Expanded(
                                               flex: 2,
-                                              child: Text(item.cycle, style: const TextStyle(fontSize: 12, color: AppColors.textPrimary)),
+                                              child: Text(item.cycle,
+                                                  style: const TextStyle(
+                                                      fontSize: 12,
+                                                      color: AppColors
+                                                          .textPrimary)),
                                             ),
                                             Expanded(
                                               flex: 3,
-                                              child: Text(item.targetDomains, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                                              child: Text(item.targetDomains,
+                                                  maxLines: 2,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  style: const TextStyle(
+                                                      fontSize: 11,
+                                                      color: AppColors
+                                                          .textSecondary)),
                                             ),
                                             Expanded(
                                               flex: 2,
                                               child: Align(
                                                 alignment: Alignment.centerLeft,
-                                                child: Container(
-                                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                                  decoration: BoxDecoration(color: item.status.bgColor, borderRadius: BorderRadius.circular(12)),
-                                                  child: Text(
-                                                    item.status.label,
-                                                    style: TextStyle(color: item.status.color, fontWeight: FontWeight.bold, fontSize: 11),
-                                                  ),
-                                                ),
+                                                child: _statusChip(item.status),
                                               ),
                                             ),
                                             SizedBox(
                                               width: 110,
                                               child: Row(
-                                                mainAxisAlignment: MainAxisAlignment.center,
+                                                mainAxisAlignment:
+                                                    MainAxisAlignment.center,
                                                 children: [
-                                                  ElevatedButton(
-                                                    style: ElevatedButton.styleFrom(
-                                                      backgroundColor: item.status == IepStatus.pending ? AppColors.primary : Colors.grey.shade100,
-                                                      foregroundColor: item.status == IepStatus.pending ? Colors.white : AppColors.textPrimary,
-                                                      elevation: 0,
-                                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                                                      shape: RoundedRectangleBorder(
-                                                        borderRadius: BorderRadius.circular(8),
-                                                        side: BorderSide(color: item.status == IepStatus.pending ? AppColors.primary : AppColors.divider),
-                                                      ),
-                                                    ),
-                                                    onPressed: () => _openAuditDialog(item),
-                                                    child: Text(
-                                                      item.status == IepStatus.pending ? 'Audit & Sign' : 'Review',
-                                                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: item.status == IepStatus.pending ? Colors.white : AppColors.primary),
-                                                    ),
-                                                  ),
+                                                  _actionButton(item),
                                                 ],
                                               ),
                                             ),
@@ -692,33 +943,54 @@ class _IepReportsSectionPageState extends State<IepReportsSectionPage> {
 
                           // Pagination Footer
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 20, vertical: 12),
                             decoration: const BoxDecoration(
-                              border: Border(top: BorderSide(color: AppColors.divider)),
+                              border: Border(
+                                  top: BorderSide(color: AppColors.divider)),
                             ),
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Text('Showing ${_filteredReports.length} of ${_reports.length} IEP reports', style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                                Text(
+                                    'Showing ${_filteredReports.length} of ${_reports.length} IEP reports',
+                                    style: const TextStyle(
+                                        fontSize: 12,
+                                        color: AppColors.textSecondary)),
                                 Row(
                                   children: [
                                     OutlinedButton(
                                       onPressed: null,
-                                      style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6)),
-                                      child: const Text('Previous', style: TextStyle(fontSize: 11)),
+                                      style: OutlinedButton.styleFrom(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 12, vertical: 6)),
+                                      child: const Text('Previous',
+                                          style: TextStyle(fontSize: 11)),
                                     ),
                                     const SizedBox(width: 8),
                                     Container(
                                       width: 28,
                                       height: 28,
-                                      decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(14)),
-                                      child: const Center(child: Text('1', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold))),
+                                      decoration: BoxDecoration(
+                                          color: AppColors.primary,
+                                          borderRadius:
+                                              BorderRadius.circular(14)),
+                                      child: const Center(
+                                          child: Text('1',
+                                              style: TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 12,
+                                                  fontWeight:
+                                                      FontWeight.bold))),
                                     ),
                                     const SizedBox(width: 8),
                                     OutlinedButton(
                                       onPressed: null,
-                                      style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6)),
-                                      child: const Text('Next', style: TextStyle(fontSize: 11)),
+                                      style: OutlinedButton.styleFrom(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 12, vertical: 6)),
+                                      child: const Text('Next',
+                                          style: TextStyle(fontSize: 11)),
                                     ),
                                   ],
                                 ),
@@ -738,6 +1010,168 @@ class _IepReportsSectionPageState extends State<IepReportsSectionPage> {
     );
   }
 
+  Widget _statusChip(IepStatus status) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+          color: status.bgColor, borderRadius: BorderRadius.circular(12)),
+      child: Text(
+        status.label,
+        style: TextStyle(
+            color: status.color, fontWeight: FontWeight.bold, fontSize: 11),
+      ),
+    );
+  }
+
+  Widget _actionButton(IepReportItem item) {
+    final isPending = item.status == IepStatus.pending;
+    return ElevatedButton(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: isPending ? AppColors.primary : Colors.grey.shade100,
+        foregroundColor: isPending ? Colors.white : AppColors.textPrimary,
+        elevation: 0,
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+          side: BorderSide(
+              color: isPending ? AppColors.primary : AppColors.divider),
+        ),
+      ),
+      onPressed: () => _openAuditDialog(item),
+      child: Text(
+        isPending ? 'Audit & Sign' : 'Review',
+        style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.bold,
+            color: isPending ? Colors.white : AppColors.primary),
+      ),
+    );
+  }
+
+  /// Phone layout of the report list: a stacked card per IEP report showing
+  /// student, clinician, cycle, objectives, status and the action button.
+  Widget _buildReportCards() {
+    return Column(
+      children: [
+        Expanded(
+          child: _filteredReports.isEmpty
+              ? const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(16),
+                    child: Text('No IEP reports match your current filter.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: AppColors.textSecondary)),
+                  ),
+                )
+              : ListView.separated(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  itemCount: _filteredReports.length,
+                  separatorBuilder: (_, __) =>
+                      const Divider(height: 1, color: AppColors.divider),
+                  itemBuilder: (ctx, i) {
+                    final item = _filteredReports[i];
+                    return Container(
+                      padding: const EdgeInsets.all(14),
+                      color:
+                          i % 2 == 0 ? Colors.white : const Color(0xFFFAF7FC),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              CircleAvatar(
+                                radius: 18,
+                                backgroundColor:
+                                    AppColors.primary.withValues(alpha: 0.1),
+                                child: Text(
+                                  item.studentName.substring(0, 1),
+                                  style: const TextStyle(
+                                      color: AppColors.primary,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(item.studentName,
+                                        style: const TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 13,
+                                            color: AppColors.textPrimary)),
+                                    Text(
+                                        'Age: ${item.age} yrs • Sub: ${item.submittedDate}',
+                                        style: const TextStyle(
+                                            fontSize: 11,
+                                            color: AppColors.textSecondary)),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          _cardField('Assigned Clinician', item.therapistName),
+                          _cardField('Program Cycle', item.cycle),
+                          _cardField('Target Objectives', item.targetDomains),
+                          const SizedBox(height: 6),
+                          Row(
+                            children: [
+                              Flexible(child: _statusChip(item.status)),
+                              const SizedBox(width: 8),
+                              const Spacer(),
+                              _actionButton(item),
+                            ],
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+        ),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: const BoxDecoration(
+            border: Border(top: BorderSide(color: AppColors.divider)),
+          ),
+          child: Text(
+              'Showing ${_filteredReports.length} of ${_reports.length} IEP reports',
+              style: const TextStyle(
+                  fontSize: 12, color: AppColors.textSecondary)),
+        ),
+      ],
+    );
+  }
+
+  Widget _cardField(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 118,
+            child: Text(label,
+                style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.tableHeaderText)),
+          ),
+          Expanded(
+            child: Text(value,
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                    fontSize: 12, color: AppColors.textPrimary)),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildPipelineTab(int index, String label, Color? highlightColor) {
     final isSelected = _selectedFilterIndex == index;
     return InkWell(
@@ -748,14 +1182,17 @@ class _IepReportsSectionPageState extends State<IepReportsSectionPage> {
         decoration: BoxDecoration(
           color: isSelected ? AppColors.primary : Colors.white,
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: isSelected ? AppColors.primary : AppColors.divider),
+          border: Border.all(
+              color: isSelected ? AppColors.primary : AppColors.divider),
         ),
         child: Text(
           label,
           style: TextStyle(
             fontSize: 12,
             fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-            color: isSelected ? Colors.white : (highlightColor ?? AppColors.textPrimary),
+            color: isSelected
+                ? Colors.white
+                : (highlightColor ?? AppColors.textPrimary),
           ),
         ),
       ),
@@ -763,3 +1200,12 @@ class _IepReportsSectionPageState extends State<IepReportsSectionPage> {
   }
 }
 
+/// Whole years since [dob] (e.g. "2019-11-21"); 0 when missing or unreadable.
+int _ageFromDob(dynamic dob) {
+  final d = DateTime.tryParse((dob ?? '').toString());
+  if (d == null) return 0;
+  final now = DateTime.now();
+  var age = now.year - d.year;
+  if (now.month < d.month || (now.month == d.month && now.day < d.day)) age--;
+  return age < 0 ? 0 : age;
+}

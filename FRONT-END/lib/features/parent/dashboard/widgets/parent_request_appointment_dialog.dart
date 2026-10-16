@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:roh_erp/core/constants/app_colors.dart';
+import 'package:roh_erp/core/layout/responsive.dart';
 import 'package:roh_erp/core/models/schedule_model.dart';
 import 'package:roh_erp/core/services/schedule_service.dart';
 
@@ -98,7 +99,8 @@ class _ParentRequestAppointmentDialogState
       id: 'DA-PAR-${DateTime.now().millisecondsSinceEpoch % 100000}',
       title: _titleController.text.trim(),
       type: _selectedType,
-      date: DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day),
+      date:
+          DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day),
       startTime: startTime,
       endTime: endTime,
       attendeeName: widget.parentName,
@@ -113,7 +115,8 @@ class _ParentRequestAppointmentDialogState
           : _notesController.text.trim(),
     );
 
-    final success = await scheduleService.scheduleDirectorAppointment(newAppointment);
+    final success =
+        await scheduleService.scheduleDirectorAppointment(newAppointment);
 
     if (!mounted) return;
     if (success) {
@@ -138,7 +141,8 @@ class _ParentRequestAppointmentDialogState
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Time conflict: Director already has an appointment in that slot.'),
+          content: Text(
+              'Time conflict: Director already has an appointment in that slot.'),
           backgroundColor: Colors.redAccent,
         ),
       );
@@ -173,7 +177,8 @@ class _ParentRequestAppointmentDialogState
   @override
   Widget build(BuildContext context) {
     final scheduleService = context.watch<ScheduleService>();
-    final availableSlots = scheduleService.getAvailableDirectorSlots(_selectedDate);
+    final availableSlots =
+        scheduleService.getAvailableDirectorSlots(_selectedDate);
 
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -208,7 +213,8 @@ class _ParentRequestAppointmentDialogState
                       color: Colors.white.withValues(alpha: 0.2),
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(Icons.event_available, color: Colors.white, size: 20),
+                    child: const Icon(Icons.event_available,
+                        color: Colors.white, size: 20),
                   ),
                   const SizedBox(width: 14),
                   const Expanded(
@@ -247,7 +253,8 @@ class _ParentRequestAppointmentDialogState
             // Form
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.all(24),
+                padding:
+                    EdgeInsets.all(Breakpoints.isCompact(context) ? 16 : 24),
                 child: Form(
                   key: _formKey,
                   child: Column(
@@ -262,7 +269,8 @@ class _ParentRequestAppointmentDialogState
                         ),
                         child: Row(
                           children: [
-                            const Icon(Icons.child_care, color: AppColors.primary, size: 20),
+                            const Icon(Icons.child_care,
+                                color: AppColors.primary, size: 20),
                             const SizedBox(width: 10),
                             Expanded(
                               child: Text(
@@ -291,19 +299,23 @@ class _ParentRequestAppointmentDialogState
                       const SizedBox(height: 6),
                       DropdownButtonFormField<AppointmentType>(
                         value: _selectedType,
-                        decoration: _inputDecoration(prefixIcon: Icons.category_outlined),
+                        decoration: _inputDecoration(
+                            prefixIcon: Icons.category_outlined),
                         items: const [
                           DropdownMenuItem(
                             value: AppointmentType.parentConference,
-                            child: Text('Parent Conference & Goal Alignment', style: TextStyle(fontSize: 13)),
+                            child: Text('Parent Conference & Goal Alignment',
+                                style: TextStyle(fontSize: 13)),
                           ),
                           DropdownMenuItem(
                             value: AppointmentType.iepReview,
-                            child: Text('IEP 6-Month Review / Evaluation', style: TextStyle(fontSize: 13)),
+                            child: Text('IEP 6-Month Review / Evaluation',
+                                style: TextStyle(fontSize: 13)),
                           ),
                           DropdownMenuItem(
                             value: AppointmentType.diagnosticIntake,
-                            child: Text('Comprehensive Diagnostic Audit', style: TextStyle(fontSize: 13)),
+                            child: Text('Comprehensive Diagnostic Audit',
+                                style: TextStyle(fontSize: 13)),
                           ),
                         ],
                         onChanged: _onTypeChanged,
@@ -323,7 +335,9 @@ class _ParentRequestAppointmentDialogState
                       TextFormField(
                         controller: _titleController,
                         decoration: _inputDecoration(prefixIcon: Icons.title),
-                        validator: (v) => v == null || v.isEmpty ? 'Subject is required' : null,
+                        validator: (v) => v == null || v.isEmpty
+                            ? 'Subject is required'
+                            : null,
                       ),
                       const SizedBox(height: 16),
 
@@ -348,18 +362,22 @@ class _ParentRequestAppointmentDialogState
                                 onTap: _pickDate,
                                 borderRadius: BorderRadius.circular(8),
                                 child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 14, vertical: 12),
                                   decoration: BoxDecoration(
-                                    border: Border.all(color: AppColors.divider),
+                                    border:
+                                        Border.all(color: AppColors.divider),
                                     borderRadius: BorderRadius.circular(8),
                                     color: const Color(0xFFFAFAFA),
                                   ),
                                   child: Row(
                                     children: [
-                                      const Icon(Icons.calendar_month, color: AppColors.primary, size: 18),
+                                      const Icon(Icons.calendar_month,
+                                          color: AppColors.primary, size: 18),
                                       const SizedBox(width: 8),
                                       Text(
-                                        DateFormat('dd MMM yyyy (EEE)').format(_selectedDate),
+                                        DateFormat('dd MMM yyyy (EEE)')
+                                            .format(_selectedDate),
                                         style: const TextStyle(
                                           fontSize: 13,
                                           fontWeight: FontWeight.w600,
@@ -388,7 +406,8 @@ class _ParentRequestAppointmentDialogState
                                   ),
                                   const SizedBox(width: 6),
                                   Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 6, vertical: 2),
                                     decoration: BoxDecoration(
                                       color: availableSlots.isNotEmpty
                                           ? const Color(0xFFE8F5E9)
@@ -415,24 +434,31 @@ class _ParentRequestAppointmentDialogState
                                       decoration: BoxDecoration(
                                         color: const Color(0xFFFFEBEE),
                                         borderRadius: BorderRadius.circular(8),
-                                        border: Border.all(color: Colors.red.shade200),
+                                        border: Border.all(
+                                            color: Colors.red.shade200),
                                       ),
                                       child: const Text(
                                         'No open slots on this date',
-                                        style: TextStyle(color: Colors.red, fontSize: 12),
+                                        style: TextStyle(
+                                            color: Colors.red, fontSize: 12),
                                       ),
                                     )
                                   : DropdownButtonFormField<String>(
                                       value: _selectedSlot,
-                                      hint: const Text('Choose open slot', style: TextStyle(fontSize: 13)),
-                                      decoration: _inputDecoration(prefixIcon: Icons.access_time),
+                                      hint: const Text('Choose open slot',
+                                          style: TextStyle(fontSize: 13)),
+                                      decoration: _inputDecoration(
+                                          prefixIcon: Icons.access_time),
                                       items: availableSlots.map((slot) {
                                         return DropdownMenuItem(
                                           value: slot,
-                                          child: Text(slot, style: const TextStyle(fontSize: 13)),
+                                          child: Text(slot,
+                                              style: const TextStyle(
+                                                  fontSize: 13)),
                                         );
                                       }).toList(),
-                                      onChanged: (slot) => setState(() => _selectedSlot = slot),
+                                      onChanged: (slot) =>
+                                          setState(() => _selectedSlot = slot),
                                     ),
                             ],
                           );
@@ -476,7 +502,9 @@ class _ParentRequestAppointmentDialogState
                           hintText: '+1 (555) 000-0000',
                           prefixIcon: Icons.phone_outlined,
                         ),
-                        validator: (v) => v == null || v.isEmpty ? 'Phone number required' : null,
+                        validator: (v) => v == null || v.isEmpty
+                            ? 'Phone number required'
+                            : null,
                       ),
                       const SizedBox(height: 16),
 
@@ -494,7 +522,8 @@ class _ParentRequestAppointmentDialogState
                         controller: _notesController,
                         maxLines: 3,
                         decoration: _inputDecoration(
-                          hintText: 'e.g. Would like to discuss recent mealtime transitions at home and review updated VB-MAPP milestone progress...',
+                          hintText:
+                              'e.g. Would like to discuss recent mealtime transitions at home and review updated VB-MAPP milestone progress...',
                         ),
                       ),
                     ],
@@ -516,16 +545,20 @@ class _ParentRequestAppointmentDialogState
                   final cancelBtn = OutlinedButton(
                     onPressed: () => Navigator.of(context).pop(),
                     style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 20, vertical: 14),
                       side: const BorderSide(color: AppColors.divider),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8)),
                     ),
-                    child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
+                    child: const Text('Cancel',
+                        style: TextStyle(color: AppColors.textSecondary)),
                   );
 
                   final submitBtn = ElevatedButton.icon(
                     onPressed: _submitRequest,
-                    icon: const Icon(Icons.check, size: 18, color: Colors.white),
+                    icon:
+                        const Icon(Icons.check, size: 18, color: Colors.white),
                     label: const Text(
                       'Confirm Appointment with Director',
                       style: TextStyle(
@@ -535,8 +568,10 @@ class _ParentRequestAppointmentDialogState
                     ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primary,
-                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 24, vertical: 14),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8)),
                       elevation: 0,
                     ),
                   );

@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:roh_erp/core/constants/app_colors.dart';
+import '../../../core/layout/responsive.dart';
 import '../../../core/services/db_queries.dart';
 import '../widgets/student_card_grid.dart';
 import '../widgets/student_assessment_banner.dart';
@@ -9,7 +10,8 @@ class TransitionAssessmentPage extends StatefulWidget {
   const TransitionAssessmentPage({super.key});
 
   @override
-  State<TransitionAssessmentPage> createState() => _TransitionAssessmentPageState();
+  State<TransitionAssessmentPage> createState() =>
+      _TransitionAssessmentPageState();
 }
 
 class _TransitionAssessmentPageState extends State<TransitionAssessmentPage> {
@@ -32,7 +34,8 @@ class _TransitionAssessmentPageState extends State<TransitionAssessmentPage> {
   Future<void> _loadTransitionData() async {
     if (_selectedStudentId == null) return;
     try {
-      final res = await TransitionAssessmentQueries.fetchForStudent(_selectedStudentId.toString());
+      final res = await TransitionAssessmentQueries.fetchForStudent(
+          _selectedStudentId.toString());
       if (mounted) {
         setState(() {
           _transitionRecords = res;
@@ -134,67 +137,93 @@ class _TransitionAssessmentPageState extends State<TransitionAssessmentPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header Row with Student Name & Back Button + Tabs + Yellow instruction badge
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
+          // Header Row with Student Name & Back Button + Tabs + Yellow instruction badge.
+          // Title wraps to 2 lines; tabs + badge move to their own line when narrow.
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final narrow = constraints.maxWidth < 900;
+              final titleRow = Row(
                 children: [
                   IconButton(
-                    icon: const Icon(Icons.arrow_back, color: AppColors.primary),
+                    icon:
+                        const Icon(Icons.arrow_back, color: AppColors.primary),
                     onPressed: () => setState(() => _selectedStudent = null),
                     tooltip: 'Back to students',
                   ),
                   const SizedBox(width: 8),
-                  Text(
-                    '$_selectedStudent VB MAPP Transition Assessment',
-                    style: const TextStyle(
-                      fontFamily: 'Poppins',
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.primary,
-                    ),
-                  ),
-                ],
-              ),
-              Row(
-                children: [
-                  // Assessment | Graph Tabs
-                  Container(
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: AppColors.primaryLight.withValues(alpha: 0.25),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        _buildTopTab('Assessment', 0),
-                        _buildTopTab('Graph', 1),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  // Yellow Instruction Pill
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFDE68A), // Light warm yellow
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: const Text(
-                      'Rate the Child on a Scale of 1 to 5 for Each Area',
-                      style: TextStyle(
+                  Expanded(
+                    child: Text(
+                      '$_selectedStudent VB MAPP Transition Assessment',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
                         fontFamily: 'Poppins',
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF78350F),
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.primary,
                       ),
                     ),
                   ),
                 ],
-              ),
-            ],
+              );
+              // Assessment | Graph Tabs
+              final tabs = Container(
+                height: narrow ? 44 : 40,
+                decoration: BoxDecoration(
+                  color: AppColors.primaryLight.withValues(alpha: 0.25),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _buildTopTab('Assessment', 0),
+                    _buildTopTab('Graph', 1),
+                  ],
+                ),
+              );
+              // Yellow Instruction Pill
+              final pill = Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFDE68A), // Light warm yellow
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: const Text(
+                  'Rate the Child on a Scale of 1 to 5 for Each Area',
+                  style: TextStyle(
+                    fontFamily: 'Poppins',
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF78350F),
+                  ),
+                ),
+              );
+              if (narrow) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    titleRow,
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 16,
+                      runSpacing: 12,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [tabs, pill],
+                    ),
+                  ],
+                );
+              }
+              return Row(
+                children: [
+                  Expanded(child: titleRow),
+                  const SizedBox(width: 16),
+                  tabs,
+                  const SizedBox(width: 16),
+                  pill,
+                ],
+              );
+            },
           ),
           const SizedBox(height: 20),
 
@@ -207,7 +236,8 @@ class _TransitionAssessmentPageState extends State<TransitionAssessmentPage> {
 
             // Transition assessment cards
             for (final area in _transitionAreas) ...[
-              _buildTransitionCard(area['title'] as String, area['options'] as List<String>),
+              _buildTransitionCard(
+                  area['title'] as String, area['options'] as List<String>),
               const SizedBox(height: 16),
             ],
             const SizedBox(height: 16),
@@ -220,30 +250,38 @@ class _TransitionAssessmentPageState extends State<TransitionAssessmentPage> {
                   onPressed: () => setState(() => _selectedStudent = null),
                   style: OutlinedButton.styleFrom(
                     side: const BorderSide(color: AppColors.primary),
-                    padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 28, vertical: 14),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8)),
                   ),
                   child: const Text(
                     'Cancel',
-                    style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                        color: AppColors.primary, fontWeight: FontWeight.bold),
                   ),
                 ),
                 const SizedBox(width: 16),
                 ElevatedButton(
                   onPressed: () {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Transition Assessment Saved Successfully!')),
+                      const SnackBar(
+                          content: Text(
+                              'Transition Assessment Saved Successfully!')),
                     );
                     setState(() => _selectedStudent = null);
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
-                    padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 32, vertical: 14),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8)),
                   ),
                   child: const Text(
                     'Save',
-                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                        color: Colors.white, fontWeight: FontWeight.bold),
                   ),
                 ),
               ],
@@ -296,7 +334,7 @@ class _TransitionAssessmentPageState extends State<TransitionAssessmentPage> {
             borderRadius: BorderRadius.circular(16),
             border: Border.all(color: AppColors.divider),
           ),
-          padding: const EdgeInsets.all(24),
+          padding: EdgeInsets.all(Breakpoints.isCompact(context) ? 16 : 24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -323,55 +361,73 @@ class _TransitionAssessmentPageState extends State<TransitionAssessmentPage> {
                         areaMap = Map<String, dynamic>.from(rawArea);
                       } else if (rawArea is String && rawArea.isNotEmpty) {
                         try {
-                          areaMap = Map<String, dynamic>.from(jsonDecode(rawArea));
+                          areaMap =
+                              Map<String, dynamic>.from(jsonDecode(rawArea));
                         } catch (_) {}
                       }
-                      activeScore = int.tryParse(areaMap['${i + 1}']?.toString() ?? '0') ?? 0;
+                      activeScore = int.tryParse(
+                              areaMap['${i + 1}']?.toString() ?? '0') ??
+                          0;
                     }
 
+                    final label = Text(
+                      _transitionAreas[i]['title'] as String,
+                      style: const TextStyle(
+                          fontSize: 12, fontWeight: FontWeight.w600),
+                    );
+                    final bar = Row(
+                      children: List.generate(5, (scoreIdx) {
+                        final score = scoreIdx + 1;
+                        final isAchieved = activeScore >= score;
+                        return Expanded(
+                          child: Container(
+                            height: 28,
+                            margin: const EdgeInsets.symmetric(horizontal: 2),
+                            decoration: BoxDecoration(
+                              color: isAchieved
+                                  ? AppColors.primary
+                                  : const Color(0xFFF3F4F6),
+                              borderRadius: BorderRadius.circular(4),
+                              border: Border.all(
+                                color: isAchieved
+                                    ? AppColors.primary
+                                    : AppColors.divider,
+                              ),
+                            ),
+                            alignment: Alignment.center,
+                            child: Text(
+                              '$score',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: isAchieved
+                                    ? Colors.white
+                                    : AppColors.textSecondary,
+                              ),
+                            ),
+                          ),
+                        );
+                      }),
+                    );
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 12.0),
-                      child: Row(
-                        children: [
-                          SizedBox(
-                            width: 280,
-                            child: Text(
-                              _transitionAreas[i]['title'] as String,
-                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: Row(
-                              children: List.generate(5, (scoreIdx) {
-                                final score = scoreIdx + 1;
-                                final isAchieved = activeScore >= score;
-                                return Expanded(
-                                  child: Container(
-                                    height: 28,
-                                    margin: const EdgeInsets.symmetric(horizontal: 2),
-                                    decoration: BoxDecoration(
-                                      color: isAchieved ? AppColors.primary : const Color(0xFFF3F4F6),
-                                      borderRadius: BorderRadius.circular(4),
-                                      border: Border.all(
-                                        color: isAchieved ? AppColors.primary : AppColors.divider,
-                                      ),
-                                    ),
-                                    alignment: Alignment.center,
-                                    child: Text(
-                                      '$score',
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.bold,
-                                        color: isAchieved ? Colors.white : AppColors.textSecondary,
-                                      ),
-                                    ),
-                                  ),
-                                );
-                              }),
-                            ),
-                          ),
-                        ],
+                      child: LayoutBuilder(
+                        builder: (context, rowConstraints) {
+                          // Narrow: label above the full-width 1–5 score bar.
+                          if (rowConstraints.maxWidth < 520) {
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [label, const SizedBox(height: 6), bar],
+                            );
+                          }
+                          return Row(
+                            children: [
+                              SizedBox(width: 280, child: label),
+                              const SizedBox(width: 16),
+                              Expanded(child: bar),
+                            ],
+                          );
+                        },
                       ),
                     );
                   },
@@ -391,97 +447,129 @@ class _TransitionAssessmentPageState extends State<TransitionAssessmentPage> {
         color: const Color(0xFFE5E7EB).withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(12),
       ),
-      padding: const EdgeInsets.all(20),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+      padding: EdgeInsets.all(Breakpoints.isCompact(context) ? 12 : 20),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
           // Left Options Column
-          Expanded(
-            flex: 4,
-            child: Column(
+          final optionsColumn = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  fontFamily: 'Poppins',
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 12),
+              for (int i = 0; i < options.length; i++) ...[
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 6.0),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Container(
+                        width: 24,
+                        height: 24,
+                        decoration: BoxDecoration(
+                          color: AppColors.primary,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        alignment: Alignment.center,
+                        child: const Text(
+                          '',
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: AppColors.divider),
+                          ),
+                          child: Text(
+                            options[i],
+                            style: const TextStyle(
+                                fontSize: 12, color: AppColors.textPrimary),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ],
+          );
+          const scoreTitle = Text(
+            'Assessment Score',
+            style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                color: AppColors.textPrimary),
+          );
+          // Narrow: score boxes go below the options and flow in a row.
+          if (constraints.maxWidth < 560) {
+            return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    fontFamily: 'Poppins',
-                    color: AppColors.textPrimary,
-                  ),
-                ),
+                optionsColumn,
                 const SizedBox(height: 12),
-                for (int i = 0; i < options.length; i++) ...[
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 6.0),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Container(
-                          width: 24,
-                          height: 24,
-                          decoration: BoxDecoration(
-                            color: AppColors.primary,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          alignment: Alignment.center,
-                          child: const Text(
-                            '',
-                            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(6),
-                              border: Border.all(color: AppColors.divider),
-                            ),
-                            child: Text(
-                              options[i],
-                              style: const TextStyle(fontSize: 12, color: AppColors.textPrimary),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+                scoreTitle,
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 16,
+                  runSpacing: 8,
+                  children: [
+                    for (final l in const ['1ST', '2ND', '3RD', '4TH'])
+                      _buildScoreInputRow(l),
+                  ],
+                ),
               ],
-            ),
-          ),
-          const SizedBox(width: 24),
+            );
+          }
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(flex: 4, child: optionsColumn),
+              const SizedBox(width: 24),
 
-          // Right Assessment Score Column
-          Expanded(
-            flex: 1,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                const Text(
-                  'Assessment Score',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textPrimary),
+              // Right Assessment Score Column
+              Expanded(
+                flex: 1,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    scoreTitle,
+                    const SizedBox(height: 12),
+                    _buildScoreInputRow('1ST'),
+                    const SizedBox(height: 8),
+                    _buildScoreInputRow('2ND'),
+                    const SizedBox(height: 8),
+                    _buildScoreInputRow('3RD'),
+                    const SizedBox(height: 8),
+                    _buildScoreInputRow('4TH'),
+                  ],
                 ),
-                const SizedBox(height: 12),
-                _buildScoreInputRow('1ST'),
-                const SizedBox(height: 8),
-                _buildScoreInputRow('2ND'),
-                const SizedBox(height: 8),
-                _buildScoreInputRow('3RD'),
-                const SizedBox(height: 8),
-                _buildScoreInputRow('4TH'),
-              ],
-            ),
-          ),
-        ],
+              ),
+            ],
+          );
+        },
       ),
     );
   }
 
   Widget _buildScoreInputRow(String label) {
     return Row(
+      mainAxisSize: MainAxisSize.min,
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         Container(
@@ -494,7 +582,8 @@ class _TransitionAssessmentPageState extends State<TransitionAssessmentPage> {
           alignment: Alignment.center,
           child: Text(
             label,
-            style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+            style: const TextStyle(
+                color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
           ),
         ),
         const SizedBox(width: 8),
@@ -509,7 +598,8 @@ class _TransitionAssessmentPageState extends State<TransitionAssessmentPage> {
           alignment: Alignment.center,
           child: const TextField(
             textAlign: TextAlign.center,
-            decoration: InputDecoration(border: InputBorder.none, contentPadding: EdgeInsets.zero),
+            decoration: InputDecoration(
+                border: InputBorder.none, contentPadding: EdgeInsets.zero),
             style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
           ),
         ),

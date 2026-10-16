@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:roh_erp/core/constants/app_colors.dart';
 import 'package:roh_erp/core/constants/app_constants.dart';
+import '../../core/layout/responsive.dart';
 import '../../core/widgets/custom_mobile_bottom_bar.dart';
 import '../../core/widgets/animated_top_bar_title.dart';
 import '../../core/widgets/two_step_logout_dialog.dart';
@@ -58,13 +59,34 @@ class _DirectorShellState extends State<DirectorShell> {
   }
 
   static const List<_NavItem> _navItems = [
-    _NavItem(icon: Icons.dashboard_outlined, activeIcon: Icons.dashboard, label: 'Dashboard'),
-    _NavItem(icon: Icons.calendar_today_outlined, activeIcon: Icons.calendar_today, label: 'Master Schedule'),
-    _NavItem(icon: Icons.medical_services_outlined, activeIcon: Icons.medical_services, label: 'Therapist'),
-    _NavItem(icon: Icons.people_outline, activeIcon: Icons.people, label: 'Students'),
-    _NavItem(icon: Icons.trending_up_outlined, activeIcon: Icons.trending_up, label: 'Stud Progress'),
-    _NavItem(icon: Icons.assignment_outlined, activeIcon: Icons.assignment, label: 'IEP Reports'),
-    _NavItem(icon: Icons.settings_outlined, activeIcon: Icons.settings, label: 'Settings'),
+    _NavItem(
+        icon: Icons.dashboard_outlined,
+        activeIcon: Icons.dashboard,
+        label: 'Dashboard'),
+    _NavItem(
+        icon: Icons.calendar_today_outlined,
+        activeIcon: Icons.calendar_today,
+        label: 'Master Schedule'),
+    _NavItem(
+        icon: Icons.medical_services_outlined,
+        activeIcon: Icons.medical_services,
+        label: 'Therapist'),
+    _NavItem(
+        icon: Icons.people_outline,
+        activeIcon: Icons.people,
+        label: 'Students'),
+    _NavItem(
+        icon: Icons.trending_up_outlined,
+        activeIcon: Icons.trending_up,
+        label: 'Stud Progress'),
+    _NavItem(
+        icon: Icons.assignment_outlined,
+        activeIcon: Icons.assignment,
+        label: 'IEP Reports'),
+    _NavItem(
+        icon: Icons.settings_outlined,
+        activeIcon: Icons.settings,
+        label: 'Settings'),
   ];
 
   final List<Widget> _pages = const [
@@ -79,9 +101,9 @@ class _DirectorShellState extends State<DirectorShell> {
 
   @override
   Widget build(BuildContext context) {
-    final width = MediaQuery.of(context).size.width;
-    final isMobile = width < 768;
-    final isTablet = width >= 768 && width < 1100;
+    final screen = Breakpoints.of(context);
+    final isMobile = screen == ScreenSize.compact;
+    final isTablet = screen == ScreenSize.medium;
 
     // On mobile, use bottom nav bar or drawer
     if (isMobile) {
@@ -104,7 +126,9 @@ class _DirectorShellState extends State<DirectorShell> {
               selectedIndex: _selectedIndex,
               expanded: _sidebarExpanded && !isTablet,
               onItemSelected: (i) => setState(() => _selectedIndex = i),
-              onToggle: isTablet ? null : () => setState(() => _sidebarExpanded = !_sidebarExpanded),
+              onToggle: isTablet
+                  ? null
+                  : () => setState(() => _sidebarExpanded = !_sidebarExpanded),
             ),
           ),
           // ── Main content ─────────────────────────────────────────────────
@@ -238,16 +262,27 @@ class _Sidebar extends StatelessWidget {
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: const Center(
-                      child: Text('ROH', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w800)),
+                      child: Text('ROH',
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800)),
                     ),
                   ),
                   if (expanded) ...[
                     const SizedBox(width: 10),
                     const Expanded(
-                      child: Text('ROH', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
+                      child: Text('ROH',
+                          style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.textPrimary)),
                     ),
                     if (onToggle != null)
-                      IconButton(icon: const Icon(Icons.menu, size: 20), onPressed: onToggle, color: AppColors.textSecondary),
+                      IconButton(
+                          icon: const Icon(Icons.menu, size: 20),
+                          onPressed: onToggle,
+                          color: AppColors.textSecondary),
                   ],
                 ],
               ),
@@ -273,11 +308,15 @@ class _Sidebar extends StatelessWidget {
                       padding: EdgeInsets.symmetric(
                           horizontal: expanded ? 14 : 0, vertical: 12),
                       decoration: BoxDecoration(
-                        color: isSelected ? AppColors.sidebarSelectedBg : Colors.transparent,
+                        color: isSelected
+                            ? AppColors.sidebarSelectedBg
+                            : Colors.transparent,
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: Row(
-                        mainAxisAlignment: expanded ? MainAxisAlignment.start : MainAxisAlignment.center,
+                        mainAxisAlignment: expanded
+                            ? MainAxisAlignment.start
+                            : MainAxisAlignment.center,
                         children: [
                           if (isSelected)
                             Container(
@@ -292,7 +331,9 @@ class _Sidebar extends StatelessWidget {
                           Icon(
                             isSelected ? item.activeIcon : item.icon,
                             size: 20,
-                            color: isSelected ? AppColors.primary : AppColors.textSecondary,
+                            color: isSelected
+                                ? AppColors.primary
+                                : AppColors.textSecondary,
                           ),
                           if (expanded) ...[
                             const SizedBox(width: 12),
@@ -300,8 +341,12 @@ class _Sidebar extends StatelessWidget {
                               item.label,
                               style: TextStyle(
                                 fontSize: 13,
-                                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-                                color: isSelected ? AppColors.primary : AppColors.textSecondary,
+                                fontWeight: isSelected
+                                    ? FontWeight.w600
+                                    : FontWeight.w400,
+                                color: isSelected
+                                    ? AppColors.primary
+                                    : AppColors.textSecondary,
                               ),
                             ),
                           ],
@@ -322,7 +367,8 @@ class _Sidebar extends StatelessWidget {
                 if (shouldLogout == true && context.mounted) {
                   await context.read<AuthService>().logout();
                   if (context.mounted) {
-                    Navigator.of(context).pushReplacementNamed(AppConstants.routeLogin);
+                    Navigator.of(context)
+                        .pushReplacementNamed(AppConstants.routeLogin);
                   }
                 }
               },
@@ -331,12 +377,17 @@ class _Sidebar extends StatelessWidget {
                 padding: EdgeInsets.symmetric(
                     horizontal: expanded ? 14 : 0, vertical: 12),
                 child: Row(
-                  mainAxisAlignment: expanded ? MainAxisAlignment.start : MainAxisAlignment.center,
+                  mainAxisAlignment: expanded
+                      ? MainAxisAlignment.start
+                      : MainAxisAlignment.center,
                   children: [
-                    const Icon(Icons.logout, size: 20, color: AppColors.textSecondary),
+                    const Icon(Icons.logout,
+                        size: 20, color: AppColors.textSecondary),
                     if (expanded) ...[
                       const SizedBox(width: 12),
-                      const Text('Logout', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+                      const Text('Logout',
+                          style: TextStyle(
+                              fontSize: 13, color: AppColors.textSecondary)),
                     ],
                   ],
                 ),
@@ -358,8 +409,7 @@ class _TopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final isMobile = screenWidth < 768;
+    final isMobile = Breakpoints.isCompact(context);
     final user = context.watch<AuthService>().currentUser;
 
     return Container(
@@ -381,19 +431,27 @@ class _TopBar extends StatelessWidget {
           if (!isMobile) ...[
             TextButton.icon(
               onPressed: () => DirectorPasswordResetsView.show(context),
-              icon: const Icon(Icons.verified_user_outlined, size: 16, color: AppColors.primary),
-              label: const Text('Reset Approvals', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.primary)),
+              icon: const Icon(Icons.verified_user_outlined,
+                  size: 16, color: AppColors.primary),
+              label: const Text('Reset Approvals',
+                  style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.primary)),
               style: TextButton.styleFrom(
                 backgroundColor: AppColors.primaryLight.withValues(alpha: 0.12),
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8)),
               ),
             ),
             const SizedBox(width: 8),
           ] else ...[
             IconButton(
               tooltip: 'Reset Approvals',
-              icon: const Icon(Icons.verified_user_outlined, size: 20, color: AppColors.primary),
+              icon: const Icon(Icons.verified_user_outlined,
+                  size: 20, color: AppColors.primary),
               padding: const EdgeInsets.all(6),
               constraints: const BoxConstraints(),
               onPressed: () => DirectorPasswordResetsView.show(context),
@@ -413,7 +471,8 @@ class _TopBar extends StatelessWidget {
               child: Stack(
                 clipBehavior: Clip.none,
                 children: [
-                  const Icon(Icons.notifications_outlined, color: AppColors.primary, size: 20),
+                  const Icon(Icons.notifications_outlined,
+                      color: AppColors.primary, size: 20),
                   ListenableBuilder(
                     listenable: NotificationService(),
                     builder: (context, _) {
@@ -424,11 +483,16 @@ class _TopBar extends StatelessWidget {
                         right: -4,
                         child: Container(
                           padding: const EdgeInsets.all(3),
-                          decoration: const BoxDecoration(color: Color(0xFFEF4444), shape: BoxShape.circle),
-                          constraints: const BoxConstraints(minWidth: 14, minHeight: 14),
+                          decoration: const BoxDecoration(
+                              color: Color(0xFFEF4444), shape: BoxShape.circle),
+                          constraints:
+                              const BoxConstraints(minWidth: 14, minHeight: 14),
                           child: Text(
                             '$count',
-                            style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 9,
+                                fontWeight: FontWeight.bold),
                             textAlign: TextAlign.center,
                           ),
                         ),
@@ -446,7 +510,10 @@ class _TopBar extends StatelessWidget {
             backgroundColor: AppColors.primary.withValues(alpha: 0.15),
             child: Text(
               user?.name.isNotEmpty == true ? user!.name[0].toUpperCase() : 'A',
-              style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.w700, fontSize: 14),
+              style: const TextStyle(
+                  color: AppColors.primary,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 14),
             ),
           ),
         ],
@@ -460,5 +527,6 @@ class _NavItem {
   final IconData icon;
   final IconData activeIcon;
   final String label;
-  const _NavItem({required this.icon, required this.activeIcon, required this.label});
+  const _NavItem(
+      {required this.icon, required this.activeIcon, required this.label});
 }
