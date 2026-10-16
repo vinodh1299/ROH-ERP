@@ -40,6 +40,9 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
     'Error',
     'Vocal'
   ];
+  // Manding rows of every date; _mandingRows holds the selected date's rows
+  // (same map objects, so edits show in both).
+  final List<Map<String, dynamic>> _allMandingRows = [];
   final List<Map<String, dynamic>> _mandingRows = [];
 
   // Daily Data Sheet DTT Filters & State
@@ -79,6 +82,7 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
 
   bool _savingManding = false;
   bool _savingBrp = false;
+  int? _brpId; // saved BRP row that the BRP form edits
 
   // PB Graph State
   String _pbGraphType = 'Behavior Data';
@@ -188,6 +192,8 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
       if (mounted) {
         setState(() {
           _mandingRows.clear();
+          _allMandingRows.clear();
+          _brpId = null;
           _dttTargets.clear();
           _mandingGraphData.clear();
           _skillTargets.clear();
@@ -226,6 +232,7 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
 
             // 0. BRP — not trial data; the latest one fills the BRP form.
             if (domainLower == 'brp') {
+              _brpId = int.tryParse(r['id']?.toString() ?? '');
               _brpFormController.text = (notesJson['form'] ?? '').toString();
               _brpFunctionController.text =
                   (notesJson['function'] ?? '').toString();
@@ -247,10 +254,12 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
                       if (idx < completed) return 2;
                       return 0;
                     });
-              _mandingRows.add({
+              _allMandingRows.add({
                 'id': r['id'],
+                'date': sessionDateRaw.split('T')[0],
                 'label': targetSkill,
                 'counts': counts,
+                'savedCounts': List<int>.from(counts),
               });
 
               final promptedCount = (completed - successful).clamp(0, 999);
@@ -359,9 +368,38 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
               });
             }
           }
+          _applyMandingDate();
         });
       }
     } catch (_) {}
+  }
+
+  /// Shows the manding rows recorded on the selected date.
+  void _applyMandingDate() {
+    final date = _apiDate(_mandingDate);
+    _mandingRows
+      ..clear()
+      ..addAll(_allMandingRows.where((r) => r['date'] == date));
+  }
+
+  Future<void> _pickMandingDate() async {
+    DateTime initial;
+    try {
+      initial = DateFormat('MM/dd/yyyy').parseStrict(_mandingDate);
+    } catch (_) {
+      initial = DateTime.now();
+    }
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+    );
+    if (picked == null || !mounted) return;
+    setState(() {
+      _mandingDate = DateFormat('MM/dd/yyyy').format(picked);
+      _applyMandingDate();
+    });
   }
 
   void _addNewIncident() {
@@ -411,18 +449,22 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
     return 'Independent';
   }
 
-  /// Saves the manding rows added this session (rows loaded from the server
-  /// are already stored and are shown read-only).
+  /// Saves the selected date's new rows and the saved rows whose counts were
+  /// changed (those update their existing database row).
   Future<void> _saveMandingSheet() async {
     final studentId = _selectedStudentId;
     if (studentId == null || _savingManding) return;
-    final newRows = _mandingRows
-        .where((r) =>
-            r['id'] == null && (r['counts'] as List<int>).any((c) => c > 0))
-        .toList();
+    bool changed(Map<String, dynamic> r) {
+      final counts = r['counts'] as List<int>;
+      if (r['id'] == null) return counts.any((c) => c > 0);
+      final saved = r['savedCounts'] as List<int>;
+      return List.generate(counts.length, (i) => counts[i] != saved[i])
+          .any((d) => d);
+    }
+
+    final newRows = _mandingRows.where(changed).toList();
     if (newRows.isEmpty) {
-      _showSnack('Record at least one trial in a new row before saving.',
-          error: true);
+      _showSnack('No new or changed trials to save.', error: true);
       return;
     }
     setState(() => _savingManding = true);
@@ -436,6 +478,7 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
             // Same split as the summary bar: the first 8 columns are prompted.
             final unprompted = counts.sublist(8).fold<int>(0, (a, b) => a + b);
             return <String, dynamic>{
+              if (r['id'] != null) 'id': r['id'],
               'domain': 'Manding',
               'target_skill': r['label'] ?? 'Mand',
               'prompt_level': _mandPromptLevel(counts),
@@ -477,6 +520,7 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
       sessionDate: DateFormat('yyyy-MM-dd').format(DateTime.now()),
       rows: [
         {
+          if (_brpId != null) 'id': _brpId, // edit the saved plan
           'domain': 'BRP',
           'target_skill': form.isEmpty ? 'Behaviour Reduction Plan' : form,
           'trials_completed': 0,
@@ -501,10 +545,13 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
 
   void _addNewMandRow() {
     setState(() {
-      _mandingRows.add({
+      final row = <String, dynamic>{
+        'date': _apiDate(_mandingDate),
         'label': 'Item ${_mandingRows.length + 1}',
         'counts': List.generate(10, (_) => 0),
-      });
+      };
+      _allMandingRows.add(row);
+      _mandingRows.add(row);
     });
   }
 
@@ -691,7 +738,8 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
         _buildFilterBar(
           wideAt: 740,
           leading: [
-            _buildFilterPill('Date:', _mandingDate, 140),
+            _buildFilterPill('Date:', _mandingDate, 140,
+                onTap: _pickMandingDate),
             _buildFilterPill('Time In:', _mandingTimeIn, 130),
             _buildFilterPill('Time Out:', _mandingTimeOut, 130),
           ],
@@ -721,7 +769,7 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
             ),
             child: const Center(
               child: Text(
-                'No manding trial records logged for this session.\nClick "+ Add Row" above to begin recording.',
+                'No manding trials recorded on this date.\nClick "+ Add Row" above to begin recording, or pick another date.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                     color: Color(0xFF6B7280),
@@ -856,8 +904,7 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
                                     children: [
                                       GestureDetector(
                                         onTap: () {
-                                          if (row['id'] == null &&
-                                              counts[colIdx] > 0) {
+                                          if (counts[colIdx] > 0) {
                                             setState(() => counts[colIdx]--);
                                           }
                                         },
@@ -883,7 +930,6 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
                                               fontSize: 12)),
                                       GestureDetector(
                                         onTap: () {
-                                          if (row['id'] != null) return;
                                           setState(() => counts[colIdx]++);
                                         },
                                         child: Container(
@@ -2235,8 +2281,9 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
     );
   }
 
-  Widget _buildFilterPill(String label, String value, double width) {
-    return Row(
+  Widget _buildFilterPill(String label, String value, double width,
+      {VoidCallback? onTap}) {
+    final pill = Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(label,
@@ -2269,6 +2316,9 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
         ),
       ],
     );
+    if (onTap == null) return pill;
+    return InkWell(
+        onTap: onTap, borderRadius: BorderRadius.circular(16), child: pill);
   }
 
   /// ABC "dropdown + Note: field" row. Side by side when there is room,

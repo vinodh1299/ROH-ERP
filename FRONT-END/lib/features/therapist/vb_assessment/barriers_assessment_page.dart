@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:roh_erp/core/constants/app_colors.dart';
@@ -6,6 +5,7 @@ import '../../../core/layout/responsive.dart';
 import '../../../core/services/db_queries.dart';
 import '../widgets/student_card_grid.dart';
 import '../widgets/student_assessment_banner.dart';
+import 'assessment_records.dart';
 
 class BarriersAssessmentPage extends StatefulWidget {
   const BarriersAssessmentPage({super.key});
@@ -47,6 +47,24 @@ class _BarriersAssessmentPageState extends State<BarriersAssessmentPage> {
   /// Score boxes keyed '<barrier>|<test number>'.
   final Map<String, TextEditingController> _scoreControllers = {};
 
+  /// Scores as last loaded from the server, per test; used to save only the
+  /// tests that were changed (so untouched tests keep their dates).
+  Map<int, Map<String, int>> _loadedScores = {};
+
+  /// Fills every score box from the saved scores.
+  void _prefillScores() {
+    _loadedScores = _scoresPerTest;
+    for (final barrier in _barrierNames) {
+      for (int t = 1; t <= 4; t++) {
+        final v = _loadedScores[t]?[barrier];
+        _scoreController(barrier, t).text = v == null ? '' : '$v';
+      }
+    }
+  }
+
+  bool _sameScores(Map<String, int> a, Map<String, int> b) =>
+      a.length == b.length && a.entries.every((e) => b[e.key] == e.value);
+
   TextEditingController _scoreController(String barrier, int testNum) =>
       _scoreControllers.putIfAbsent(
           '$barrier|$testNum', () => TextEditingController());
@@ -81,15 +99,24 @@ class _BarriersAssessmentPageState extends State<BarriersAssessmentPage> {
       _showError('Enter at least one barrier score before saving.');
       return;
     }
+    // Each test is one record that saving updates; skip tests left unchanged.
+    byTest.removeWhere(
+        (t, scores) => _sameScores(scores, _loadedScores[t] ?? const {}));
+    if (byTest.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No changes to save.')),
+      );
+      return;
+    }
 
     setState(() => _saving = true);
-    final date = DateTime.now().toIso8601String().substring(0, 10);
     var ok = true;
     for (final entry in byTest.entries) {
       ok = await BarriersAssessmentQueries.save({
         'student_id': studentId,
         'test_number': entry.key,
-        'assessment_date': date,
+        'assessment_date':
+            assessmentDateFor(newestRecordForTest(_barrierRecords, entry.key)),
         'barrier_scores': entry.value,
         'total_score': entry.value.values.fold<int>(0, (a, b) => a + b),
         'max_score': _barrierNames.length * 4,
@@ -105,9 +132,6 @@ class _BarriersAssessmentPageState extends State<BarriersAssessmentPage> {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Barriers Assessment Saved Successfully!')),
     );
-    for (final c in _scoreControllers.values) {
-      c.clear();
-    }
     await _loadBarriersData();
     if (mounted) setState(() => _activeTab = 1);
   }
@@ -121,24 +145,12 @@ class _BarriersAssessmentPageState extends State<BarriersAssessmentPage> {
   /// Barrier scores per test number (1–4). Records are applied oldest
   /// first, so a later partial entry only overrides the barriers it scored.
   Map<int, Map<String, int>> get _scoresPerTest {
-    int idOf(Map<String, dynamic> r) =>
-        int.tryParse(r['id']?.toString() ?? '') ?? 0;
     final records = [..._barrierRecords]
-      ..sort((a, b) => idOf(a).compareTo(idOf(b)));
+      ..sort((a, b) => recordId(a).compareTo(recordId(b)));
     final perTest = <int, Map<String, int>>{};
     for (final r in records) {
-      final tNum = int.tryParse(r['test_number']?.toString() ?? '') ?? 1;
-      Map<String, dynamic> bMap = {};
-      try {
-        final rawScores = r['barrier_scores'];
-        if (rawScores is Map) {
-          bMap = Map<String, dynamic>.from(rawScores);
-        } else if (rawScores is String && rawScores.isNotEmpty) {
-          bMap = Map<String, dynamic>.from(jsonDecode(rawScores));
-        }
-      } catch (_) {}
-      final scores = perTest[tNum] ??= {};
-      bMap.forEach((barrier, v) {
+      final scores = perTest[recordTestNumber(r)] ??= {};
+      jsonColumnMap(r['barrier_scores']).forEach((barrier, v) {
         final score = int.tryParse(v.toString());
         if (score != null) scores[barrier] = score;
       });
@@ -165,6 +177,7 @@ class _BarriersAssessmentPageState extends State<BarriersAssessmentPage> {
       if (mounted) {
         setState(() {
           _barrierRecords = res;
+          _prefillScores();
         });
       }
     } catch (_) {}
@@ -182,6 +195,7 @@ class _BarriersAssessmentPageState extends State<BarriersAssessmentPage> {
             _selectedStudentId = studentId ?? _resolveStudentId(student);
             _activeTab = 0;
             _barrierRecords = [];
+            _loadedScores = {};
             for (final c in _scoreControllers.values) {
               c.clear();
             }

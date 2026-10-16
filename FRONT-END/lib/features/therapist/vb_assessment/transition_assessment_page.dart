@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:roh_erp/core/constants/app_colors.dart';
@@ -6,6 +5,7 @@ import '../../../core/layout/responsive.dart';
 import '../../../core/services/db_queries.dart';
 import '../widgets/student_card_grid.dart';
 import '../widgets/student_assessment_banner.dart';
+import 'assessment_records.dart';
 
 class TransitionAssessmentPage extends StatefulWidget {
   const TransitionAssessmentPage({super.key});
@@ -25,6 +25,38 @@ class _TransitionAssessmentPageState extends State<TransitionAssessmentPage> {
 
   /// Score boxes keyed '<area number 1..7>|<test number>'.
   final Map<String, TextEditingController> _scoreControllers = {};
+
+  /// Area scores per test number, keyed "1".."7". Records are applied
+  /// oldest first, so a newer save overrides the areas it scored.
+  Map<int, Map<String, int>> get _scoresPerTest {
+    final records = [..._transitionRecords]
+      ..sort((a, b) => recordId(a).compareTo(recordId(b)));
+    final perTest = <int, Map<String, int>>{};
+    for (final r in records) {
+      final scores = perTest[recordTestNumber(r)] ??= {};
+      jsonColumnMap(r['area_scores']).forEach((area, v) {
+        final score = int.tryParse(v.toString());
+        if (score != null) scores[area] = score;
+      });
+    }
+    return perTest;
+  }
+
+  /// Scores as last loaded, per test; only changed tests are saved.
+  Map<int, Map<String, int>> _loadedScores = {};
+
+  void _prefillScores() {
+    _loadedScores = _scoresPerTest;
+    for (int area = 1; area <= _transitionAreas.length; area++) {
+      for (int t = 1; t <= 4; t++) {
+        final v = _loadedScores[t]?['$area'];
+        _scoreController(area, t).text = v == null ? '' : '$v';
+      }
+    }
+  }
+
+  bool _sameScores(Map<String, int> a, Map<String, int> b) =>
+      a.length == b.length && a.entries.every((e) => b[e.key] == e.value);
 
   TextEditingController _scoreController(int area, int testNum) =>
       _scoreControllers.putIfAbsent(
@@ -61,15 +93,24 @@ class _TransitionAssessmentPageState extends State<TransitionAssessmentPage> {
       _showError('Enter at least one area score before saving.');
       return;
     }
+    // Each test is one record that saving updates; skip tests left unchanged.
+    byTest.removeWhere(
+        (t, scores) => _sameScores(scores, _loadedScores[t] ?? const {}));
+    if (byTest.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No changes to save.')),
+      );
+      return;
+    }
 
     setState(() => _saving = true);
-    final date = DateTime.now().toIso8601String().substring(0, 10);
     var ok = true;
     for (final entry in byTest.entries) {
       ok = await TransitionAssessmentQueries.save({
         'student_id': studentId,
         'test_number': entry.key,
-        'assessment_date': date,
+        'assessment_date': assessmentDateFor(
+            newestRecordForTest(_transitionRecords, entry.key)),
         'area_scores': entry.value,
         'total_score': entry.value.values.fold<int>(0, (a, b) => a + b),
         'max_score': _transitionAreas.length * 5,
@@ -85,9 +126,6 @@ class _TransitionAssessmentPageState extends State<TransitionAssessmentPage> {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Transition Assessment Saved Successfully!')),
     );
-    for (final c in _scoreControllers.values) {
-      c.clear();
-    }
     await _loadTransitionData();
     if (mounted) setState(() => _activeTab = 1);
   }
@@ -101,22 +139,11 @@ class _TransitionAssessmentPageState extends State<TransitionAssessmentPage> {
   /// Latest saved score for each area ("1".."7"). Records are applied
   /// oldest first, so a later partial entry only overrides the areas it scored.
   Map<String, int> get _latestAreaScores {
-    int idOf(Map<String, dynamic> r) =>
-        int.tryParse(r['id']?.toString() ?? '') ?? 0;
     final records = [..._transitionRecords]
-      ..sort((a, b) => idOf(a).compareTo(idOf(b)));
+      ..sort((a, b) => recordId(a).compareTo(recordId(b)));
     final scores = <String, int>{};
     for (final r in records) {
-      final rawArea = r['area_scores'];
-      Map<String, dynamic> areaMap = {};
-      if (rawArea is Map) {
-        areaMap = Map<String, dynamic>.from(rawArea);
-      } else if (rawArea is String && rawArea.isNotEmpty) {
-        try {
-          areaMap = Map<String, dynamic>.from(jsonDecode(rawArea));
-        } catch (_) {}
-      }
-      areaMap.forEach((area, v) {
+      jsonColumnMap(r['area_scores']).forEach((area, v) {
         final score = int.tryParse(v.toString());
         if (score != null) scores[area] = score;
       });
@@ -143,6 +170,7 @@ class _TransitionAssessmentPageState extends State<TransitionAssessmentPage> {
       if (mounted) {
         setState(() {
           _transitionRecords = res;
+          _prefillScores();
         });
       }
     } catch (_) {}
@@ -233,6 +261,7 @@ class _TransitionAssessmentPageState extends State<TransitionAssessmentPage> {
             _selectedStudentId = studentId ?? _resolveStudentId(student);
             _activeTab = 0;
             _transitionRecords = [];
+            _loadedScores = {};
             for (final c in _scoreControllers.values) {
               c.clear();
             }

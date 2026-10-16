@@ -4,6 +4,8 @@ import '../../../core/layout/responsive.dart';
 import '../../../core/services/db_queries.dart';
 import '../widgets/student_card_grid.dart';
 import '../widgets/student_assessment_banner.dart';
+import 'assessment_records.dart';
+import 'milestone_matrix.dart';
 
 class MilestoneAssessmentPage extends StatefulWidget {
   const MilestoneAssessmentPage({super.key});
@@ -24,6 +26,31 @@ class _MilestoneAssessmentPageState extends State<MilestoneAssessmentPage> {
 
   final Map<String, bool> _toggles = {};
   bool _saving = false;
+  // The saved record for this test has domain scores but no per-item answers
+  // (e.g. entered before item answers were stored), so toggles can't be shown.
+  bool _scoresOnly = false;
+
+  int get _testNumber => int.tryParse(_selectedAssessment.split(' ').last) ?? 1;
+
+  /// Fills the toggles (and level) from the newest saved record for the
+  /// selected test, or clears them when that test has not been saved yet.
+  void _prefillForTest() {
+    _toggles.clear();
+    _scoresOnly = false;
+    final record = newestRecordForTest(_milestoneRecords, _testNumber);
+    if (record == null) return;
+    final items = jsonColumnMap(jsonColumnMap(record['scores_detail'])['items']);
+    items.forEach((key, value) => _toggles[key] = value == true);
+    final level = (record['level'] ?? '').toString();
+    _selectedLevel = level == 'Comprehensive'
+        ? 4
+        : (int.tryParse(level.replaceAll(RegExp(r'[^0-9]'), '')) ?? 1);
+    _scoresOnly = items.isEmpty &&
+        record.entries.any((e) =>
+            e.key.endsWith('_score') &&
+            e.key != 'max_score' &&
+            (double.tryParse(e.value?.toString() ?? '') ?? 0) > 0);
+  }
 
   // Each task card is one milestone; its toggle-key prefix says which domain
   // score column it counts towards.
@@ -66,9 +93,10 @@ class _MilestoneAssessmentPageState extends State<MilestoneAssessmentPage> {
     final scores = _domainScores();
     final ok = await MilestoneAssessmentQueries.save({
       'student_id': studentId,
-      'test_number': int.tryParse(_selectedAssessment.split(' ').last) ?? 1,
+      'test_number': _testNumber,
       'level': _selectedLevel <= 3 ? 'Level $_selectedLevel' : 'Comprehensive',
-      'assessment_date': DateTime.now().toIso8601String().substring(0, 10),
+      'assessment_date': assessmentDateFor(
+          newestRecordForTest(_milestoneRecords, _testNumber)),
       'total_score': _totalScore,
       ...scores,
       'scores_detail': {
@@ -123,6 +151,7 @@ class _MilestoneAssessmentPageState extends State<MilestoneAssessmentPage> {
       if (mounted) {
         setState(() {
           _milestoneRecords = res;
+          _prefillForTest();
         });
       }
     } catch (_) {}
@@ -183,6 +212,8 @@ class _MilestoneAssessmentPageState extends State<MilestoneAssessmentPage> {
             _selectedStudentId = studentId ?? _resolveStudentId(student);
             _activeTab = 0;
             _toggles.clear();
+            _milestoneRecords = [];
+            _selectedAssessment = 'Assessment 1';
             _selectedLevel = 1;
             _activeMilestoneGraphLevel = 1;
             _loadMilestoneData();
@@ -356,6 +387,15 @@ class _MilestoneAssessmentPageState extends State<MilestoneAssessmentPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              if (_scoresOnly) ...[
+                const Text(
+                  'This test was saved as domain scores only, so its item answers '
+                  'can\'t be shown. Saving it again replaces those scores with the '
+                  'items marked below.',
+                  style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                ),
+                const SizedBox(height: 16),
+              ],
               if (_selectedLevel == 1) ..._buildLevel1Tasks(),
               if (_selectedLevel == 2) ..._buildLevel2Tasks(),
               if (_selectedLevel == 3) ..._buildLevel3Tasks(),
@@ -431,7 +471,11 @@ class _MilestoneAssessmentPageState extends State<MilestoneAssessmentPage> {
             );
           }).toList(),
           onChanged: (val) {
-            if (val != null) setState(() => _selectedAssessment = val);
+            if (val == null) return;
+            setState(() {
+              _selectedAssessment = val;
+              _prefillForTest();
+            });
           },
         ),
       ),
@@ -984,43 +1028,6 @@ class _MilestoneAssessmentPageState extends State<MilestoneAssessmentPage> {
     );
   }
 
-  double _getScoreForColumn(Map<String, dynamic> m, String colName) {
-    final lower = colName.toLowerCase();
-    if (lower.contains('mand'))
-      return double.tryParse(m['manding_score']?.toString() ?? '0') ?? 0.0;
-    if (lower.contains('tact'))
-      return double.tryParse(m['tacting_score']?.toString() ?? '0') ?? 0.0;
-    if (lower.contains('listener'))
-      return double.tryParse(m['listener_score']?.toString() ?? '0') ?? 0.0;
-    if (lower.contains('vp') || lower.contains('mts'))
-      return double.tryParse(m['vp_mts_score']?.toString() ?? '0') ?? 0.0;
-    if (lower.contains('play'))
-      return double.tryParse(m['play_score']?.toString() ?? '0') ?? 0.0;
-    if (lower.contains('social'))
-      return double.tryParse(m['social_score']?.toString() ?? '0') ?? 0.0;
-    if (lower.contains('imitation'))
-      return double.tryParse(m['imitation_score']?.toString() ?? '0') ?? 0.0;
-    if (lower.contains('echoic'))
-      return double.tryParse(m['echoic_score']?.toString() ?? '0') ?? 0.0;
-    if (lower.contains('vocal'))
-      return double.tryParse(m['vocal_score']?.toString() ?? '0') ?? 0.0;
-    if (lower.contains('lrffc'))
-      return double.tryParse(m['lrffc_score']?.toString() ?? '0') ?? 0.0;
-    if (lower.contains('intraverbal'))
-      return double.tryParse(m['intraverbal_score']?.toString() ?? '0') ?? 0.0;
-    if (lower.contains('group'))
-      return double.tryParse(m['group_score']?.toString() ?? '0') ?? 0.0;
-    if (lower.contains('linguistic'))
-      return double.tryParse(m['linguistic_score']?.toString() ?? '0') ?? 0.0;
-    if (lower.contains('reading'))
-      return double.tryParse(m['reading_score']?.toString() ?? '0') ?? 0.0;
-    if (lower.contains('writing'))
-      return double.tryParse(m['writing_score']?.toString() ?? '0') ?? 0.0;
-    if (lower.contains('math'))
-      return double.tryParse(m['math_score']?.toString() ?? '0') ?? 0.0;
-    return 0.0;
-  }
-
   Widget _buildMilestoneMatrixCard(
       String title, List<String> columns, int maxRow, int minRow) {
     return Container(
@@ -1077,49 +1084,14 @@ class _MilestoneAssessmentPageState extends State<MilestoneAssessmentPage> {
                   for (int row = maxRow; row >= minRow; row--)
                     TableRow(
                       children: List.generate(columns.length, (colIdx) {
-                        final colName = columns[colIdx];
-                        Color cellColor = Colors.white;
-
-                        // Colour each milestone by the first test in which it was achieved
-                        int? firstTest;
-                        for (final m in _milestoneRecords) {
-                          final tNum = int.tryParse(
-                                  m['test_number']?.toString() ?? '1') ??
-                              1;
-                          final score = _getScoreForColumn(m, colName);
-                          if (score >= row &&
-                              (firstTest == null || tNum < firstTest)) {
-                            firstTest = tNum;
-                          }
-                        }
-                        if (firstTest == 1) {
-                          cellColor =
-                              const Color(0xFFFBBF24); // Yellow (1st Test)
-                        } else if (firstTest == 2) {
-                          cellColor =
-                              const Color(0xFFF97316); // Orange (2nd Test)
-                        } else if (firstTest == 3) {
-                          cellColor =
-                              const Color(0xFF10B981); // Green (3rd Test)
-                        } else if (firstTest == 4) {
-                          cellColor =
-                              const Color(0xFF3B82F6); // Blue (4th Test)
-                        }
-
-                        return Container(
-                          height: 38,
-                          color: cellColor,
-                          alignment: Alignment.center,
-                          child: Text(
-                            '$row',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: cellColor == Colors.white
-                                  ? AppColors.textSecondary
-                                  : Colors.black87,
-                            ),
-                          ),
+                        // ½ fills the bottom half, 1 the whole cell; each
+                        // half is coloured by the first test that reached it.
+                        final tests = milestoneCellTests(
+                            _milestoneRecords, columns[colIdx], row);
+                        return MilestoneMatrixCell(
+                          row: row,
+                          bottomTest: tests.bottom,
+                          topTest: tests.top,
                         );
                       }),
                     ),
