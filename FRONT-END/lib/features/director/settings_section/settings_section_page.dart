@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:roh_erp/core/constants/app_colors.dart';
 import 'package:roh_erp/core/services/api_service.dart';
+import 'package:roh_erp/core/services/governance_settings.dart';
 import 'package:roh_erp/core/layout/responsive.dart';
 import 'package:roh_erp/core/widgets/edit_record_dialogs.dart';
 
@@ -100,8 +101,7 @@ class _SettingsSectionPageState extends State<SettingsSectionPage> {
     final days = int.tryParse(_stagnationController.text.trim());
     if (days == null || days < 1) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content:
-            Text('Stagnation alert days must be a whole number of 1 or more.'),
+        content: Text('Review alert days must be a whole number of 1 or more.'),
         backgroundColor: AppColors.statusDeactivated,
       ));
       return;
@@ -119,6 +119,8 @@ class _SettingsSectionPageState extends State<SettingsSectionPage> {
       'director_title': _titleController.text.trim(),
       'director_bacb_cert': _certController.text.trim(),
     });
+    // Progress pages re-read the mastery criteria / review threshold.
+    GovernanceSettings.invalidate();
     if (!mounted) return;
     setState(() => _saving = false);
     showApiResult(context, res,
@@ -204,8 +206,8 @@ class _SettingsSectionPageState extends State<SettingsSectionPage> {
               ),
               const Divider(height: 24, color: AppColors.divider),
               _buildTextSetting(
-                'Stagnation Alert Sentinel Trigger',
-                'Number of days without acquisition before clinical protocol review is flagged.',
+                'No-progress review threshold',
+                'Number of days without progress on a target before it is listed under "Targets needing review".',
                 _stagnationController,
                 'Days',
               ),

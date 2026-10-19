@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:roh_erp/core/constants/app_colors.dart';
 import 'package:roh_erp/core/services/api_service.dart';
+import 'package:roh_erp/core/widgets/account_password.dart';
+import 'package:roh_erp/core/widgets/edit_record_dialogs.dart';
 
 class AdminTherapistAddDialog extends StatefulWidget {
   const AdminTherapistAddDialog({super.key});
@@ -15,6 +17,8 @@ class _AdminTherapistAddDialogState extends State<AdminTherapistAddDialog> {
   final _emailCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
   final _designationCtrl = TextEditingController(text: 'Behavior Therapist');
+  final _passwordCtrl = TextEditingController();
+  String? _passwordError;
   bool _isSubmitting = false;
 
   @override
@@ -23,6 +27,7 @@ class _AdminTherapistAddDialogState extends State<AdminTherapistAddDialog> {
     _emailCtrl.dispose();
     _phoneCtrl.dispose();
     _designationCtrl.dispose();
+    _passwordCtrl.dispose();
     super.dispose();
   }
 
@@ -38,35 +43,24 @@ class _AdminTherapistAddDialogState extends State<AdminTherapistAddDialog> {
       return;
     }
 
+    final password = _passwordCtrl.text;
+    final policyError = optionalPasswordPolicyError(password);
+    setState(() => _passwordError = policyError);
+    if (policyError != null) return;
+
     setState(() => _isSubmitting = true);
-    try {
-      final res = await ApiService().post('add_therapist', {
-        'name': name,
-        'email': email,
-        'phone': _phoneCtrl.text.trim(),
-        'designation': _designationCtrl.text.trim(),
-        'password': 'therapist123',
-      });
-      if (res is Map && res['error'] != null) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-              content: Text(res['error'].toString()),
-              backgroundColor: Colors.red),
-        );
-      } else {
-        if (!mounted) return;
-        Navigator.pop(context, true);
-      }
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-            content: Text('Error adding therapist: $e'),
-            backgroundColor: Colors.red),
-      );
-    } finally {
-      if (mounted) setState(() => _isSubmitting = false);
+    final res = await ApiService().post('add_therapist', {
+      'name': name,
+      'email': email,
+      'phone': _phoneCtrl.text.trim(),
+      'designation': _designationCtrl.text.trim(),
+      if (password.isNotEmpty) 'password': password,
+    });
+    if (!mounted) return;
+    setState(() => _isSubmitting = false);
+    if (showApiResult(context, res, 'Therapist added.')) {
+      await showTemporaryPasswordIfAny(context, res, accountLabel: name);
+      if (mounted) Navigator.pop(context, true);
     }
   }
 
@@ -118,6 +112,12 @@ class _AdminTherapistAddDialogState extends State<AdminTherapistAddDialog> {
                   const SizedBox(height: 16),
                   _buildField('Designation', _designationCtrl,
                       'e.g. Behavior Therapist'),
+                  const SizedBox(height: 16),
+                  _buildField('Password (optional)', _passwordCtrl,
+                      'Set an initial password',
+                      obscure: true,
+                      helper: kOptionalPasswordHelper,
+                      error: _passwordError),
                 ],
               ),
               const SizedBox(height: 24),
@@ -162,7 +162,8 @@ class _AdminTherapistAddDialogState extends State<AdminTherapistAddDialog> {
   }
 
   Widget _buildField(
-      String label, TextEditingController controller, String hint) {
+      String label, TextEditingController controller, String hint,
+      {bool obscure = false, String? helper, String? error}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -174,8 +175,16 @@ class _AdminTherapistAddDialogState extends State<AdminTherapistAddDialog> {
         const SizedBox(height: 8),
         TextField(
           controller: controller,
+          obscureText: obscure,
+          autocorrect: !obscure,
+          enableSuggestions: !obscure,
           decoration: InputDecoration(
             hintText: hint,
+            helperText: helper,
+            helperStyle:
+                const TextStyle(color: AppColors.textSecondary, fontSize: 11.5),
+            errorText: error,
+            errorMaxLines: 2,
             hintStyle: const TextStyle(color: AppColors.textHint, fontSize: 13),
             filled: true,
             fillColor: AppColors.background,

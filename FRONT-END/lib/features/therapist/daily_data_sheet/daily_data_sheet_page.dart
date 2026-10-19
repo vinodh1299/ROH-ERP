@@ -5,6 +5,7 @@ import 'package:roh_erp/core/constants/app_colors.dart';
 import 'package:intl/intl.dart';
 import '../../../core/layout/responsive.dart';
 import '../../../core/services/db_queries.dart';
+import '../../../core/services/governance_settings.dart';
 import '../../../core/services/progress_metrics.dart';
 import '../../../core/services/report_pdf.dart';
 import '../widgets/student_card_grid.dart';
@@ -34,7 +35,12 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
   late String _mandingTimeIn;
   late String _mandingTimeOut;
 
-  // Manding Grid Counters
+  // Manding Grid Counters. Columns 0-7 are prompted responses, 8 ("Error")
+  // is an incorrect / no response and 9 ("Vocal") is the independent mand —
+  // the only column counted as a success (see progress_metrics.dart).
+  // TODO(clinical): confirm the column set and labels — "F6" appears twice
+  // and the abbreviations (FM/FV, PM/PV, F3, F5, F6) need clinical sign-off
+  // before they are renamed or merged.
   final List<String> _mandingColumns = [
     'FP',
     'PP',
@@ -211,8 +217,12 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
   Future<void> _loadStudentData({bool resetFilters = false}) async {
     if (_selectedStudentId == null) return;
     try {
-      final records =
-          await DailyDataQueries.fetchForStudent(_selectedStudentId.toString());
+      // Mastery criteria come from the director's governance settings.
+      final results = await Future.wait([
+        DailyDataQueries.fetchForStudent(_selectedStudentId.toString()),
+        GovernanceSettings.load().then((_) => <Map<String, dynamic>>[]),
+      ]);
+      final records = results[0];
       if (mounted) {
         setState(() {
           _records
@@ -235,10 +245,8 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
             final domain = (r['domain'] ?? '').toString();
             final domainLower = domain.toLowerCase();
             final sessionDateRaw = (r['session_date'] ?? '').toString();
-            final completed =
-                int.tryParse(r['trials_completed']?.toString() ?? '0') ?? 0;
-            final successful =
-                int.tryParse(r['trials_successful']?.toString() ?? '0') ?? 0;
+            final completed = trialsCompleted(r);
+            final successful = trialsSuccessful(r);
             final targetSkill =
                 (r['target_skill'] ?? 'Target Skill').toString();
             final prompt = (r['prompt_level'] ?? 'Independent').toString();
@@ -263,16 +271,14 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
             // 1. Manding Sheet (the Manding Graph is computed from _records)
             if (domainLower == 'manding') {
               // Sheets saved from this tab carry the exact per-column counts.
-              final savedCounts = notesJson['counts'];
-              final counts = savedCounts is List && savedCounts.length == 10
-                  ? savedCounts
-                      .map((c) => int.tryParse(c.toString()) ?? 0)
-                      .toList()
-                  : List.generate(10, (idx) {
-                      if (idx < successful) return 1;
-                      if (idx < completed) return 2;
-                      return 0;
-                    });
+              // Older rows only have totals: their successes are independent
+              // mands (Vocal column) and the rest are prompted trials of an
+              // unknown prompt type, kept together in column 0 (FP) as an
+              // "unspecified prompted" bucket.
+              final counts = mandingCounts(r) ??
+                  (List.filled(mandingColumnCount, 0)
+                    ..[mandingIndependentColumn] = successful
+                    ..[0] = (completed - successful).clamp(0, 1 << 30));
               _allMandingRows.add({
                 'id': r['id'],
                 'date': sessionDateRaw.split('T')[0],
@@ -286,9 +292,10 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
 
             // 2. DTT targets (all instructional skill domains)
             if (isSkillRow(r)) {
-              final pct =
-                  double.tryParse(r['percentage_success']?.toString() ?? '') ??
-                      (completed == 0 ? 0 : successful * 100 / completed);
+              // Recomputed from the trials so manding rows saved with the old
+              // Error + Vocal success count show the corrected figure.
+              final double pct =
+                  completed == 0 ? 0 : successful * 100 / completed;
               _dttTargets.add({
                 'date': sessionDateRaw.split('T')[0],
                 'domain': domain,
@@ -443,19 +450,30 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
     }
   }
 
-  /// One point per manding session date in the selected range:
-  /// prompted = completed − successful, unprompted = successful.
+  /// One point per manding session date in the selected range: prompted
+  /// (columns 0-7), unprompted = independent (Vocal) and errors. Errors are
+  /// never counted as independent. Older rows without per-column tallies
+  /// count completed − successful as prompted and record no errors.
   List<Map<String, dynamic>> _mandingGraphPoints() {
     final byDate = <DateTime, List<int>>{};
     for (final r in _records) {
       if ((r['domain'] ?? '').toString().toLowerCase() != 'manding') continue;
       final d = rowDate(r);
       if (!_inRange(d, _mgFromDate, _mgToDate)) continue;
-      final completed = _intOf(r['trials_completed']);
-      final successful = _intOf(r['trials_successful']);
-      final sums = byDate.putIfAbsent(d!, () => [0, 0]);
-      sums[0] += (completed - successful).clamp(0, 1 << 30);
-      sums[1] += successful;
+      final sums = byDate.putIfAbsent(d!, () => [0, 0, 0]);
+      final counts = mandingCounts(r);
+      if (counts != null) {
+        sums[0] += counts
+            .sublist(0, mandingPromptedColumns)
+            .fold<int>(0, (a, b) => a + b);
+        sums[1] += counts[mandingIndependentColumn];
+        sums[2] += counts[mandingErrorColumn];
+      } else {
+        final completed = _intOf(r['trials_completed']);
+        final successful = _intOf(r['trials_successful']);
+        sums[0] += (completed - successful).clamp(0, 1 << 30);
+        sums[1] += successful;
+      }
     }
     final dates = byDate.keys.toList()..sort();
     return [
@@ -464,6 +482,7 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
           'date': _labelFmt.format(d),
           'prompted': byDate[d]![0],
           'unprompted': byDate[d]![1],
+          'errors': byDate[d]![2],
         },
     ];
   }
@@ -526,11 +545,14 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
       return notes.split('$key:')[1].split('.')[0].trim();
     }
 
-    int duration = _intOf(j['duration']);
+    // Decimal minutes (0.1 min resolution from the stopwatch); older rows
+    // hold whole minutes.
+    double duration = double.tryParse('${j['duration'] ?? ''}') ?? 0;
     if (j['duration'] == null) {
-      final m = RegExp(r'Duration\s+(\d+)\s+min', caseSensitive: false)
-          .firstMatch(notes);
-      duration = int.tryParse(m?.group(1) ?? '') ?? 0;
+      final m =
+          RegExp(r'Duration\s+(\d+(?:\.\d+)?)\s+min', caseSensitive: false)
+              .firstMatch(notes);
+      duration = double.tryParse(m?.group(1) ?? '') ?? 0;
     }
     final completed = _intOf(r['trials_completed']);
     return {
@@ -628,13 +650,16 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
         byDate.entries.toList()..sort((a, b) => a.key.compareTo(b.key)));
   }
 
-  /// Total problem-behaviour minutes per date.
+  /// Total problem-behaviour minutes per date (decimal, 0.1 min).
   List<Map<String, dynamic>> _pbDurationPoints() => [
         for (final e in _behaviourRowsByDate().entries)
           {
             'date': _labelFmt.format(e.key),
             'duration':
-                e.value.fold<int>(0, (a, i) => a + (i['timeMins'] as int)),
+                (e.value.fold<double>(0, (a, i) => a + (i['timeMins'] as num)) *
+                            10)
+                        .round() /
+                    10,
           },
       ];
 
@@ -798,7 +823,7 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
         'antecedentNote': '',
         'behavior': '',
         'count': 1,
-        'timeMins': 0,
+        'timeMins': 0.0,
         'consequence': '',
         'consequenceNote': '',
         'isExpanded': true,
@@ -850,8 +875,9 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
         for (final r in newRows)
           () {
             final counts = r['counts'] as List<int>;
-            // Same split as the summary bar: the first 8 columns are prompted.
-            final unprompted = counts.sublist(8).fold<int>(0, (a, b) => a + b);
+            // Every tally is a trial; only the Vocal (independent) column is
+            // a success. Error is an incorrect / no response, not a success.
+            final unprompted = counts[mandingIndependentColumn];
             return <String, dynamic>{
               if (r['id'] != null) 'id': r['id'],
               'domain': 'Manding',
@@ -1092,19 +1118,24 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
   // 1. MANDING TAB
   // ════════════════════════════════════════════════════════════════════════════
   Widget _buildMandingTab() {
+    // Prompted = columns 0-7, Error = column 8 (incorrect / no response),
+    // Unprompted = column 9 (Vocal, independent). Errors are not successes.
     int totalPrompted = 0;
     int totalUnprompted = 0;
+    int totalErrors = 0;
     for (final r in _mandingRows) {
       final counts = r['counts'] as List<int>;
       for (int i = 0; i < counts.length; i++) {
-        if (i < 8) {
+        if (i < mandingPromptedColumns) {
           totalPrompted += counts[i];
+        } else if (i == mandingErrorColumn) {
+          totalErrors += counts[i];
         } else {
           totalUnprompted += counts[i];
         }
       }
     }
-    final int grandTotal = totalPrompted + totalUnprompted;
+    final int grandTotal = totalPrompted + totalUnprompted + totalErrors;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1355,7 +1386,15 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
               ],
             ),
           ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 12),
+        const Text(
+          'Prompted = FP, PP, FM/FV, PM/PV, F3, F5, F6 columns.  '
+          'Unprompted = Vocal (independent mand, counted as success).  '
+          'Error = incorrect or no response — counted as a trial, '
+          'never as a success.',
+          style: TextStyle(fontSize: 11, color: Colors.black54),
+        ),
+        const SizedBox(height: 12),
 
         // Dynamic Summary Bar
         LayoutBuilder(
@@ -1363,9 +1402,10 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
             final boxes = [
               _buildSummaryBox('Prompted', '$totalPrompted'),
               _buildSummaryBox('Unprompted', '$totalUnprompted'),
+              _buildSummaryBox('Error', '$totalErrors'),
               _buildSummaryBox('Total', '$grandTotal'),
             ];
-            if (constraints.maxWidth >= 3 * 180 + 24) {
+            if (constraints.maxWidth >= 4 * 180 + 36) {
               return Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: boxes,
@@ -1475,7 +1515,14 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
             ),
             child: MandingLineChart(data: points),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 8),
+          const Text(
+            'Unprompted = independent (Vocal) mands. Error = incorrect or no '
+            'response; errors are shown separately and never counted as '
+            'independent.',
+            style: TextStyle(fontSize: 11, color: Colors.black54),
+          ),
+          const SizedBox(height: 16),
           _buildMandingSessionTable(points),
         ],
       ],
@@ -1502,7 +1549,7 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
     );
   }
 
-  /// Date / Prompted / Unprompted table with one column per session. On narrow
+  /// Date / Prompted / Unprompted / Error table with one column per session. On narrow
   /// widths each session column keeps a readable 60px and the table scrolls
   /// sideways; the row-label column stays 96px wide.
   Widget _buildMandingSessionTable(List<Map<String, dynamic>> points) {
@@ -1564,6 +1611,20 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
                   ...points.map((d) => Padding(
                       padding: const EdgeInsets.all(8),
                       child: Text('${d['unprompted'] ?? 0}',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(fontSize: 12)))),
+                ],
+              ),
+              TableRow(
+                children: [
+                  const Padding(
+                      padding: EdgeInsets.all(8),
+                      child: Text('Error',
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 12))),
+                  ...points.map((d) => Padding(
+                      padding: const EdgeInsets.all(8),
+                      child: Text('${d['errors'] ?? 0}',
                           textAlign: TextAlign.center,
                           style: const TextStyle(fontSize: 12)))),
                 ],
@@ -1841,8 +1902,8 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
         ),
         const SizedBox(height: 8),
         Text(
-          'A target is mastered on the first session with at least '
-          '$masteryMinTrials trials and ${(masteryRatio * 100).round()}% success.',
+          'A target is mastered when it reaches $masteryRuleText; the '
+          'mastery date is the last of those sessions.',
           style: const TextStyle(fontSize: 11, color: Color(0xFF6B7280)),
         ),
       ],
@@ -2148,11 +2209,11 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
                               fontWeight: FontWeight.bold, fontSize: 13));
                       final countCounter = _buildMiniCounter(incident['count'],
                           (val) => setState(() => incident['count'] = val));
-                      const timeLabel = Text('Time(mint): ',
+                      const timeLabel = Text('Duration (min): ',
                           style: TextStyle(
                               fontWeight: FontWeight.bold, fontSize: 13));
-                      final timeCounter = _buildMiniCounter(
-                          incident['timeMins'],
+                      final timeCounter = _buildMinutesCounter(
+                          (incident['timeMins'] as num).toDouble(),
                           (val) => setState(() => incident['timeMins'] = val));
                       // Real Interactive Digital Stopwatch with Start/Stop/Reset
                       final stopwatch = IncidentStopwatch(
@@ -2491,7 +2552,7 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
           ),
           child: Column(
             children: [
-              const Text('DURATION (MINS)',
+              const Text('DURATION (MIN)',
                   style: TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 13,
@@ -2503,9 +2564,10 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
         ),
         const SizedBox(height: 20),
         _buildPbTable(
-          headers: const ['Date', 'Duration (mins)'],
+          headers: const ['Date', 'Duration'],
           rows: [
-            for (final p in points) ['${p['date']}', '${p['duration']}'],
+            for (final p in points)
+              ['${p['date']}', '${formatMinutes(p['duration'] as num)} min'],
           ],
         ),
       ],
@@ -2967,6 +3029,51 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
                     fontWeight: FontWeight.bold,
                     fontSize: 12,
                     color: Colors.black87)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// +/- counter for an incident duration in decimal minutes. The buttons
+  /// step by 0.5 min; the stopwatch fills in 0.1 min values.
+  Widget _buildMinutesCounter(double mins, ValueChanged<double> onChanged) {
+    double snap(double v) => (v * 10).round() / 10;
+    return Container(
+      height: 28,
+      decoration: BoxDecoration(
+          color: const Color(0xFFE9D5FF),
+          borderRadius: BorderRadius.circular(14)),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          InkWell(
+            onTap: () {
+              if (mins > 0) onChanged(snap(mins > 0.5 ? mins - 0.5 : 0));
+            },
+            child: const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 8),
+                child: Text('-',
+                    style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF7E22CE)))),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+            decoration: BoxDecoration(
+                color: Colors.white, borderRadius: BorderRadius.circular(10)),
+            child: Text(formatMinutes(mins),
+                style:
+                    const TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
+          ),
+          InkWell(
+            onTap: () => onChanged(snap(mins + 0.5)),
+            child: const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 8),
+                child: Text('+',
+                    style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF7E22CE)))),
           ),
         ],
       ),

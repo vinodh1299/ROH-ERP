@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:roh_erp/core/constants/app_colors.dart';
 import 'package:roh_erp/core/layout/responsive.dart';
 import 'package:roh_erp/core/services/db_queries.dart';
+import 'package:roh_erp/core/services/governance_settings.dart';
 import 'package:roh_erp/core/services/progress_metrics.dart';
 
 class GraphsPage extends StatefulWidget {
@@ -24,6 +25,7 @@ class _GraphsPageState extends State<GraphsPage> {
   int _gesturalTrials = 0;
   int _verbalTrials = 0;
   int _physicalTrials = 0;
+  int _errorTrials = 0;
   int _otherTrials = 0;
 
   @override
@@ -67,28 +69,49 @@ class _GraphsPageState extends State<GraphsPage> {
     }
     if (mounted) setState(() => _isLoading = true);
 
-    final rows = (await DailyDataQueries.fetchForStudent(childId))
-        .where((r) => '${r['student_id']}' == childId)
-        .toList();
+    // Mastery uses the director's criteria, so load those too.
+    final results = await Future.wait([
+      DailyDataQueries.fetchForStudent(childId),
+      GovernanceSettings.load().then((_) => <Map<String, dynamic>>[]),
+    ]);
+    final rows =
+        results[0].where((r) => '${r['student_id']}' == childId).toList();
     if (!mounted || childId != _selectedChildId) return;
 
     final skillRows = rows.where(isSkillRow).toList();
-    int total = 0, ind = 0, gest = 0, verb = 0, phys = 0, other = 0;
+    int total = 0, ind = 0, gest = 0, verb = 0, phys = 0, err = 0;
+    int other = 0;
     for (final row in skillRows) {
-      final trials =
-          int.tryParse(row['trials_completed']?.toString() ?? '0') ?? 0;
+      final counts = mandingCounts(row);
+      if (counts != null) {
+        // Manding sheet tallies: each column goes to its own category.
+        // TODO(clinical): confirm the column-to-category mapping —
+        // FP/PP = physical, FM/FV + PM/PV = model or verbal,
+        // F3/F5/F6/F6 = gesture / delay.
+        phys += counts[0] + counts[1];
+        verb += counts[2] + counts[3];
+        gest += counts[4] + counts[5] + counts[6] + counts[7];
+        err += counts[mandingErrorColumn];
+        ind += counts[mandingIndependentColumn];
+        total += counts.fold<int>(0, (a, b) => a + b);
+        continue;
+      }
+      // Other rows only record totals and the most intrusive prompt used:
+      // successes count as independent, the rest go to that prompt level.
+      final trials = trialsCompleted(row);
+      final successes = trialsSuccessful(row).clamp(0, trials);
+      final prompted = trials - successes;
       total += trials;
+      ind += successes;
       final prompt = (row['prompt_level'] ?? '').toString().toLowerCase();
-      if (prompt.contains('indep')) {
-        ind += trials;
-      } else if (prompt.contains('gest')) {
-        gest += trials;
-      } else if (prompt.contains('verb')) {
-        verb += trials;
+      if (prompt.contains('gest')) {
+        gest += prompted;
+      } else if (prompt.contains('verb') || prompt.contains('model')) {
+        verb += prompted;
       } else if (prompt.contains('phys')) {
-        phys += trials;
+        phys += prompted;
       } else {
-        other += trials;
+        other += prompted;
       }
     }
 
@@ -99,6 +122,7 @@ class _GraphsPageState extends State<GraphsPage> {
       _gesturalTrials = gest;
       _verbalTrials = verb;
       _physicalTrials = phys;
+      _errorTrials = err;
       _otherTrials = other;
       _isLoading = false;
     });
@@ -111,6 +135,7 @@ class _GraphsPageState extends State<GraphsPage> {
     _gesturalTrials = 0;
     _verbalTrials = 0;
     _physicalTrials = 0;
+    _errorTrials = 0;
     _otherTrials = 0;
   }
 
@@ -166,8 +191,8 @@ class _GraphsPageState extends State<GraphsPage> {
                         const SizedBox(height: 6),
                         Text(
                           hasChild
-                              ? 'Targets mastered each month and prompt levels used, from $_selectedChildName\'s daily therapy data sheets'
-                              : 'Targets mastered each month and prompt levels used, from your child\'s daily therapy data sheets',
+                              ? 'Targets mastered each month and how much help was given, from $_selectedChildName\'s daily therapy data sheets'
+                              : 'Targets mastered each month and how much help was given, from your child\'s daily therapy data sheets',
                           style: const TextStyle(
                               fontSize: 12, color: Colors.white70),
                         ),
@@ -318,9 +343,10 @@ class _GraphsPageState extends State<GraphsPage> {
             ],
           ),
           const SizedBox(height: 6),
-          const Text(
-            'New skill targets mastered in each of the last 6 months. A target is mastered in its first session with at least 5 trials at 80% or better.',
-            style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+          Text(
+            'New skill targets mastered in each of the last 6 months. A target counts as mastered once it reaches $masteryRuleText.',
+            style:
+                const TextStyle(fontSize: 12, color: AppColors.textSecondary),
           ),
           const SizedBox(height: 24),
           LayoutBuilder(
@@ -406,7 +432,7 @@ class _GraphsPageState extends State<GraphsPage> {
               SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  'Prompt Levels Used',
+                  'How Skills Were Practised',
                   style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.bold,
@@ -420,26 +446,31 @@ class _GraphsPageState extends State<GraphsPage> {
           Text(
             _totalTrials == 0
                 ? 'No skill trials recorded yet'
-                : 'Share of $_totalTrials recorded skill trials by the prompt level used',
+                : 'Share of $_totalTrials recorded practice attempts, by how much help was given',
             style:
                 const TextStyle(fontSize: 12, color: AppColors.textSecondary),
           ),
           const SizedBox(height: 20),
-          _buildPromptLevelRow('Independent (Unprompted)',
-              ratio(_independentTrials), pct(_independentTrials), Colors.green),
+          _buildPromptLevelRow('Independent', ratio(_independentTrials),
+              pct(_independentTrials), Colors.green),
           const SizedBox(height: 12),
-          _buildPromptLevelRow('Gestural / Point Prompt',
-              ratio(_gesturalTrials), pct(_gesturalTrials), Colors.blue),
+          _buildPromptLevelRow('With a gesture', ratio(_gesturalTrials),
+              pct(_gesturalTrials), Colors.blue),
           const SizedBox(height: 12),
-          _buildPromptLevelRow('Verbal / Phonemic Prompt',
+          _buildPromptLevelRow('With a model or verbal hint',
               ratio(_verbalTrials), pct(_verbalTrials), Colors.orange),
           const SizedBox(height: 12),
-          _buildPromptLevelRow('Physical Guidance Prompt',
-              ratio(_physicalTrials), pct(_physicalTrials), Colors.redAccent),
+          _buildPromptLevelRow('With physical help', ratio(_physicalTrials),
+              pct(_physicalTrials), Colors.redAccent),
+          if (_errorTrials > 0) ...[
+            const SizedBox(height: 12),
+            _buildPromptLevelRow('Incorrect / no response', ratio(_errorTrials),
+                pct(_errorTrials), Colors.blueGrey),
+          ],
           if (_otherTrials > 0) ...[
             const SizedBox(height: 12),
-            _buildPromptLevelRow('Other / Not Recorded', ratio(_otherTrials),
-                pct(_otherTrials), Colors.grey),
+            _buildPromptLevelRow('Help given, type not recorded',
+                ratio(_otherTrials), pct(_otherTrials), Colors.grey),
           ],
         ],
       ),

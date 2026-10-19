@@ -1,8 +1,19 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 
+/// Elapsed time as decimal minutes rounded to 0.1 (6 s); any time above
+/// zero reports at least 0.1 so short incidents are not recorded as 0.
+double elapsedToMinutes(Duration elapsed) {
+  final ms = elapsed.inMilliseconds;
+  if (ms <= 0) return 0;
+  final tenths = (ms / 6000).round();
+  return (tenths < 1 ? 1 : tenths) / 10;
+}
+
+/// Times an incident and reports its duration in decimal minutes (0.1 min
+/// resolution) through [onMinutesUpdated].
 class IncidentStopwatch extends StatefulWidget {
-  final ValueChanged<int>? onMinutesUpdated;
+  final ValueChanged<double>? onMinutesUpdated;
   const IncidentStopwatch({super.key, this.onMinutesUpdated});
 
   @override
@@ -12,16 +23,23 @@ class IncidentStopwatch extends StatefulWidget {
 class _IncidentStopwatchState extends State<IncidentStopwatch> {
   final Stopwatch _stopwatch = Stopwatch();
   Timer? _timer;
+  double _reported = 0;
+
+  /// Sends the elapsed minutes to the parent when the 0.1 min value changes.
+  void _report() {
+    final mins = elapsedToMinutes(_stopwatch.elapsed);
+    if (mins > 0 && mins != _reported) {
+      _reported = mins;
+      widget.onMinutesUpdated?.call(mins);
+    }
+  }
 
   void _start() {
     if (!_stopwatch.isRunning) {
       _stopwatch.start();
       _timer = Timer.periodic(const Duration(milliseconds: 30), (_) {
         if (mounted) setState(() {});
-        final mins = _stopwatch.elapsed.inMinutes;
-        if (widget.onMinutesUpdated != null && mins > 0) {
-          widget.onMinutesUpdated!(mins);
-        }
+        _report();
       });
     }
   }
@@ -30,12 +48,14 @@ class _IncidentStopwatchState extends State<IncidentStopwatch> {
     if (_stopwatch.isRunning) {
       _stopwatch.stop();
       _timer?.cancel();
+      _report();
       if (mounted) setState(() {});
     }
   }
 
   void _reset() {
     _stopwatch.reset();
+    _reported = 0;
     _timer?.cancel();
     if (mounted) setState(() {});
   }
@@ -96,18 +116,22 @@ class _IncidentStopwatchState extends State<IncidentStopwatch> {
               InkWell(
                 onTap: _start,
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
                   child: Text(
                     'Start',
                     style: TextStyle(
-                      color: isRunning ? const Color(0xFF4ADE80) : const Color(0xFF86EFAC),
+                      color: isRunning
+                          ? const Color(0xFF4ADE80)
+                          : const Color(0xFF86EFAC),
                       fontSize: 9,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
                 ),
               ),
-              const Text(' | ', style: TextStyle(color: Colors.white24, fontSize: 9)),
+              const Text(' | ',
+                  style: TextStyle(color: Colors.white24, fontSize: 9)),
               InkWell(
                 onTap: _stop,
                 child: const Padding(
@@ -122,7 +146,8 @@ class _IncidentStopwatchState extends State<IncidentStopwatch> {
                   ),
                 ),
               ),
-              const Text(' | ', style: TextStyle(color: Colors.white24, fontSize: 9)),
+              const Text(' | ',
+                  style: TextStyle(color: Colors.white24, fontSize: 9)),
               InkWell(
                 onTap: _reset,
                 child: const Padding(

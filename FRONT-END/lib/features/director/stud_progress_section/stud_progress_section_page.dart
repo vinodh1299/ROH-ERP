@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:roh_erp/core/constants/app_colors.dart';
 import 'package:roh_erp/core/layout/responsive.dart';
 import 'package:roh_erp/core/services/api_service.dart';
+import 'package:roh_erp/core/services/governance_settings.dart';
+import 'package:roh_erp/core/services/progress_metrics.dart';
 import 'package:roh_erp/core/services/report_pdf.dart';
 import 'package:roh_erp/core/services/schedule_service.dart';
 import 'package:roh_erp/core/widgets/edit_record_dialogs.dart';
@@ -15,7 +17,12 @@ class StagnationAlert {
   final String domain;
   final String targetDescription;
   final String therapistName;
+
+  /// Days since the target last improved (last session whose success %
+  /// beat every earlier session). Shown as "No recent progress".
   final int daysStagnant;
+
+  /// Success % of the most recent session, e.g. "Last session: 60%".
   final String trend;
   bool reviewScheduled;
 
@@ -41,15 +48,16 @@ class StudProgressSectionPage extends StatefulWidget {
 
 class _StudProgressSectionPageState extends State<StudProgressSectionPage> {
   int _selectedViewTab =
-      0; // 0: Overview & Domains, 1: VB-MAPP Cohort Heatmap, 2: Stagnation Alerts
+      0; // 0: Overview & Domains, 1: VB-MAPP Cohort Heatmap, 2: Targets needing review
   final List<StagnationAlert> _alerts = [];
   final Set<String> _scheduledReviewIds = {};
   ProgressData? _data;
   bool _isLoading = true;
 
-  /// A target is flagged when it was first run more than this many days ago,
-  /// is still being run within this window and has not been mastered.
-  static const int _stagnationDays = 21;
+  /// A target is flagged when it has not improved for this many days, is
+  /// still being run within this window and has not been mastered. Comes
+  /// from the director's governance settings (default 21).
+  int get _stagnationDays => GovernanceSettings.current.stagnationDays;
 
   @override
   void initState() {
@@ -57,9 +65,14 @@ class _StudProgressSectionPageState extends State<StudProgressSectionPage> {
     _loadData();
   }
 
-  /// Title of the director appointment booked for a stagnation review; also
+  /// Title of the director appointment booked for a progress review; also
   /// used to recognise alerts that already have a review on the calendar.
   static String _reviewTitle(StagnationAlert a) =>
+      'Progress review: ${a.studentName} (${a.targetDescription})';
+
+  /// Title used before the wording change, so reviews booked earlier are
+  /// still recognised.
+  static String _legacyReviewTitle(StagnationAlert a) =>
       'Stagnation review: ${a.studentName} (${a.targetDescription})';
 
   Future<void> _loadData() async {
@@ -85,7 +98,10 @@ class _StudProgressSectionPageState extends State<StudProgressSectionPage> {
         ..clear()
         ..addAll(_buildAlerts(data));
       for (final a in _alerts) {
-        if (bookedTitles.contains(_reviewTitle(a))) a.reviewScheduled = true;
+        if (bookedTitles.contains(_reviewTitle(a)) ||
+            bookedTitles.contains(_legacyReviewTitle(a))) {
+          a.reviewScheduled = true;
+        }
       }
       _isLoading = false;
     });
@@ -93,14 +109,15 @@ class _StudProgressSectionPageState extends State<StudProgressSectionPage> {
 
   List<StagnationAlert> _buildAlerts(ProgressData data) {
     final day = today();
-    final cutoff = day.subtract(const Duration(days: _stagnationDays));
+    final cutoff = day.subtract(Duration(days: _stagnationDays));
     final alerts = <StagnationAlert>[];
     for (final t in data.targets) {
-      if (t.mastered || t.firstSession == null || t.lastSession == null) {
+      final improved = t.lastImproved ?? t.firstSession;
+      if (t.mastered || improved == null || t.lastSession == null) {
         continue;
       }
-      if (!t.firstSession!.isBefore(cutoff) ||
-          t.lastSession!.isBefore(cutoff)) {
+      // Still being run, but no new best score within the window.
+      if (!improved.isBefore(cutoff) || t.lastSession!.isBefore(cutoff)) {
         continue;
       }
       final id =
@@ -111,8 +128,8 @@ class _StudProgressSectionPageState extends State<StudProgressSectionPage> {
         domain: t.domain.isEmpty ? 'General' : t.domain,
         targetDescription: t.target.isEmpty ? 'Unnamed target' : t.target,
         therapistName: t.therapistName.isEmpty ? 'Unassigned' : t.therapistName,
-        daysStagnant: day.difference(t.firstSession!).inDays,
-        trend: 'last ${(t.lastSuccessRatio * 100).round()}%',
+        daysStagnant: day.difference(improved).inDays,
+        trend: 'Last session: ${(t.lastSuccessRatio * 100).round()}%',
         reviewScheduled: _scheduledReviewIds.contains(id),
       ));
     }
@@ -137,13 +154,15 @@ class _StudProgressSectionPageState extends State<StudProgressSectionPage> {
     return days.reduce((a, b) => a + b) / days.length;
   }
 
-  ({double pct, int students})? get _milestoneRate {
+  /// Average latest VB-MAPP milestone total across students (out of 170).
+  /// Students are at different levels, so this is a raw average, not a
+  /// percentage of each student's level.
+  ({double avg, int students})? get _milestoneRate {
     final latest = _data?.latestMilestoneByStudent.values.toList() ?? const [];
     if (latest.isEmpty) return null;
-    final sum = latest
-        .map((m) => numValue(m['total_score']) / milestoneMaxScore)
-        .reduce((a, b) => a + b);
-    return (pct: sum / latest.length * 100, students: latest.length);
+    final sum =
+        latest.map((m) => numValue(m['total_score'])).reduce((a, b) => a + b);
+    return (avg: sum / latest.length, students: latest.length);
   }
 
   void _scheduleReview(StagnationAlert alert) {
@@ -176,7 +195,7 @@ class _StudProgressSectionPageState extends State<StudProgressSectionPage> {
                     style: const TextStyle(
                         fontWeight: FontWeight.bold, fontSize: 13)),
                 const SizedBox(height: 6),
-                Text('Stagnant Target: ${alert.targetDescription}',
+                Text('Target: ${alert.targetDescription}',
                     style: const TextStyle(
                         fontSize: 12, color: AppColors.textSecondary)),
                 const SizedBox(height: 14),
@@ -186,7 +205,7 @@ class _StudProgressSectionPageState extends State<StudProgressSectionPage> {
                       color: const Color(0xFFFFF3E0),
                       borderRadius: BorderRadius.circular(8)),
                   child: Text(
-                    'Alert: Target is still unmastered ${alert.daysStagnant} days after its first session (${alert.trend}). A protocol modification or prompt hierarchy shift is recommended.',
+                    'No recent progress: this target has not improved for ${alert.daysStagnant} days and is not yet mastered (${alert.trend}). Consider reviewing the teaching plan with the therapist.',
                     style: const TextStyle(
                         fontSize: 12,
                         color: Color(0xFFB76E00),
@@ -262,7 +281,7 @@ class _StudProgressSectionPageState extends State<StudProgressSectionPage> {
                         'attendee_name': alert.therapistName,
                         'attendee_role': 'Therapist',
                         'notes':
-                            'Stagnant ${alert.domain} target "${alert.targetDescription}" — unmastered ${alert.daysStagnant} days (${alert.trend}).',
+                            '${alert.domain} target "${alert.targetDescription}" — no recent progress for ${alert.daysStagnant} days, not yet mastered (${alert.trend}).',
                       });
                       if (!mounted) return;
                       final ok = showApiResult(context, res,
@@ -322,13 +341,13 @@ class _StudProgressSectionPageState extends State<StudProgressSectionPage> {
           ['Targets mastered (last 30 days)', '$_masteredLast30'],
           ['Avg days to mastery', avg == null ? '—' : avg.toStringAsFixed(1)],
           [
-            'VB-MAPP milestone rate',
+            'Average milestones achieved (of 170)',
             milestoneRate == null
                 ? '—'
-                : '${milestoneRate.pct.toStringAsFixed(1)}% (${milestoneRate.students} students)'
+                : '${milestoneRate.avg.toStringAsFixed(1)} (${milestoneRate.students} students)'
           ],
           [
-            'Open stagnation alerts',
+            'Targets needing review (open)',
             '${_alerts.where((a) => !a.reviewScheduled).length}'
           ],
         ]),
@@ -366,12 +385,12 @@ class _StudProgressSectionPageState extends State<StudProgressSectionPage> {
             ],
         ]),
         if (_alerts.isNotEmpty)
-          ReportSection('Stagnation Alerts', columns: const [
+          ReportSection('Targets Needing Review', columns: const [
             'Student',
             'Domain',
             'Target',
             'Therapist',
-            'Days',
+            'Days without progress',
             'Review'
           ], rows: [
             for (final a in _alerts)
@@ -414,7 +433,7 @@ class _StudProgressSectionPageState extends State<StudProgressSectionPage> {
                   ),
                   SizedBox(height: 4),
                   Text(
-                    'Aggregate developmental milestones, domain mastery velocities, and stagnation alerts across all enrolled students.',
+                    'Developmental milestones, targets mastered by domain, and targets needing review across all enrolled students.',
                     style:
                         TextStyle(color: AppColors.textSecondary, fontSize: 13),
                   ),
@@ -477,9 +496,9 @@ class _StudProgressSectionPageState extends State<StudProgressSectionPage> {
                 physics: const NeverScrollableScrollPhysics(),
                 children: [
                   _buildProgressKpiItem(
-                      'Mastery Velocity',
+                      'Targets mastered (30 days)',
                       _isLoading ? '…' : '$_masteredLast30 Targets',
-                      'mastered in the last 30 days',
+                      'mastery: $masteryRuleText',
                       Icons.trending_up,
                       Colors.green),
                   _buildProgressKpiItem(
@@ -491,21 +510,21 @@ class _StudProgressSectionPageState extends State<StudProgressSectionPage> {
                       Icons.speed_outlined,
                       Colors.purple),
                   _buildProgressKpiItem(
-                      'VB-MAPP Milestone Rate',
+                      'Average milestones achieved (of 170)',
                       milestoneRate == null
                           ? '—'
-                          : '${milestoneRate.pct.toStringAsFixed(1)}%',
+                          : '${milestoneRate.avg.toStringAsFixed(1)} / 170',
                       milestoneRate == null
                           ? 'No milestone tests yet'
-                          : 'Avg latest score / 170 (${milestoneRate.students} students)',
+                          : 'Latest test, ${milestoneRate.students} students at mixed levels',
                       Icons.military_tech_outlined,
                       Colors.blue),
                   _buildProgressKpiItem(
-                      'Stagnation Alerts',
+                      'Targets needing review',
                       '$unresolvedCount Flags',
                       unresolvedCount > 0
-                          ? 'Unmastered after >21 days'
-                          : 'No stagnant targets',
+                          ? 'No recent progress for >$_stagnationDays days'
+                          : 'No targets need review',
                       Icons.warning_amber_rounded,
                       Colors.orange),
                 ],
@@ -522,7 +541,7 @@ class _StudProgressSectionPageState extends State<StudProgressSectionPage> {
             children: [
               _buildViewTab(0, 'Domain Mastery Trends', Icons.bar_chart),
               _buildViewTab(1, 'VB-MAPP Cohort Heatmap', Icons.grid_view),
-              _buildViewTab(2, 'Stagnation Alerts ($unresolvedCount)',
+              _buildViewTab(2, 'Targets Needing Review ($unresolvedCount)',
                   Icons.notification_important_outlined),
             ],
           ),
@@ -777,8 +796,8 @@ class _StudProgressSectionPageState extends State<StudProgressSectionPage> {
         fontWeight: FontWeight.bold,
         color: AppColors.textSecondary);
 
-    Widget cell(double score) {
-      final t = (score / 15).clamp(0.0, 1.0);
+    Widget cell(double score, double max) {
+      final t = (score / max).clamp(0.0, 1.0);
       return Container(
         width: cellWidth - 4,
         height: 34,
@@ -816,7 +835,7 @@ class _StudProgressSectionPageState extends State<StudProgressSectionPage> {
                   color: AppColors.textPrimary)),
           const SizedBox(height: 4),
           const Text(
-            'Each student\'s latest milestone test; domain scores out of 15, darker = higher.',
+            'Each student\'s latest milestone test. Shading is relative to each domain\'s maximum (5 per VB-MAPP level the domain appears in: Mand, Tact, Listener, VP/MTS, Play, Social out of 15; Imitation, Echoic, LRFFC, Intraverbal, Group, Linguistics out of 10; Vocal, Reading, Writing, Math out of 5). Darker = closer to the maximum.',
             style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
           ),
           const SizedBox(height: 16),
@@ -833,7 +852,7 @@ class _StudProgressSectionPageState extends State<StudProgressSectionPage> {
                     for (final d in vbMappDomains)
                       SizedBox(
                         width: cellWidth,
-                        child: Text(d.label,
+                        child: Text('${d.label}\n/${formatScore(d.max)}',
                             textAlign: TextAlign.center,
                             style: headerStyle,
                             overflow: TextOverflow.ellipsis),
@@ -870,7 +889,7 @@ class _StudProgressSectionPageState extends State<StudProgressSectionPage> {
                       for (final d in vbMappDomains)
                         SizedBox(
                           width: cellWidth,
-                          child: cell(numValue(e.value[d.key])),
+                          child: cell(numValue(e.value[d.key]), d.max),
                         ),
                     ],
                   ),
@@ -904,18 +923,18 @@ class _StudProgressSectionPageState extends State<StudProgressSectionPage> {
                 const Icon(Icons.warning_amber_rounded,
                     color: Color(0xFFC2410C), size: 24),
                 const SizedBox(width: 12),
-                const Expanded(
+                Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Clinical Stagnation & Regression Sentinel',
+                      const Text('Targets Needing Review',
                           style: TextStyle(
                               fontWeight: FontWeight.bold,
                               fontSize: 15,
                               color: Color(0xFF7C2D12))),
                       Text(
-                          'Flagged when a target first run more than 21 days ago is still being run and has not yet met mastery (at least 5 trials at 80% or better in a session).',
-                          style: TextStyle(
+                          'Flagged when a target is still being run, is not yet mastered and has shown no recent progress (no new best session score) for more than $_stagnationDays days. Mastery: $masteryRuleText.',
+                          style: const TextStyle(
                               fontSize: 12, color: Color(0xFF9A3412))),
                     ],
                   ),
@@ -927,7 +946,7 @@ class _StudProgressSectionPageState extends State<StudProgressSectionPage> {
             const Padding(
               padding: EdgeInsets.all(24),
               child: Text(
-                'No stagnant targets right now.',
+                'No targets need review right now.',
                 style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
               ),
             ),
@@ -995,7 +1014,7 @@ class _StudProgressSectionPageState extends State<StudProgressSectionPage> {
                                   color: AppColors.statusDeactivatedBg,
                                   borderRadius: BorderRadius.circular(6),
                                 ),
-                                child: Text('${a.daysStagnant}d Stagnant',
+                                child: Text('${a.daysStagnant}d no progress',
                                     style: const TextStyle(
                                         fontWeight: FontWeight.bold,
                                         fontSize: 11,
@@ -1143,7 +1162,7 @@ class _StudProgressSectionPageState extends State<StudProgressSectionPage> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text('${a.daysStagnant} Days Unmastered',
+                              Text('No recent progress: ${a.daysStagnant} days',
                                   style: const TextStyle(
                                       fontWeight: FontWeight.bold,
                                       fontSize: 12,

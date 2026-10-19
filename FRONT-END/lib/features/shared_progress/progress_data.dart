@@ -6,26 +6,31 @@
 // core/services/progress_metrics.dart so they agree with the therapist pages.
 import 'package:roh_erp/core/services/api_service.dart';
 import 'package:roh_erp/core/services/db_queries.dart';
+import 'package:roh_erp/core/services/governance_settings.dart';
 import 'package:roh_erp/core/services/progress_metrics.dart';
 
 /// VB-MAPP milestone total is out of 170 (Levels 1-3).
 const double milestoneMaxScore = 170;
 
-/// Milestone domains shown in the cohort heatmap, each scored 0-15.
-const List<({String label, String key})> vbMappDomains = [
-  (label: 'Mand', key: 'manding_score'),
-  (label: 'Tact', key: 'tacting_score'),
-  (label: 'Listener', key: 'listener_score'),
-  (label: 'VP/MTS', key: 'vp_mts_score'),
-  (label: 'Play', key: 'play_score'),
-  (label: 'Social', key: 'social_score'),
-  (label: 'Imitation', key: 'imitation_score'),
-  (label: 'Echoic', key: 'echoic_score'),
-  (label: 'Vocal', key: 'vocal_score'),
-  (label: 'LRFFC', key: 'lrffc_score'),
-  (label: 'Intraverbal', key: 'intraverbal_score'),
-  (label: 'Group', key: 'group_score'),
-  (label: 'Linguistics', key: 'linguistic_score'),
+/// Milestone domains shown in the cohort heatmap. Each VB-MAPP level a
+/// domain appears in contributes 5 milestones, so [max] = 5 x levels.
+const List<({String label, String key, double max})> vbMappDomains = [
+  (label: 'Mand', key: 'manding_score', max: 15),
+  (label: 'Tact', key: 'tacting_score', max: 15),
+  (label: 'Listener', key: 'listener_score', max: 15),
+  (label: 'VP/MTS', key: 'vp_mts_score', max: 15),
+  (label: 'Play', key: 'play_score', max: 15),
+  (label: 'Social', key: 'social_score', max: 15),
+  (label: 'Imitation', key: 'imitation_score', max: 10),
+  (label: 'Echoic', key: 'echoic_score', max: 10),
+  (label: 'Vocal', key: 'vocal_score', max: 5),
+  (label: 'LRFFC', key: 'lrffc_score', max: 10),
+  (label: 'Intraverbal', key: 'intraverbal_score', max: 10),
+  (label: 'Group', key: 'group_score', max: 10),
+  (label: 'Linguistics', key: 'linguistic_score', max: 10),
+  (label: 'Reading', key: 'reading_score', max: 5),
+  (label: 'Writing', key: 'writing_score', max: 5),
+  (label: 'Math', key: 'math_score', max: 5),
 ];
 
 double numValue(Object? v) => double.tryParse(v?.toString() ?? '') ?? 0;
@@ -111,11 +116,14 @@ class ProgressData {
     required this.milestones,
   });
 
+  /// Also loads the governance settings so [targets] uses the director's
+  /// mastery criteria.
   static Future<ProgressData> load() async {
     final results = await Future.wait([
       StudentQueries.fetchAll(),
       _fetchList('get_daily_data'),
       _fetchList('get_milestone_assessments'),
+      GovernanceSettings.load().then((_) => <Map<String, dynamic>>[]),
     ]);
     return ProgressData(
       students: results[0],
@@ -164,9 +172,8 @@ class ProgressData {
       final sid = '${r['student_id']}';
       (sessionDates[sid] ??= {}).add(d);
       if (!isSkillRow(r)) continue;
-      trials[sid] = (trials[sid] ?? 0) + numValue(r['trials_completed']).toInt();
-      successes[sid] =
-          (successes[sid] ?? 0) + numValue(r['trials_successful']).toInt();
+      trials[sid] = (trials[sid] ?? 0) + trialsCompleted(r);
+      successes[sid] = (successes[sid] ?? 0) + trialsSuccessful(r);
     }
 
     final rows = studentNames.entries.map((e) {

@@ -2,6 +2,11 @@ import 'api_service.dart';
 
 final _api = ApiService();
 
+/// Normalises an ApiService result to a map ({error: ...} when unexpected).
+Map<String, dynamic> _asResponse(dynamic result) => result is Map
+    ? Map<String, dynamic>.from(result)
+    : {'error': 'Unexpected response from server'};
+
 // ════════════════════════════════════════════════════════════════════════════
 // AUTH
 // ════════════════════════════════════════════════════════════════════════════
@@ -38,26 +43,25 @@ class TherapistQueries {
   }
 
   /// Adds a new row to `users` with role = 'therapist'.
-  static Future<bool> add({
+  ///
+  /// Leave [password] null/empty to have the server generate a one-time
+  /// password, returned once as `temporary_password`. Returns the decoded
+  /// response ({success, id, temporary_password?} or {error}).
+  static Future<Map<String, dynamic>> add({
     required String name,
     required String email,
-    String password = 'therapist123',
+    String? password,
     String designation = 'Behavior Therapist',
     String? phone,
   }) async {
-    try {
-      final result = await _api.post('add_therapist', {
-        'name': name,
-        'email': email,
-        'password': password,
-        'designation': designation,
-        if (phone != null) 'phone': phone,
-      });
-      if (result is Map && result['error'] == null) {
-        return true;
-      }
-    } catch (_) {}
-    return false;
+    final result = await _api.post('add_therapist', {
+      'name': name,
+      'email': email,
+      if (password != null && password.isNotEmpty) 'password': password,
+      'designation': designation,
+      if (phone != null) 'phone': phone,
+    });
+    return _asResponse(result);
   }
 
   static Future<bool> update(Map<String, dynamic> data) async {
@@ -94,26 +98,24 @@ class ParentQueries {
     return [];
   }
 
-  static Future<bool> add({
+  /// Leave [password] null/empty to have the server generate a one-time
+  /// password, returned once as `temporary_password`. Returns the decoded
+  /// response ({success, id, temporary_password?} or {error}).
+  static Future<Map<String, dynamic>> add({
     required String name,
     required String email,
     required String phone,
     String? childName,
-    String password = 'parent123',
+    String? password,
   }) async {
-    try {
-      final result = await _api.post('add_parent', {
-        'name': name,
-        'email': email,
-        'phone': phone,
-        if (childName != null) 'child_name': childName,
-        'password': password,
-      });
-      if (result is Map && result['error'] == null) {
-        return true;
-      }
-    } catch (_) {}
-    return false;
+    final result = await _api.post('add_parent', {
+      'name': name,
+      'email': email,
+      'phone': phone,
+      if (childName != null) 'child_name': childName,
+      if (password != null && password.isNotEmpty) 'password': password,
+    });
+    return _asResponse(result);
   }
 
   static Future<bool> update(Map<String, dynamic> data) async {
@@ -172,16 +174,19 @@ class StudentQueries {
 
   static Future<bool> delete(String studentId) async {
     try {
-      final result = await _api.get('delete_student', params: {'id': studentId});
+      final result =
+          await _api.get('delete_student', params: {'id': studentId});
       return result is Map && result['error'] == null;
     } catch (_) {}
     return false;
   }
 
   // ── Medical info ──
-  static Future<Map<String, dynamic>?> fetchMedicalInfo(String studentId) async {
+  static Future<Map<String, dynamic>?> fetchMedicalInfo(
+      String studentId) async {
     try {
-      final result = await _api.get('get_student_medical_info', params: {'student_id': studentId});
+      final result = await _api
+          .get('get_student_medical_info', params: {'student_id': studentId});
       if (result is Map<String, dynamic>) return result;
     } catch (_) {}
     return null;
@@ -196,9 +201,11 @@ class StudentQueries {
   }
 
   // ── Medications ──
-  static Future<List<Map<String, dynamic>>> fetchMedications(String studentId) async {
+  static Future<List<Map<String, dynamic>>> fetchMedications(
+      String studentId) async {
     try {
-      final result = await _api.get('get_student_medications', params: {'student_id': studentId});
+      final result = await _api
+          .get('get_student_medications', params: {'student_id': studentId});
       if (result is List) {
         return result.map((e) => Map<String, dynamic>.from(e)).toList();
       }
@@ -224,9 +231,11 @@ class StudentQueries {
   }
 
   // ── Guardians ──
-  static Future<List<Map<String, dynamic>>> fetchGuardians(String studentId) async {
+  static Future<List<Map<String, dynamic>>> fetchGuardians(
+      String studentId) async {
     try {
-      final result = await _api.get('get_student_guardians', params: {'student_id': studentId});
+      final result = await _api
+          .get('get_student_guardians', params: {'student_id': studentId});
       if (result is List) {
         return result.map((e) => Map<String, dynamic>.from(e)).toList();
       }
@@ -243,9 +252,11 @@ class StudentQueries {
   }
 
   // ── Emergency contact ──
-  static Future<List<Map<String, dynamic>>> fetchEmergencyContacts(String studentId) async {
+  static Future<List<Map<String, dynamic>>> fetchEmergencyContacts(
+      String studentId) async {
     try {
-      final result = await _api.get('get_student_emergency_contacts', params: {'student_id': studentId});
+      final result = await _api.get('get_student_emergency_contacts',
+          params: {'student_id': studentId});
       if (result is List) {
         return result.map((e) => Map<String, dynamic>.from(e)).toList();
       }
@@ -293,9 +304,11 @@ class IepQueries {
 
 /// Milestone Assessments
 class MilestoneAssessmentQueries {
-  static Future<List<Map<String, dynamic>>> fetchForStudent(String studentId) async {
+  static Future<List<Map<String, dynamic>>> fetchForStudent(
+      String studentId) async {
     try {
-      final result = await _api.get('get_milestone_assessments', params: {'student_id': studentId});
+      final result = await _api
+          .get('get_milestone_assessments', params: {'student_id': studentId});
       if (result is List) {
         return result.map((e) => Map<String, dynamic>.from(e)).toList();
       }
@@ -314,9 +327,11 @@ class MilestoneAssessmentQueries {
 
 /// Barriers Assessments (24 Learning Barriers)
 class BarriersAssessmentQueries {
-  static Future<List<Map<String, dynamic>>> fetchForStudent(String studentId) async {
+  static Future<List<Map<String, dynamic>>> fetchForStudent(
+      String studentId) async {
     try {
-      final result = await _api.get('get_barriers_assessments', params: {'student_id': studentId});
+      final result = await _api
+          .get('get_barriers_assessments', params: {'student_id': studentId});
       if (result is List) {
         return result.map((e) => Map<String, dynamic>.from(e)).toList();
       }
@@ -335,9 +350,11 @@ class BarriersAssessmentQueries {
 
 /// Transition Assessments (18 Readiness Areas)
 class TransitionAssessmentQueries {
-  static Future<List<Map<String, dynamic>>> fetchForStudent(String studentId) async {
+  static Future<List<Map<String, dynamic>>> fetchForStudent(
+      String studentId) async {
     try {
-      final result = await _api.get('get_transition_assessments', params: {'student_id': studentId});
+      final result = await _api
+          .get('get_transition_assessments', params: {'student_id': studentId});
       if (result is List) {
         return result.map((e) => Map<String, dynamic>.from(e)).toList();
       }
@@ -356,9 +373,11 @@ class TransitionAssessmentQueries {
 
 /// Early Echoic Skills Assessments (EESA Groups 1 & 2)
 class EesaAssessmentQueries {
-  static Future<List<Map<String, dynamic>>> fetchForStudent(String studentId) async {
+  static Future<List<Map<String, dynamic>>> fetchForStudent(
+      String studentId) async {
     try {
-      final result = await _api.get('get_eesa_assessments', params: {'student_id': studentId});
+      final result = await _api
+          .get('get_eesa_assessments', params: {'student_id': studentId});
       if (result is List) {
         return result.map((e) => Map<String, dynamic>.from(e)).toList();
       }
@@ -377,9 +396,11 @@ class EesaAssessmentQueries {
 
 /// Preference (reinforcer) Assessments — one row per preferred item
 class PreferenceAssessmentQueries {
-  static Future<List<Map<String, dynamic>>> fetchForStudent(String studentId) async {
+  static Future<List<Map<String, dynamic>>> fetchForStudent(
+      String studentId) async {
     try {
-      final result = await _api.get('get_preference_assessments', params: {'student_id': studentId});
+      final result = await _api
+          .get('get_preference_assessments', params: {'student_id': studentId});
       if (result is List) {
         return result.map((e) => Map<String, dynamic>.from(e)).toList();
       }
@@ -400,7 +421,8 @@ class PreferenceAssessmentQueries {
 
 /// Legacy backward compatibility wrapper
 class VbAssessmentQueries {
-  static Future<List<Map<String, dynamic>>> fetchForStudent(String studentId) async {
+  static Future<List<Map<String, dynamic>>> fetchForStudent(
+      String studentId) async {
     return MilestoneAssessmentQueries.fetchForStudent(studentId);
   }
 
@@ -416,7 +438,8 @@ class DailyDataQueries {
   static Future<List<Map<String, dynamic>>> fetchForStudent(
       String studentId) async {
     try {
-      final result = await _api.get('get_daily_data', params: {'student_id': studentId});
+      final result =
+          await _api.get('get_daily_data', params: {'student_id': studentId});
       if (result is List) {
         return result.map((e) => Map<String, dynamic>.from(e)).toList();
       }
