@@ -25,7 +25,8 @@ class AuthService extends ChangeNotifier {
     String userName = prefs.getString(AppConstants.prefUserName) ?? '';
     String userEmail = prefs.getString(AppConstants.prefUserEmail) ?? '';
     String userRole = prefs.getString(AppConstants.prefUserRole) ?? '';
-    String? token = prefs.getString('jwt_token') ?? prefs.getString('auth_token');
+    String? token =
+        prefs.getString('jwt_token') ?? prefs.getString('auth_token');
 
     // Fallback/sync directly from browser window.localStorage on Web
     if (!isLoggedIn) {
@@ -113,19 +114,41 @@ class AuthService extends ChangeNotifier {
     saveWebStorage('user_email', user.email);
     saveWebStorage('user_role', user.role);
 
-    if (token != null && token.isNotEmpty) {
-      await prefs.setString('auth_token', token);
-      await prefs.setString('jwt_token', token);
-      saveWebStorage('auth_token', token);
-      saveWebStorage('jwt_token', token);
-      ApiService().setAuthToken(token);
-    }
+    await _storeToken(token);
+  }
+
+  Future<void> _storeToken(String? token) async {
+    if (token == null || token.isEmpty) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('auth_token', token);
+    await prefs.setString('jwt_token', token);
+    saveWebStorage('auth_token', token);
+    saveWebStorage('jwt_token', token);
+    ApiService().setAuthToken(token);
+  }
+
+  /// Updates the signed-in user's display name after a profile edit.
+  Future<void> updateDisplayName(String name) async {
+    final user = _currentUser;
+    if (user == null || name.isEmpty || name == user.name) return;
+    _currentUser = UserModel(
+      id: user.id,
+      name: name,
+      email: user.email,
+      role: user.role,
+      mustChangePassword: user.mustChangePassword,
+    );
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(AppConstants.prefUserName, name);
+    saveWebStorage('user_name', name);
+    notifyListeners();
   }
 
   bool get mustChangePassword => _currentUser?.mustChangePassword ?? false;
 
   // ── Change Password (Self-service or First-login) ──
-  Future<Map<String, dynamic>> changePassword(String currentPassword, String newPassword) async {
+  Future<Map<String, dynamic>> changePassword(
+      String currentPassword, String newPassword) async {
     try {
       final res = await _api.post('change_password', {
         'current_password': currentPassword,
@@ -142,9 +165,15 @@ class AuthService extends ChangeNotifier {
               role: _currentUser!.role,
               mustChangePassword: false,
             );
+            // The server revokes the old token on a password change and
+            // returns a new one for this device.
+            await _storeToken(res['token'] as String?);
             notifyListeners();
           }
-          return {'success': true, 'message': res['message'] ?? 'Password changed successfully'};
+          return {
+            'success': true,
+            'message': res['message'] ?? 'Password changed successfully'
+          };
         } else if (res['error'] != null) {
           return {'success': false, 'error': res['error']};
         }

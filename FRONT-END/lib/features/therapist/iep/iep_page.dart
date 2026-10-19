@@ -8,6 +8,11 @@ import '../widgets/student_card_grid.dart';
 class IepPage extends StatefulWidget {
   const IepPage({super.key});
 
+  /// Set by other pages (e.g. the dashboard's View button) to open a
+  /// student's plan directly instead of the student grid.
+  static final ValueNotifier<({int id, String name})?> openStudent =
+      ValueNotifier(null);
+
   @override
   State<IepPage> createState() => _IepPageState();
 }
@@ -38,6 +43,7 @@ class _IepPageState extends State<IepPage> {
     if (now.day < dob.day) months--;
     return '${months ~/ 12} years ${months % 12} months';
   }
+
   // Latest IEP's goals when they were not written by this page (free text).
   String? _previousSummary;
 
@@ -133,8 +139,8 @@ class _IepPageState extends State<IepPage> {
           _mandingGoals.isEmpty && _tactingGoals.isEmpty && summary.isNotEmpty
               ? summary
               : null;
-      final editable = ['Pending Approval', 'Returned for Revision']
-          .contains(_savedStatus);
+      final editable =
+          ['Pending Approval', 'Returned for Revision'].contains(_savedStatus);
       _editableIepId = editable && _previousSummary == null
           ? int.tryParse(latest?['id']?.toString() ?? '')
           : null;
@@ -199,165 +205,217 @@ class _IepPageState extends State<IepPage> {
     await _loadIep();
   }
 
-  void _showAddItemDialog() {
-    final textController = TextEditingController();
-    final baselineController = TextEditingController();
+  /// Add Goal dialog; with [editing] (a goal map in [_mandingGoals] or
+  /// [_tactingGoals]) it edits that goal in place instead.
+  void _showAddItemDialog({Map<String, dynamic>? editing}) {
+    final textController =
+        TextEditingController(text: editing?['goal']?.toString() ?? '');
+    final editBaseline = editing?['baseline']?.toString() ?? '';
+    final baselineController = TextEditingController(
+        text: editBaseline == _defaultBaseline ? '' : editBaseline);
     var domain = 'Manding';
     showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => Dialog(
-        backgroundColor: Colors.transparent,
-        child: Container(
-          width: 440,
-          padding: const EdgeInsets.all(28),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: AppColors.border),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x0A000000),
-                blurRadius: 12,
-                offset: Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Add Goal',
-                style: TextStyle(
-                  fontFamily: 'Poppins',
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textPrimary,
+          backgroundColor: Colors.transparent,
+          child: Container(
+            width: 440,
+            padding: const EdgeInsets.all(28),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: AppColors.border),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x0A000000),
+                  blurRadius: 12,
+                  offset: Offset(0, 4),
                 ),
-              ),
-              const SizedBox(height: 20),
-              Wrap(
-                spacing: 8,
-                children: [
-                  for (final d in const ['Manding', 'Tacting'])
-                    ChoiceChip(
-                      label: Text(d),
-                      selected: domain == d,
-                      onSelected: (_) => setDialogState(() => domain = d),
-                    ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  editing == null ? 'Add Goal' : 'Edit Goal',
+                  style: const TextStyle(
+                    fontFamily: 'Poppins',
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                if (editing == null) ...[
+                  Wrap(
+                    spacing: 8,
+                    children: [
+                      for (final d in const ['Manding', 'Tacting'])
+                        ChoiceChip(
+                          label: Text(d),
+                          selected: domain == d,
+                          onSelected: (_) => setDialogState(() => domain = d),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
                 ],
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                'Goal',
-                style: TextStyle(
-                    color: AppColors.textPrimary,
-                    fontSize: 13,
-                    fontFamily: 'Poppins'),
-              ),
-              const SizedBox(height: 8),
-              Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: AppColors.border),
+                const Text(
+                  'Goal',
+                  style: TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 13,
+                      fontFamily: 'Poppins'),
                 ),
-                child: TextField(
-                  controller: textController,
-                  decoration: const InputDecoration(
-                    hintText: 'enter the target goal',
-                    hintStyle:
-                        TextStyle(color: Color(0xFF9CA3AF), fontSize: 13),
-                    border: InputBorder.none,
-                    contentPadding:
-                        EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                const SizedBox(height: 8),
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: AppColors.border),
                   ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                'Baseline (optional)',
-                style: TextStyle(
-                    color: AppColors.textPrimary,
-                    fontSize: 13,
-                    fontFamily: 'Poppins'),
-              ),
-              const SizedBox(height: 8),
-              Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: AppColors.border),
-                ),
-                child: TextField(
-                  controller: baselineController,
-                  decoration: const InputDecoration(
-                    hintText: 'current level of performance',
-                    hintStyle:
-                        TextStyle(color: Color(0xFF9CA3AF), fontSize: 13),
-                    border: InputBorder.none,
-                    contentPadding:
-                        EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 28),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  OutlinedButton(
-                    onPressed: () => Navigator.pop(context),
-                    style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: AppColors.primary),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8)),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 20, vertical: 10),
+                  child: TextField(
+                    controller: textController,
+                    decoration: const InputDecoration(
+                      hintText: 'enter the target goal',
+                      hintStyle:
+                          TextStyle(color: Color(0xFF9CA3AF), fontSize: 13),
+                      border: InputBorder.none,
+                      contentPadding:
+                          EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                     ),
-                    child: const Text('Cancel',
-                        style: TextStyle(
-                            color: AppColors.primary,
-                            fontWeight: FontWeight.bold)),
                   ),
-                  const SizedBox(width: 12),
-                  ElevatedButton(
-                    onPressed: () {
-                      if (textController.text.trim().isNotEmpty) {
-                        final goals = domain == 'Tacting'
-                            ? _tactingGoals
-                            : _mandingGoals;
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Baseline (optional)',
+                  style: TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 13,
+                      fontFamily: 'Poppins'),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: TextField(
+                    controller: baselineController,
+                    decoration: const InputDecoration(
+                      hintText: 'current level of performance',
+                      hintStyle:
+                          TextStyle(color: Color(0xFF9CA3AF), fontSize: 13),
+                      border: InputBorder.none,
+                      contentPadding:
+                          EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 28),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    OutlinedButton(
+                      onPressed: () => Navigator.pop(context),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: AppColors.primary),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8)),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 20, vertical: 10),
+                      ),
+                      child: const Text('Cancel',
+                          style: TextStyle(
+                              color: AppColors.primary,
+                              fontWeight: FontWeight.bold)),
+                    ),
+                    const SizedBox(width: 12),
+                    ElevatedButton(
+                      onPressed: () {
                         final baseline = baselineController.text.trim();
-                        setState(() {
-                          goals.add({
-                            'label': String.fromCharCode(65 + goals.length),
-                            'goal': textController.text.trim(),
-                            'baseline':
-                                baseline.isEmpty ? _defaultBaseline : baseline,
+                        if (editing != null &&
+                            textController.text.trim().isNotEmpty) {
+                          setState(() {
+                            editing['goal'] = textController.text.trim();
+                            editing['baseline'] =
+                                baseline.isEmpty ? _defaultBaseline : baseline;
                           });
-                        });
-                      }
-                      Navigator.pop(context);
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF6B21A8),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8)),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 24, vertical: 10),
+                        } else if (textController.text.trim().isNotEmpty) {
+                          final goals = domain == 'Tacting'
+                              ? _tactingGoals
+                              : _mandingGoals;
+                          setState(() {
+                            goals.add({
+                              'label': String.fromCharCode(65 + goals.length),
+                              'goal': textController.text.trim(),
+                              'baseline': baseline.isEmpty
+                                  ? _defaultBaseline
+                                  : baseline,
+                            });
+                          });
+                        }
+                        Navigator.pop(context);
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF6B21A8),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8)),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 24, vertical: 10),
+                      ),
+                      child: const Text('Submit',
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold)),
                     ),
-                    child: const Text('Submit',
-                        style: TextStyle(
-                            color: Colors.white, fontWeight: FontWeight.bold)),
-                  ),
-                ],
-              ),
-            ],
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
-      ),
     );
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    IepPage.openStudent.addListener(_onOpenRequest);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _onOpenRequest());
+  }
+
+  @override
+  void dispose() {
+    IepPage.openStudent.removeListener(_onOpenRequest);
+    super.dispose();
+  }
+
+  void _onOpenRequest() {
+    final request = IepPage.openStudent.value;
+    if (request == null || !mounted) return;
+    IepPage.openStudent.value = null;
+    _selectStudent(request.name, request.id);
+  }
+
+  void _selectStudent(String student, int? studentId) {
+    setState(() {
+      _selectedStudent = student;
+      _selectedStudentId = studentId;
+      _savedStatus = null;
+      _savedTitle = null;
+      _previousSummary = null;
+      _editableIepId = null;
+      _savedDomainScores = null;
+      _studentDob = null;
+      _mandingGoals.clear();
+      _tactingGoals.clear();
+    });
+    _loadIep();
   }
 
   @override
@@ -366,21 +424,7 @@ class _IepPageState extends State<IepPage> {
       return StudentCardGrid(
         title: 'Students Individualized Education Plan (IEP)',
         buttonLabel: 'Add',
-        onStudentAction: (student, studentId) {
-          setState(() {
-            _selectedStudent = student;
-            _selectedStudentId = studentId;
-            _savedStatus = null;
-            _savedTitle = null;
-            _previousSummary = null;
-            _editableIepId = null;
-            _savedDomainScores = null;
-            _studentDob = null;
-            _mandingGoals.clear();
-            _tactingGoals.clear();
-          });
-          _loadIep();
-        },
+        onStudentAction: _selectStudent,
       );
     }
 
@@ -466,8 +510,8 @@ class _IepPageState extends State<IepPage> {
             Text(
               'VB-MAPP milestone scores on this plan (from the latest '
               'milestone assessment when saved): $_savedDomainScores',
-              style: const TextStyle(
-                  fontSize: 12, color: AppColors.textSecondary),
+              style:
+                  const TextStyle(fontSize: 12, color: AppColors.textSecondary),
             ),
             const SizedBox(height: 12),
           ],
@@ -705,8 +749,7 @@ class _IepPageState extends State<IepPage> {
             )
           else
             for (final item in goals) ...[
-              _buildGoalCard(item['label'] as String, item['goal'] as String,
-                  item['baseline'] as String),
+              _buildGoalCard(item, goals),
               const SizedBox(height: 16),
             ],
         ],
@@ -714,7 +757,46 @@ class _IepPageState extends State<IepPage> {
     );
   }
 
-  Widget _buildGoalCard(String label, String goal, String baseline) {
+  /// Removes [item] from [goals] after confirming, then re-letters the
+  /// remaining goals A, B, C… so the saved summary stays in order.
+  Future<void> _deleteGoal(
+      Map<String, dynamic> item, List<Map<String, dynamic>> goals) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Remove goal?'),
+        content: Text('Goal ${item['label']} will be removed from this plan. '
+            'Save the IEP to keep the change.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() {
+      goals.remove(item);
+      for (var i = 0; i < goals.length; i++) {
+        goals[i]['label'] = String.fromCharCode(65 + i);
+      }
+    });
+  }
+
+  Widget _buildGoalCard(
+      Map<String, dynamic> item, List<Map<String, dynamic>> goals) {
+    final label = item['label'] as String;
+    final goal = item['goal'] as String;
+    final baseline = item['baseline'] as String;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -759,6 +841,20 @@ class _IepPageState extends State<IepPage> {
                         height: 1.4),
                   ),
                 ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.edit_outlined,
+                    size: 18, color: AppColors.primary),
+                tooltip: 'Edit goal',
+                visualDensity: VisualDensity.compact,
+                onPressed: () => _showAddItemDialog(editing: item),
+              ),
+              IconButton(
+                icon: const Icon(Icons.delete_outline,
+                    size: 18, color: Colors.red),
+                tooltip: 'Remove goal',
+                visualDensity: VisualDensity.compact,
+                onPressed: () => _deleteGoal(item, goals),
               ),
             ],
           ),

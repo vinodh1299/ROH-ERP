@@ -6,12 +6,18 @@ import 'package:intl/intl.dart';
 import '../../../core/layout/responsive.dart';
 import '../../../core/services/db_queries.dart';
 import '../../../core/services/progress_metrics.dart';
+import '../../../core/services/report_pdf.dart';
 import '../widgets/student_card_grid.dart';
 import 'widgets/incident_stopwatch.dart';
 import 'widgets/daily_data_chart_painters.dart';
 
 class DailyDataSheetPage extends StatefulWidget {
   const DailyDataSheetPage({super.key});
+
+  /// Set by other pages (e.g. the dashboard's or timetable's Data Sheet
+  /// button) to open a student's sheet directly instead of the student grid.
+  static final ValueNotifier<({int id, String name})?> openStudent =
+      ValueNotifier(null);
 
   @override
   State<DailyDataSheetPage> createState() => _DailyDataSheetPageState();
@@ -83,6 +89,9 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
   bool _savingManding = false;
   bool _savingBrp = false;
   int? _brpId; // saved BRP row that the BRP form edits
+  // BRP text as last loaded/saved, to spot unsaved edits on Cancel.
+  ({String form, String function, String measurement}) _brpSaved =
+      (form: '', function: '', measurement: '');
 
   // PB Graph State
   static const List<String> _pbGraphTypes = [
@@ -132,6 +141,7 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
 
   @override
   void dispose() {
+    DailyDataSheetPage.openStudent.removeListener(_onOpenRequest);
     _tabScroll.dispose();
     _brpFormController.dispose();
     _brpFunctionController.dispose();
@@ -159,6 +169,16 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
 
     _acqFromDate = dFormat;
     _acqToDate = dFormat;
+
+    DailyDataSheetPage.openStudent.addListener(_onOpenRequest);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _onOpenRequest());
+  }
+
+  void _onOpenRequest() {
+    final request = DailyDataSheetPage.openStudent.value;
+    if (request == null || !mounted) return;
+    DailyDataSheetPage.openStudent.value = null;
+    _onStudentSelected(request.name, request.id);
   }
 
   int _resolveStudentId(String name) {
@@ -201,6 +221,7 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
           _mandingRows.clear();
           _allMandingRows.clear();
           _brpId = null;
+          _brpSaved = (form: '', function: '', measurement: '');
           _dttTargets.clear();
           // Keep incidents added here but not saved yet.
           final unsaved = _abcIncidents
@@ -231,6 +252,11 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
                   (notesJson['function'] ?? '').toString();
               _brpMeasurementController.text =
                   (notesJson['measurement'] ?? '').toString();
+              _brpSaved = (
+                form: _brpFormController.text,
+                function: _brpFunctionController.text,
+                measurement: _brpMeasurementController.text,
+              );
               continue;
             }
 
@@ -253,14 +279,16 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
                 'label': targetSkill,
                 'counts': counts,
                 'savedCounts': List<int>.from(counts),
+                'time_in': notesJson['time_in']?.toString(),
+                'time_out': notesJson['time_out']?.toString(),
               });
             }
 
             // 2. DTT targets (all instructional skill domains)
             if (isSkillRow(r)) {
-              final pct = double.tryParse(
-                      r['percentage_success']?.toString() ?? '') ??
-                  (completed == 0 ? 0 : successful * 100 / completed);
+              final pct =
+                  double.tryParse(r['percentage_success']?.toString() ?? '') ??
+                      (completed == 0 ? 0 : successful * 100 / completed);
               _dttTargets.add({
                 'date': sessionDateRaw.split('T')[0],
                 'domain': domain,
@@ -341,8 +369,8 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
   }
 
   void _resetFilters() {
-    final manding = _records
-        .where((r) => (r['domain'] ?? '').toString().toLowerCase() == 'manding');
+    final manding = _records.where(
+        (r) => (r['domain'] ?? '').toString().toLowerCase() == 'manding');
     final (mgFrom, mgTo) = _spanOf(manding);
     _mgFromDate = mgFrom;
     _mgToDate = mgTo;
@@ -508,7 +536,8 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
     return {
       'id': r['id'],
       'domain': (r['domain'] ?? 'ABC').toString(),
-      'date': d == null ? _filterFmt.format(DateTime.now()) : _filterFmt.format(d),
+      'date':
+          d == null ? _filterFmt.format(DateTime.now()) : _filterFmt.format(d),
       'time': (j['time'] ?? '').toString(),
       'setting': (j['setting'] ?? '').toString(),
       'antecedent': (j['antecedent'] ?? fromText('Antecedent')).toString(),
@@ -577,8 +606,7 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
     if (!mounted) return;
     setState(() => incident['saving'] = false);
     if (!ok) {
-      _showSnack('Could not save the incident. Please try again.',
-          error: true);
+      _showSnack('Could not save the incident. Please try again.', error: true);
       return;
     }
     incident['saved'] = true; // the reload brings it back with its id
@@ -633,6 +661,108 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
     _mandingRows
       ..clear()
       ..addAll(_allMandingRows.where((r) => r['date'] == date));
+    // Show the session times saved with that date's sheet, if any.
+    for (final r in _mandingRows) {
+      final tIn = r['time_in'] as String?;
+      final tOut = r['time_out'] as String?;
+      if (tIn != null && tIn.isNotEmpty) _mandingTimeIn = tIn;
+      if (tOut != null && tOut.isNotEmpty) _mandingTimeOut = tOut;
+      if (tIn != null || tOut != null) break;
+    }
+  }
+
+  /// Picks the manding session's Time In ([timeIn]) or Time Out.
+  Future<void> _pickMandingTime({required bool timeIn}) async {
+    final current = timeIn ? _mandingTimeIn : _mandingTimeOut;
+    TimeOfDay initial = TimeOfDay.now();
+    try {
+      initial =
+          TimeOfDay.fromDateTime(DateFormat('hh:mm a').parseStrict(current));
+    } catch (_) {}
+    final picked = await showTimePicker(context: context, initialTime: initial);
+    if (picked == null || !mounted) return;
+    final formatted = DateFormat('hh:mm a')
+        .format(DateTime(2000, 1, 1, picked.hour, picked.minute));
+    setState(() {
+      if (timeIn) {
+        _mandingTimeIn = formatted;
+      } else {
+        _mandingTimeOut = formatted;
+      }
+    });
+  }
+
+  /// Whether a manding row is new with trials, or saved with changed counts.
+  bool _mandingRowChanged(Map<String, dynamic> r) {
+    final counts = r['counts'] as List<int>;
+    if (r['id'] == null) return counts.any((c) => c > 0);
+    final saved = r['savedCounts'] as List<int>;
+    return List.generate(counts.length, (i) => counts[i] != saved[i])
+        .any((d) => d);
+  }
+
+  bool get _brpHasUnsavedEdits =>
+      _brpFormController.text != _brpSaved.form ||
+      _brpFunctionController.text != _brpSaved.function ||
+      _brpMeasurementController.text != _brpSaved.measurement;
+
+  /// Cancel on a sheet: asks first when [hasUnsaved], then discards the
+  /// edits and goes back to the student list.
+  Future<void> _cancelSheet({required bool hasUnsaved}) async {
+    if (hasUnsaved) {
+      final discard = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Discard changes?'),
+          content: const Text(
+              'You have unsaved changes on this sheet. They will be lost.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Keep editing'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Discard'),
+            ),
+          ],
+        ),
+      );
+      if (discard != true || !mounted) return;
+    }
+    setState(() {
+      // Drop unsaved manding rows and restore saved counts and BRP text.
+      _allMandingRows.removeWhere((r) => r['id'] == null);
+      for (final r in _allMandingRows) {
+        r['counts'] = List<int>.from(r['savedCounts'] as List<int>);
+      }
+      _applyMandingDate();
+      _brpFormController.text = _brpSaved.form;
+      _brpFunctionController.text = _brpSaved.function;
+      _brpMeasurementController.text = _brpSaved.measurement;
+      _selectedStudent = null;
+    });
+  }
+
+  Future<void> _printBrp() async {
+    String orDash(String v) => v.trim().isEmpty ? '—' : v.trim();
+    await ReportPdf.share(
+      title: 'Behaviour Reduction Plan (BRP)',
+      subtitle: _selectedStudent,
+      fileName: 'BRP_${(_selectedStudent ?? 'student').replaceAll(' ', '_')}',
+      sections: [
+        ReportSection('Form of the problem behaviours',
+            text: orDash(_brpFormController.text)),
+        ReportSection('Function of problem behaviours (maintaining variables)',
+            text: orDash(_brpFunctionController.text)),
+        ReportSection('Measurement of problem behaviours',
+            text: orDash(_brpMeasurementController.text)),
+      ],
+    );
   }
 
   Future<void> _pickMandingDate() async {
@@ -689,8 +819,7 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
   void _showSnack(String message, {bool error = false}) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-          content: Text(message),
-          backgroundColor: error ? Colors.red : null),
+          content: Text(message), backgroundColor: error ? Colors.red : null),
     );
   }
 
@@ -708,15 +837,7 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
   Future<void> _saveMandingSheet() async {
     final studentId = _selectedStudentId;
     if (studentId == null || _savingManding) return;
-    bool changed(Map<String, dynamic> r) {
-      final counts = r['counts'] as List<int>;
-      if (r['id'] == null) return counts.any((c) => c > 0);
-      final saved = r['savedCounts'] as List<int>;
-      return List.generate(counts.length, (i) => counts[i] != saved[i])
-          .any((d) => d);
-    }
-
-    final newRows = _mandingRows.where(changed).toList();
+    final newRows = _mandingRows.where(_mandingRowChanged).toList();
     if (newRows.isEmpty) {
       _showSnack('No new or changed trials to save.', error: true);
       return;
@@ -994,8 +1115,10 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
           leading: [
             _buildFilterPill('Date:', _mandingDate, 140,
                 onTap: _pickMandingDate),
-            _buildFilterPill('Time In:', _mandingTimeIn, 130),
-            _buildFilterPill('Time Out:', _mandingTimeOut, 130),
+            _buildFilterPill('Time In:', _mandingTimeIn, 130,
+                onTap: () => _pickMandingTime(timeIn: true)),
+            _buildFilterPill('Time Out:', _mandingTimeOut, 130,
+                onTap: () => _pickMandingTime(timeIn: false)),
           ],
           trailing: ElevatedButton.icon(
             onPressed: _addNewMandRow,
@@ -1261,7 +1384,8 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
             runSpacing: 10,
             children: [
               OutlinedButton(
-                onPressed: () {},
+                onPressed: () => _cancelSheet(
+                    hasUnsaved: _allMandingRows.any(_mandingRowChanged)),
                 style: OutlinedButton.styleFrom(
                   backgroundColor: const Color(0xFFE9D5FF),
                   foregroundColor: const Color(0xFF7E22CE),
@@ -1463,8 +1587,7 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
           wideAt: 720,
           leading: [
             _buildFilterPill('Date:', _ddsDate, 130,
-                onTap: () =>
-                    _pickFilterDate(_ddsDate, (d) => _ddsDate = d)),
+                onTap: () => _pickFilterDate(_ddsDate, (d) => _ddsDate = d)),
           ],
           trailing: Container(
             padding: const EdgeInsets.all(8),
@@ -1985,8 +2108,8 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
                       initialValue: incident['setting'] ?? '',
                       decoration: const InputDecoration(
                           border: InputBorder.none,
-                          contentPadding:
-                              EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          contentPadding: EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 10),
                           hintText:
                               'Enter setting events or environmental triggers'),
                       onChanged: (val) => incident['setting'] = val,
@@ -2023,8 +2146,7 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
                       const countLabel = Text('Count: ',
                           style: TextStyle(
                               fontWeight: FontWeight.bold, fontSize: 13));
-                      final countCounter = _buildMiniCounter(
-                          incident['count'],
+                      final countCounter = _buildMiniCounter(incident['count'],
                           (val) => setState(() => incident['count'] = val));
                       const timeLabel = Text('Time(mint): ',
                           style: TextStyle(
@@ -2131,9 +2253,7 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
                           ),
                           child: Text(saving
                               ? 'Saving…'
-                              : (incident['id'] == null
-                                  ? 'Save'
-                                  : 'Update')),
+                              : (incident['id'] == null ? 'Save' : 'Update')),
                         ),
                       ],
                     ),
@@ -2149,8 +2269,8 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
   Future<void> _pickIncidentTime(Map<String, dynamic> incident) async {
     TimeOfDay initial = TimeOfDay.now();
     try {
-      initial = TimeOfDay.fromDateTime(
-          DateFormat('hh:mm a').parseStrict((incident['time'] ?? '').toString()));
+      initial = TimeOfDay.fromDateTime(DateFormat('hh:mm a')
+          .parseStrict((incident['time'] ?? '').toString()));
     } catch (_) {}
     final picked = await showTimePicker(context: context, initialTime: initial);
     if (picked == null || !mounted) return;
@@ -2267,7 +2387,7 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
             runSpacing: 10,
             children: [
               OutlinedButton(
-                onPressed: () {},
+                onPressed: () => _cancelSheet(hasUnsaved: _brpHasUnsavedEdits),
                 style: OutlinedButton.styleFrom(
                   backgroundColor: const Color(0xFFE9D5FF),
                   foregroundColor: const Color(0xFF7E22CE),
@@ -2292,7 +2412,7 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
                 child: Text(_savingBrp ? 'Saving…' : 'Save'),
               ),
               ElevatedButton(
-                onPressed: () {},
+                onPressed: _printBrp,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF15803D),
                   foregroundColor: Colors.white,
@@ -2579,8 +2699,7 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
               children: [
                 stat('Session days', '${sessionDates.length}'),
                 stat('Targets', '${targets.length}'),
-                stat('Mastered',
-                    '${targets.where((t) => t.mastered).length}'),
+                stat('Mastered', '${targets.where((t) => t.mastered).length}'),
                 stat('In acquisition',
                     '${targets.where((t) => !t.mastered).length}'),
                 stat('Behaviour incidents', '${behaviourRows.length}'),
@@ -2613,8 +2732,7 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
                     children: [
                       Padding(
                           padding: const EdgeInsets.all(8),
-                          child:
-                              Text(d, style: const TextStyle(fontSize: 12))),
+                          child: Text(d, style: const TextStyle(fontSize: 12))),
                       Padding(
                           padding: const EdgeInsets.all(8),
                           child: Text('${byDomain[d]!.length}',
@@ -2929,8 +3047,9 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
         final trials = t['trials'] ?? 0;
         final success = t['success'] ?? 0;
         final pct = (t['pct'] ?? '0').toString();
-        final tp = progress['${(t['domain'] ?? '').toString().trim().toLowerCase()}'
-            '|${target.trim().toLowerCase()}'];
+        final tp =
+            progress['${(t['domain'] ?? '').toString().trim().toLowerCase()}'
+                '|${target.trim().toLowerCase()}'];
 
         return Container(
           margin: const EdgeInsets.symmetric(vertical: 4),

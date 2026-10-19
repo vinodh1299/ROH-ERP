@@ -5,7 +5,18 @@ import '../../../../core/constants/app_colors.dart';
 import '../auth_service.dart';
 
 class ForcedPasswordChangeDialog extends StatefulWidget {
-  const ForcedPasswordChangeDialog({super.key});
+  /// False for a user-initiated change: the dialog can be cancelled.
+  final bool forced;
+
+  const ForcedPasswordChangeDialog({super.key, this.forced = true});
+
+  /// Opens a cancellable Change Password dialog (settings, profile menus).
+  static Future<void> show(BuildContext context) {
+    return showDialog(
+      context: context,
+      builder: (ctx) => const ForcedPasswordChangeDialog(forced: false),
+    );
+  }
 
   static Future<void> showIfNeeded(BuildContext context) async {
     final authService = Provider.of<AuthService>(context, listen: false);
@@ -19,10 +30,12 @@ class ForcedPasswordChangeDialog extends StatefulWidget {
   }
 
   @override
-  State<ForcedPasswordChangeDialog> createState() => _ForcedPasswordChangeDialogState();
+  State<ForcedPasswordChangeDialog> createState() =>
+      _ForcedPasswordChangeDialogState();
 }
 
-class _ForcedPasswordChangeDialogState extends State<ForcedPasswordChangeDialog> {
+class _ForcedPasswordChangeDialogState
+    extends State<ForcedPasswordChangeDialog> {
   final _currentController = TextEditingController();
   final _newController = TextEditingController();
   final _confirmController = TextEditingController();
@@ -37,8 +50,11 @@ class _ForcedPasswordChangeDialogState extends State<ForcedPasswordChangeDialog>
   bool get _hasUppercase => _newController.text.contains(RegExp(r'[A-Z]'));
   bool get _hasLowercase => _newController.text.contains(RegExp(r'[a-z]'));
   bool get _hasNumber => _newController.text.contains(RegExp(r'[0-9]'));
-  bool get _isCompliant => _hasMinLength && _hasUppercase && _hasLowercase && _hasNumber;
-  bool get _matchesConfirm => _newController.text == _confirmController.text && _confirmController.text.isNotEmpty;
+  bool get _isCompliant =>
+      _hasMinLength && _hasUppercase && _hasLowercase && _hasNumber;
+  bool get _matchesConfirm =>
+      _newController.text == _confirmController.text &&
+      _confirmController.text.isNotEmpty;
 
   @override
   void dispose() {
@@ -54,7 +70,8 @@ class _ForcedPasswordChangeDialogState extends State<ForcedPasswordChangeDialog>
     });
 
     if (!_isCompliant) {
-      setState(() => _errorMessage = 'Please meet all password complexity requirements.');
+      setState(() =>
+          _errorMessage = 'Please meet all password complexity requirements.');
       return;
     }
 
@@ -66,7 +83,8 @@ class _ForcedPasswordChangeDialogState extends State<ForcedPasswordChangeDialog>
     setState(() => _isSubmitting = true);
 
     final auth = Provider.of<AuthService>(context, listen: false);
-    final result = await auth.changePassword(_currentController.text, _newController.text);
+    final result =
+        await auth.changePassword(_currentController.text, _newController.text);
 
     if (!mounted) return;
     setState(() => _isSubmitting = false);
@@ -74,14 +92,17 @@ class _ForcedPasswordChangeDialogState extends State<ForcedPasswordChangeDialog>
     if (result['success'] == true) {
       Navigator.of(context).pop();
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Password updated successfully! Welcome to Ray of Hope ERP.'),
+        SnackBar(
+          content: Text(widget.forced
+              ? 'Password updated successfully! Welcome to Ray of Hope ERP.'
+              : 'Password updated successfully.'),
           backgroundColor: AppColors.statusActive,
         ),
       );
     } else {
       setState(() {
-        _errorMessage = result['error'] ?? 'Failed to update password. Please check your current password.';
+        _errorMessage = result['error'] ??
+            'Failed to update password. Please check your current password.';
       });
     }
   }
@@ -89,7 +110,7 @@ class _ForcedPasswordChangeDialogState extends State<ForcedPasswordChangeDialog>
   @override
   Widget build(BuildContext context) {
     return PopScope(
-      canPop: false, // Non-dismissible
+      canPop: !widget.forced, // A forced change can't be dismissed
       child: Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         elevation: 16,
@@ -111,32 +132,44 @@ class _ForcedPasswordChangeDialogState extends State<ForcedPasswordChangeDialog>
                     Container(
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: AppColors.primaryLight.withOpacity(0.15),
+                        color: AppColors.primaryLight.withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: const Icon(Icons.lock_reset_rounded, color: AppColors.primary, size: 28),
+                      child: const Icon(Icons.lock_reset_rounded,
+                          color: AppColors.primary, size: 28),
                     ),
                     const SizedBox(width: 14),
-                    const Expanded(
+                    Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Password Update Required',
+                            widget.forced
+                                ? 'Password Update Required'
+                                : 'Change Password',
                             style: TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.w800,
                               color: AppColors.textPrimary,
                             ),
                           ),
-                          SizedBox(height: 2),
+                          const SizedBox(height: 2),
                           Text(
-                            'Temporary credentials must be replaced before proceeding',
-                            style: TextStyle(fontSize: 12.5, color: AppColors.textSecondary),
+                            widget.forced
+                                ? 'Temporary credentials must be replaced before proceeding'
+                                : 'You will stay signed in on this device',
+                            style: TextStyle(
+                                fontSize: 12.5, color: AppColors.textSecondary),
                           ),
                         ],
                       ),
                     ),
+                    if (!widget.forced)
+                      IconButton(
+                        tooltip: 'Close',
+                        icon: const Icon(Icons.close),
+                        onPressed: () => Navigator.of(context).pop(),
+                      ),
                   ],
                 ),
                 const SizedBox(height: 24),
@@ -152,12 +185,14 @@ class _ForcedPasswordChangeDialogState extends State<ForcedPasswordChangeDialog>
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.error_outline, color: Color(0xFFDC2626), size: 20),
+                        const Icon(Icons.error_outline,
+                            color: Color(0xFFDC2626), size: 20),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
                             _errorMessage!,
-                            style: const TextStyle(color: Color(0xFF991B1B), fontSize: 13),
+                            style: const TextStyle(
+                                color: Color(0xFF991B1B), fontSize: 13),
                           ),
                         ),
                       ],
@@ -166,27 +201,44 @@ class _ForcedPasswordChangeDialogState extends State<ForcedPasswordChangeDialog>
                 ],
 
                 // Current (Temporary) Password
-                const Text('Current / Temporary Password', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                Text(
+                    widget.forced
+                        ? 'Current / Temporary Password'
+                        : 'Current Password',
+                    style:
+                        TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                 const SizedBox(height: 6),
                 TextField(
                   controller: _currentController,
                   obscureText: _obscureCurrent,
                   decoration: InputDecoration(
-                    hintText: 'Enter temporary password',
+                    hintText: widget.forced
+                        ? 'Enter temporary password'
+                        : 'Enter current password',
                     filled: true,
                     fillColor: const Color(0xFFF9FAFB),
                     suffixIcon: IconButton(
-                      icon: Icon(_obscureCurrent ? Icons.visibility_off : Icons.visibility, size: 20),
-                      onPressed: () => setState(() => _obscureCurrent = !_obscureCurrent),
+                      icon: Icon(
+                          _obscureCurrent
+                              ? Icons.visibility_off
+                              : Icons.visibility,
+                          size: 20),
+                      onPressed: () =>
+                          setState(() => _obscureCurrent = !_obscureCurrent),
                     ),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFE5E7EB))),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(color: Color(0xFFE5E7EB))),
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 12),
                   ),
                 ),
                 const SizedBox(height: 16),
 
                 // New Password
-                const Text('New Secure Password', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                const Text('New Secure Password',
+                    style:
+                        TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                 const SizedBox(height: 6),
                 TextField(
                   controller: _newController,
@@ -197,11 +249,17 @@ class _ForcedPasswordChangeDialogState extends State<ForcedPasswordChangeDialog>
                     filled: true,
                     fillColor: const Color(0xFFF9FAFB),
                     suffixIcon: IconButton(
-                      icon: Icon(_obscureNew ? Icons.visibility_off : Icons.visibility, size: 20),
-                      onPressed: () => setState(() => _obscureNew = !_obscureNew),
+                      icon: Icon(
+                          _obscureNew ? Icons.visibility_off : Icons.visibility,
+                          size: 20),
+                      onPressed: () =>
+                          setState(() => _obscureNew = !_obscureNew),
                     ),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFE5E7EB))),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(color: Color(0xFFE5E7EB))),
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 12),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -216,20 +274,29 @@ class _ForcedPasswordChangeDialogState extends State<ForcedPasswordChangeDialog>
                   ),
                   child: Column(
                     children: [
-                      _buildCheckItem('At least 8 characters long', _hasMinLength),
+                      _buildCheckItem(
+                          'At least 8 characters long', _hasMinLength),
                       const SizedBox(height: 4),
-                      _buildCheckItem('Contains at least one uppercase letter (A-Z)', _hasUppercase),
+                      _buildCheckItem(
+                          'Contains at least one uppercase letter (A-Z)',
+                          _hasUppercase),
                       const SizedBox(height: 4),
-                      _buildCheckItem('Contains at least one lowercase letter (a-z)', _hasLowercase),
+                      _buildCheckItem(
+                          'Contains at least one lowercase letter (a-z)',
+                          _hasLowercase),
                       const SizedBox(height: 4),
-                      _buildCheckItem('Contains at least one numeric digit (0-9)', _hasNumber),
+                      _buildCheckItem(
+                          'Contains at least one numeric digit (0-9)',
+                          _hasNumber),
                     ],
                   ),
                 ),
                 const SizedBox(height: 16),
 
                 // Confirm Password
-                const Text('Re-enter New Password', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                const Text('Re-enter New Password',
+                    style:
+                        TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                 const SizedBox(height: 6),
                 TextField(
                   controller: _confirmController,
@@ -240,11 +307,19 @@ class _ForcedPasswordChangeDialogState extends State<ForcedPasswordChangeDialog>
                     filled: true,
                     fillColor: const Color(0xFFF9FAFB),
                     suffixIcon: IconButton(
-                      icon: Icon(_obscureConfirm ? Icons.visibility_off : Icons.visibility, size: 20),
-                      onPressed: () => setState(() => _obscureConfirm = !_obscureConfirm),
+                      icon: Icon(
+                          _obscureConfirm
+                              ? Icons.visibility_off
+                              : Icons.visibility,
+                          size: 20),
+                      onPressed: () =>
+                          setState(() => _obscureConfirm = !_obscureConfirm),
                     ),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFE5E7EB))),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(color: Color(0xFFE5E7EB))),
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 12),
                   ),
                 ),
                 const SizedBox(height: 24),
@@ -254,16 +329,29 @@ class _ForcedPasswordChangeDialogState extends State<ForcedPasswordChangeDialog>
                   width: double.infinity,
                   height: 48,
                   child: ElevatedButton(
-                    onPressed: _isSubmitting || !_isCompliant || !_matchesConfirm ? null : _handleSubmit,
+                    onPressed:
+                        _isSubmitting || !_isCompliant || !_matchesConfirm
+                            ? null
+                            : _handleSubmit,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primary,
                       foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
                       elevation: 0,
                     ),
                     child: _isSubmitting
-                        ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white))
-                        : const Text('Update Password & Access Center', style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700)),
+                        ? const SizedBox(
+                            width: 22,
+                            height: 22,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2.5, color: Colors.white))
+                        : Text(
+                            widget.forced
+                                ? 'Update Password & Access Center'
+                                : 'Update Password',
+                            style: TextStyle(
+                                fontSize: 14.5, fontWeight: FontWeight.w700)),
                   ),
                 ),
               ],
@@ -278,7 +366,9 @@ class _ForcedPasswordChangeDialogState extends State<ForcedPasswordChangeDialog>
     return Row(
       children: [
         Icon(
-          satisfied ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
+          satisfied
+              ? Icons.check_circle_rounded
+              : Icons.radio_button_unchecked_rounded,
           size: 16,
           color: satisfied ? const Color(0xFF16A34A) : const Color(0xFF94A3B8),
         ),
@@ -287,7 +377,8 @@ class _ForcedPasswordChangeDialogState extends State<ForcedPasswordChangeDialog>
           label,
           style: TextStyle(
             fontSize: 12,
-            color: satisfied ? const Color(0xFF166534) : const Color(0xFF64748B),
+            color:
+                satisfied ? const Color(0xFF166534) : const Color(0xFF64748B),
             fontWeight: satisfied ? FontWeight.w600 : FontWeight.w400,
           ),
         ),

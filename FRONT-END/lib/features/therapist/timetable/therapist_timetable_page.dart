@@ -9,6 +9,7 @@ import 'package:roh_erp/core/services/api_service.dart';
 import 'package:roh_erp/core/services/schedule_service.dart';
 import 'package:roh_erp/core/services/web_storage/web_storage.dart';
 import 'package:roh_erp/features/auth/auth_service.dart';
+import 'package:roh_erp/features/therapist/daily_data_sheet/daily_data_sheet_page.dart';
 
 class TherapistTimetablePage extends StatefulWidget {
   final Function(int)? onNavigateTab;
@@ -672,9 +673,13 @@ class _TherapistTimetablePageState extends State<TherapistTimetablePage> {
                     backgroundColor: AppColors.primary,
                   ),
                 );
-                if (widget.onNavigateTab != null) {
-                  widget.onNavigateTab!(8);
+                final id = int.tryParse(session.studentId);
+                if (id != null) {
+                  DailyDataSheetPage.openStudent.value =
+                      (id: id, name: session.studentName);
                 }
+                // Daily Data Sheet is index 9 in TherapistShell._pages.
+                widget.onNavigateTab?.call(9);
               },
               icon: const Icon(Icons.assignment_turned_in_outlined,
                   size: 16, color: Colors.white),

@@ -2,6 +2,10 @@
 import 'package:flutter/material.dart';
 import 'package:roh_erp/core/constants/app_colors.dart';
 import 'package:roh_erp/core/layout/responsive.dart';
+import 'package:roh_erp/core/services/api_service.dart';
+import 'package:roh_erp/core/services/report_pdf.dart';
+import 'package:roh_erp/core/services/schedule_service.dart';
+import 'package:roh_erp/core/widgets/edit_record_dialogs.dart';
 import 'package:roh_erp/features/shared_progress/progress_data.dart';
 import 'package:roh_erp/features/shared_progress/student_progress_table.dart';
 
@@ -53,17 +57,36 @@ class _StudProgressSectionPageState extends State<StudProgressSectionPage> {
     _loadData();
   }
 
+  /// Title of the director appointment booked for a stagnation review; also
+  /// used to recognise alerts that already have a review on the calendar.
+  static String _reviewTitle(StagnationAlert a) =>
+      'Stagnation review: ${a.studentName} (${a.targetDescription})';
+
   Future<void> _loadData() async {
-    final data = await ProgressData.load();
+    final results = await Future.wait([
+      ProgressData.load(),
+      ApiService().get('get_director_appointments'),
+    ]);
+    final data = results[0] as ProgressData;
+    final appts = results[1];
     if (!mounted) return;
     for (final a in _alerts) {
       if (a.reviewScheduled) _scheduledReviewIds.add(a.id);
     }
+    final bookedTitles = <String>{
+      if (appts is List)
+        for (final r in appts)
+          if (r is Map && (r['status'] ?? '').toString() != 'cancelled')
+            (r['title'] ?? '').toString(),
+    };
     setState(() {
       _data = data;
       _alerts
         ..clear()
         ..addAll(_buildAlerts(data));
+      for (final a in _alerts) {
+        if (bookedTitles.contains(_reviewTitle(a))) a.reviewScheduled = true;
+      }
       _isLoading = false;
     });
   }
@@ -76,17 +99,18 @@ class _StudProgressSectionPageState extends State<StudProgressSectionPage> {
       if (t.mastered || t.firstSession == null || t.lastSession == null) {
         continue;
       }
-      if (!t.firstSession!.isBefore(cutoff) || t.lastSession!.isBefore(cutoff)) {
+      if (!t.firstSession!.isBefore(cutoff) ||
+          t.lastSession!.isBefore(cutoff)) {
         continue;
       }
-      final id = '${t.studentId}|${t.domain.toLowerCase()}|${t.target.toLowerCase()}';
+      final id =
+          '${t.studentId}|${t.domain.toLowerCase()}|${t.target.toLowerCase()}';
       alerts.add(StagnationAlert(
         id: id,
         studentName: data.studentNames[t.studentId] ?? t.studentName,
         domain: t.domain.isEmpty ? 'General' : t.domain,
         targetDescription: t.target.isEmpty ? 'Unnamed target' : t.target,
-        therapistName:
-            t.therapistName.isEmpty ? 'Unassigned' : t.therapistName,
+        therapistName: t.therapistName.isEmpty ? 'Unassigned' : t.therapistName,
         daysStagnant: day.difference(t.firstSession!).inDays,
         trend: 'last ${(t.lastSuccessRatio * 100).round()}%',
         reviewScheduled: _scheduledReviewIds.contains(id),
@@ -123,72 +147,244 @@ class _StudProgressSectionPageState extends State<StudProgressSectionPage> {
   }
 
   void _scheduleReview(StagnationAlert alert) {
+    DateTime date = DateTime.now().add(const Duration(days: 1));
+    String slot = ScheduleService.standardTimeSlots.first;
+    bool saving = false;
+
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(
-          children: [
-            const Icon(Icons.calendar_today_outlined, color: AppColors.primary),
-            const SizedBox(width: 10),
-            Text('Schedule Clinical Review: ${alert.studentName}'),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Assigned Clinician: ${alert.therapistName}',
-                style:
-                    const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-            const SizedBox(height: 6),
-            Text('Stagnant Target: ${alert.targetDescription}',
-                style: const TextStyle(
-                    fontSize: 12, color: AppColors.textSecondary)),
-            const SizedBox(height: 14),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                  color: const Color(0xFFFFF3E0),
-                  borderRadius: BorderRadius.circular(8)),
-              child: Text(
-                'Alert: Target is still unmastered ${alert.daysStagnant} days after its first session (${alert.trend}). A protocol modification or prompt hierarchy shift is recommended.',
-                style: const TextStyle(
-                    fontSize: 12,
-                    color: Color(0xFFB76E00),
-                    fontWeight: FontWeight.w500),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('Cancel')),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8)),
-            ),
-            onPressed: () {
-              setState(() {
-                alert.reviewScheduled = true;
-              });
-              Navigator.of(ctx).pop();
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                      'Clinical protocol review meeting scheduled with ${alert.therapistName}!'),
-                  backgroundColor: AppColors.statusActive,
-                ),
-              );
-            },
-            child: const Text('Confirm Review Meeting',
-                style: TextStyle(color: Colors.white)),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
+            children: [
+              const Icon(Icons.calendar_today_outlined,
+                  color: AppColors.primary),
+              const SizedBox(width: 10),
+              Expanded(
+                  child:
+                      Text('Schedule Clinical Review: ${alert.studentName}')),
+            ],
           ),
-        ],
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Assigned Clinician: ${alert.therapistName}',
+                    style: const TextStyle(
+                        fontWeight: FontWeight.bold, fontSize: 13)),
+                const SizedBox(height: 6),
+                Text('Stagnant Target: ${alert.targetDescription}',
+                    style: const TextStyle(
+                        fontSize: 12, color: AppColors.textSecondary)),
+                const SizedBox(height: 14),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                      color: const Color(0xFFFFF3E0),
+                      borderRadius: BorderRadius.circular(8)),
+                  child: Text(
+                    'Alert: Target is still unmastered ${alert.daysStagnant} days after its first session (${alert.trend}). A protocol modification or prompt hierarchy shift is recommended.',
+                    style: const TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFFB76E00),
+                        fontWeight: FontWeight.w500),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.event, size: 16),
+                  label: Text(
+                      'Date: ${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}'),
+                  onPressed: saving
+                      ? null
+                      : () async {
+                          final picked = await showDatePicker(
+                            context: ctx,
+                            initialDate: date,
+                            firstDate: DateTime.now()
+                                .subtract(const Duration(days: 1)),
+                            lastDate:
+                                DateTime.now().add(const Duration(days: 365)),
+                          );
+                          if (picked != null) {
+                            setDialogState(() => date = picked);
+                          }
+                        },
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: slot,
+                  isExpanded: true,
+                  decoration: InputDecoration(
+                    labelText: 'Time slot',
+                    isDense: true,
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8)),
+                  ),
+                  items: ScheduleService.standardTimeSlots
+                      .map((s) => DropdownMenuItem(value: s, child: Text(s)))
+                      .toList(),
+                  onChanged: saving
+                      ? null
+                      : (v) {
+                          if (v != null) setDialogState(() => slot = v);
+                        },
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+                onPressed: saving ? null : () => Navigator.of(ctx).pop(),
+                child: const Text('Cancel')),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8)),
+              ),
+              onPressed: saving
+                  ? null
+                  : () async {
+                      setDialogState(() => saving = true);
+                      final times = slot.split(' - ');
+                      final res =
+                          await ApiService().post('save_director_appointment', {
+                        'title': _reviewTitle(alert),
+                        'appointment_type': 'staffConsultation',
+                        'date':
+                            '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}',
+                        'start_time': times.first,
+                        'end_time': times.length > 1 ? times[1] : times.first,
+                        'attendee_name': alert.therapistName,
+                        'attendee_role': 'Therapist',
+                        'notes':
+                            'Stagnant ${alert.domain} target "${alert.targetDescription}" — unmastered ${alert.daysStagnant} days (${alert.trend}).',
+                      });
+                      if (!mounted) return;
+                      final ok = showApiResult(context, res,
+                          'Clinical protocol review meeting scheduled with ${alert.therapistName}!');
+                      if (ok) {
+                        setState(() {
+                          alert.reviewScheduled = true;
+                          _scheduledReviewIds.add(alert.id);
+                        });
+                        if (ctx.mounted) Navigator.of(ctx).pop();
+                      } else {
+                        setDialogState(() => saving = false);
+                      }
+                    },
+              child: const Text('Confirm Review Meeting',
+                  style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        ),
       ),
+    );
+  }
+
+  Future<void> _exportReport() async {
+    final data = _data;
+    if (data == null || !data.hasAnyData) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No progress data to export yet.')));
+      return;
+    }
+    final milestoneRate = _milestoneRate;
+    final avg = _avgDaysToMastery;
+
+    // Domain mastery (same grouping as the Domain Mastery tab).
+    final names = <String, String>{};
+    final introduced = <String, int>{};
+    final mastered = <String, int>{};
+    for (final t in data.targets) {
+      final label = t.domain.trim().isEmpty ? 'General' : t.domain.trim();
+      final key = label.toLowerCase();
+      names.putIfAbsent(key, () => label);
+      introduced[key] = (introduced[key] ?? 0) + 1;
+      if (t.mastered) mastered[key] = (mastered[key] ?? 0) + 1;
+    }
+    final domainKeys = introduced.keys.toList()
+      ..sort((x, y) => introduced[y]!.compareTo(introduced[x]!));
+
+    await ReportPdf.share(
+      title: 'Center-Wide Student Progress Report',
+      subtitle: '${data.studentNames.length} students',
+      fileName: 'student_progress_report.pdf',
+      sections: [
+        ReportSection('Key Indicators', columns: const [
+          'Indicator',
+          'Value'
+        ], rows: [
+          ['Targets mastered (last 30 days)', '$_masteredLast30'],
+          ['Avg days to mastery', avg == null ? '—' : avg.toStringAsFixed(1)],
+          [
+            'VB-MAPP milestone rate',
+            milestoneRate == null
+                ? '—'
+                : '${milestoneRate.pct.toStringAsFixed(1)}% (${milestoneRate.students} students)'
+          ],
+          [
+            'Open stagnation alerts',
+            '${_alerts.where((a) => !a.reviewScheduled).length}'
+          ],
+        ]),
+        if (domainKeys.isNotEmpty)
+          ReportSection('Targets Mastered by Domain', columns: const [
+            'Domain',
+            'Mastered',
+            'Introduced',
+            'Rate'
+          ], rows: [
+            for (final k in domainKeys)
+              [
+                names[k]!,
+                '${mastered[k] ?? 0}',
+                '${introduced[k]}',
+                '${((mastered[k] ?? 0) / introduced[k]! * 100).round()}%',
+              ],
+          ]),
+        ReportSection('Student Progress', columns: const [
+          'Student',
+          'Targets mastered',
+          'Sessions (30d)',
+          'Success (30d)',
+          'Latest VB-MAPP'
+        ], rows: [
+          for (final r in data.studentRows())
+            [
+              r.name,
+              '${r.targetsMastered}',
+              '${r.sessions30d}',
+              r.successPct30d == null
+                  ? '—'
+                  : '${r.successPct30d!.toStringAsFixed(0)}%',
+              StudentProgressTable.milestoneText(r.latestMilestone),
+            ],
+        ]),
+        if (_alerts.isNotEmpty)
+          ReportSection('Stagnation Alerts', columns: const [
+            'Student',
+            'Domain',
+            'Target',
+            'Therapist',
+            'Days',
+            'Review'
+          ], rows: [
+            for (final a in _alerts)
+              [
+                a.studentName,
+                a.domain,
+                a.targetDescription,
+                a.therapistName,
+                '${a.daysStagnant}',
+                a.reviewScheduled ? 'Scheduled' : 'Open',
+              ],
+          ]),
+      ],
     );
   }
 
@@ -240,13 +436,7 @@ class _StudProgressSectionPageState extends State<StudProgressSectionPage> {
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8)),
                 ),
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                        content: Text(
-                            'Exporting center-wide clinical progress report...')),
-                  );
-                },
+                onPressed: _exportReport,
               );
 
               if (isNarrow) {
@@ -668,8 +858,7 @@ class _StudProgressSectionPageState extends State<StudProgressSectionPage> {
                                       color: AppColors.textPrimary),
                                   overflow: TextOverflow.ellipsis),
                               Text(
-                                  StudentProgressTable.milestoneDetail(
-                                      e.value),
+                                  StudentProgressTable.milestoneDetail(e.value),
                                   style: const TextStyle(
                                       fontSize: 10,
                                       color: AppColors.textSecondary),

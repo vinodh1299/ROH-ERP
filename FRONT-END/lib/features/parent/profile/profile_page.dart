@@ -4,6 +4,8 @@ import 'package:roh_erp/core/constants/app_colors.dart';
 import 'package:roh_erp/core/layout/responsive.dart';
 import 'package:roh_erp/core/services/schedule_service.dart';
 import 'package:roh_erp/features/auth/auth_service.dart';
+import 'package:roh_erp/features/auth/widgets/forced_password_change_dialog.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -13,10 +15,38 @@ class ProfilePage extends StatefulWidget {
 }
 
 class _ProfilePageState extends State<ProfilePage> {
+  static const _prefEmailNotifs = 'pref_notify_email_digest';
+  static const _prefSessionAlerts = 'pref_notify_session_completion';
+  static const _prefIepUpdates = 'pref_notify_iep_updates';
+
   bool _emailNotifs = true;
-  bool _smsNotifs = true;
   bool _sessionAlerts = true;
   bool _iepUpdates = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPreferences();
+  }
+
+  Future<void> _loadPreferences() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (!mounted) return;
+      setState(() {
+        _emailNotifs = prefs.getBool(_prefEmailNotifs) ?? true;
+        _sessionAlerts = prefs.getBool(_prefSessionAlerts) ?? true;
+        _iepUpdates = prefs.getBool(_prefIepUpdates) ?? true;
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _savePreference(String key, bool value) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(key, value);
+    } catch (_) {}
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -125,6 +155,20 @@ class _ProfilePageState extends State<ProfilePage> {
                         'Contact your center administrator to update profile details.',
                         style: TextStyle(
                             fontSize: 13, color: AppColors.textSecondary),
+                      ),
+                      const SizedBox(height: 12),
+                      OutlinedButton.icon(
+                        onPressed: () =>
+                            ForcedPasswordChangeDialog.show(context),
+                        icon: const Icon(Icons.lock_outline,
+                            size: 16, color: AppColors.primary),
+                        label: const Text('Change Password',
+                            style: TextStyle(color: AppColors.primary)),
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: AppColors.primary),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8)),
+                        ),
                       ),
                     ],
                   ),
@@ -262,7 +306,10 @@ class _ProfilePageState extends State<ProfilePage> {
                           fontSize: 12, color: AppColors.textSecondary)),
                   value: _sessionAlerts,
                   activeColor: AppColors.primary,
-                  onChanged: (val) => setState(() => _sessionAlerts = val),
+                  onChanged: (val) {
+                    setState(() => _sessionAlerts = val);
+                    _savePreference(_prefSessionAlerts, val);
+                  },
                 ),
                 const Divider(height: 16, color: AppColors.divider),
                 SwitchListTile(
@@ -276,7 +323,10 @@ class _ProfilePageState extends State<ProfilePage> {
                           fontSize: 12, color: AppColors.textSecondary)),
                   value: _iepUpdates,
                   activeColor: AppColors.primary,
-                  onChanged: (val) => setState(() => _iepUpdates = val),
+                  onChanged: (val) {
+                    setState(() => _iepUpdates = val);
+                    _savePreference(_prefIepUpdates, val);
+                  },
                 ),
                 const Divider(height: 16, color: AppColors.divider),
                 SwitchListTile(
@@ -290,7 +340,10 @@ class _ProfilePageState extends State<ProfilePage> {
                           fontSize: 12, color: AppColors.textSecondary)),
                   value: _emailNotifs,
                   activeColor: AppColors.primary,
-                  onChanged: (val) => setState(() => _emailNotifs = val),
+                  onChanged: (val) {
+                    setState(() => _emailNotifs = val);
+                    _savePreference(_prefEmailNotifs, val);
+                  },
                 ),
               ],
             ),

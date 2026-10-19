@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:roh_erp/core/constants/app_colors.dart';
 import 'package:roh_erp/core/layout/responsive.dart';
-import 'package:roh_erp/core/constants/app_images.dart';
 import 'package:roh_erp/core/services/api_service.dart';
+import 'package:roh_erp/core/widgets/edit_record_dialogs.dart';
 import 'admin_therapist_add_dialog.dart';
 import '../accounts/admin_initiate_reset_dialog.dart';
 
@@ -32,6 +32,7 @@ class _AdminTherapistsPageState extends State<AdminTherapistsPage> {
 
     try {
       final res = await ApiService().get('get_therapists');
+      if (!mounted) return;
       if (res is List) {
         setState(() {
           _therapists = List<Map<String, dynamic>>.from(res);
@@ -49,6 +50,7 @@ class _AdminTherapistsPageState extends State<AdminTherapistsPage> {
         });
       }
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _error = e.toString();
         _isLoading = false;
@@ -154,6 +156,10 @@ class _AdminTherapistsPageState extends State<AdminTherapistsPage> {
                                       : int.tryParse(
                                               therapist['id'].toString()) ??
                                           0;
+                                  final isActive =
+                                      (therapist['status'] ?? 'Active')
+                                              .toString() ==
+                                          'Active';
 
                                   return Container(
                                     decoration: BoxDecoration(
@@ -179,7 +185,7 @@ class _AdminTherapistsPageState extends State<AdminTherapistsPage> {
                                                 color: AppColors.textPrimary,
                                                 size: 20),
                                             tooltip: 'Therapist Options',
-                                            onSelected: (val) {
+                                            onSelected: (val) async {
                                               if (val == 'reset') {
                                                 AdminInitiateResetDialog.show(
                                                   context: context,
@@ -188,9 +194,55 @@ class _AdminTherapistsPageState extends State<AdminTherapistsPage> {
                                                   userEmail: email,
                                                   userRole: 'therapist',
                                                 );
+                                              } else if (val == 'edit') {
+                                                if (await EditTherapistDialog
+                                                    .show(context, therapist)) {
+                                                  _loadTherapists();
+                                                }
+                                              } else if (val == 'toggle') {
+                                                if (await toggleTherapistStatus(
+                                                    context, therapist)) {
+                                                  _loadTherapists();
+                                                }
                                               }
                                             },
                                             itemBuilder: (ctx) => [
+                                              const PopupMenuItem(
+                                                value: 'edit',
+                                                child: Row(
+                                                  children: [
+                                                    Icon(Icons.edit_outlined,
+                                                        size: 18,
+                                                        color:
+                                                            AppColors.primary),
+                                                    SizedBox(width: 8),
+                                                    Text('Edit details'),
+                                                  ],
+                                                ),
+                                              ),
+                                              PopupMenuItem(
+                                                value: 'toggle',
+                                                child: Row(
+                                                  children: [
+                                                    Icon(
+                                                        isActive
+                                                            ? Icons
+                                                                .person_off_outlined
+                                                            : Icons
+                                                                .person_outline,
+                                                        size: 18,
+                                                        color: isActive
+                                                            ? AppColors
+                                                                .statusDeactivated
+                                                            : AppColors
+                                                                .statusActive),
+                                                    const SizedBox(width: 8),
+                                                    Text(isActive
+                                                        ? 'De-activate'
+                                                        : 'Re-activate'),
+                                                  ],
+                                                ),
+                                              ),
                                               const PopupMenuItem(
                                                 value: 'reset',
                                                 child: Row(
@@ -241,6 +293,31 @@ class _AdminTherapistsPageState extends State<AdminTherapistsPage> {
                                                     fontSize: 13),
                                                 textAlign: TextAlign.center,
                                               ),
+                                              if (!isActive) ...[
+                                                const SizedBox(height: 6),
+                                                Container(
+                                                  padding: const EdgeInsets
+                                                      .symmetric(
+                                                      horizontal: 10,
+                                                      vertical: 3),
+                                                  decoration: BoxDecoration(
+                                                    color: AppColors
+                                                        .statusDeactivatedBg,
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                            12),
+                                                  ),
+                                                  child: const Text(
+                                                    'De-Activated',
+                                                    style: TextStyle(
+                                                        color: AppColors
+                                                            .statusDeactivated,
+                                                        fontSize: 11,
+                                                        fontWeight:
+                                                            FontWeight.w600),
+                                                  ),
+                                                ),
+                                              ],
                                             ],
                                           ),
                                         ),

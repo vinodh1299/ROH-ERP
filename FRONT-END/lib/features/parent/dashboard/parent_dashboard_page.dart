@@ -5,9 +5,11 @@ import 'package:provider/provider.dart';
 import 'package:roh_erp/core/constants/app_colors.dart';
 import 'package:roh_erp/core/layout/responsive.dart';
 import 'package:roh_erp/core/models/schedule_model.dart';
+import 'package:roh_erp/core/services/api_service.dart';
 import 'package:roh_erp/core/services/db_queries.dart';
 import 'package:roh_erp/core/services/progress_metrics.dart';
 import 'package:roh_erp/core/services/schedule_service.dart';
+import 'package:roh_erp/core/widgets/edit_record_dialogs.dart';
 import 'package:roh_erp/features/auth/auth_service.dart';
 import 'widgets/parent_request_appointment_dialog.dart';
 
@@ -46,8 +48,7 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
     _masteredTargets = null;
     DailyDataQueries.fetchForStudent(id).then((rows) {
       if (!mounted || _masteryLoadedFor != id) return;
-      final childRows =
-          rows.where((r) => '${r['student_id']}' == id).toList();
+      final childRows = rows.where((r) => '${r['student_id']}' == id).toList();
       setState(() {
         _masteredTargets = childRows.isEmpty
             ? null
@@ -55,6 +56,62 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
         _masteryLoading = false;
       });
     });
+  }
+
+  // Appointments cancelled from this page, kept so they show as cancelled
+  // even before the next background sync reports the new status.
+  final Set<String> _cancelledAppointmentIds = {};
+
+  bool _isCancelled(DirectorAppointment appt) =>
+      appt.status == AppointmentStatus.cancelled ||
+      _cancelledAppointmentIds.contains(appt.id);
+
+  /// Not cancelled or completed, and dated today or later.
+  bool _canCancel(DirectorAppointment appt) {
+    if (_isCancelled(appt) || appt.status == AppointmentStatus.completed) {
+      return false;
+    }
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final day = DateTime(appt.date.year, appt.date.month, appt.date.day);
+    return !day.isBefore(today);
+  }
+
+  Future<void> _cancelAppointment(DirectorAppointment appt) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Cancel appointment?'),
+        content: Text(
+            '${appt.title} on ${DateFormat('dd MMM yyyy').format(appt.date)} at ${appt.startTime} will be cancelled.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Keep'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Cancel appointment'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    final res = await ApiService().post('update_director_appointment', {
+      'id': appt.id,
+      'status': 'cancelled',
+    });
+    if (!mounted) return;
+    if (showApiResult(context, res, 'Appointment cancelled.')) {
+      setState(() => _cancelledAppointmentIds.add(appt.id));
+      final service = context.read<ScheduleService>();
+      await service.syncWithBackend();
+      service.updateAppointmentStatus(appt.id, AppointmentStatus.cancelled);
+    }
   }
 
   void _openAppointmentDialog(String parentName) {
@@ -874,6 +931,7 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
               separatorBuilder: (_, __) => const SizedBox(height: 12),
               itemBuilder: (context, i) {
                 final appt = appointments[i];
+                final cancelled = _isCancelled(appt);
                 return Container(
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
@@ -907,15 +965,27 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 8, vertical: 3),
                             decoration: BoxDecoration(
-                              color: const Color(0xFFE8F5E9),
+                              color: cancelled
+                                  ? const Color(0xFFFFEBEE)
+                                  : const Color(0xFFE8F5E9),
                               borderRadius: BorderRadius.circular(10),
                             ),
-                            child: const Text(
-                              'Confirmed',
+                            child: Text(
+                              cancelled
+                                  ? 'Cancelled'
+                                  : switch (appt.status) {
+                                      AppointmentStatus.tentative =>
+                                        'Tentative',
+                                      AppointmentStatus.completed =>
+                                        'Completed',
+                                      _ => 'Confirmed',
+                                    },
                               style: TextStyle(
                                 fontSize: 10,
                                 fontWeight: FontWeight.bold,
-                                color: Color(0xFF2E7D32),
+                                color: cancelled
+                                    ? const Color(0xFFC62828)
+                                    : const Color(0xFF2E7D32),
                               ),
                             ),
                           ),
@@ -933,13 +1003,31 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
                           const Icon(Icons.room_outlined,
                               size: 14, color: AppColors.textSecondary),
                           const SizedBox(width: 4),
-                          Text(
-                            appt.location,
-                            style: const TextStyle(
-                                fontSize: 11, color: AppColors.textSecondary),
+                          Expanded(
+                            child: Text(
+                              appt.location,
+                              style: const TextStyle(
+                                  fontSize: 11, color: AppColors.textSecondary),
+                            ),
                           ),
                         ],
                       ),
+                      if (_canCancel(appt))
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton.icon(
+                            onPressed: () => _cancelAppointment(appt),
+                            icon: const Icon(Icons.event_busy_outlined,
+                                size: 16, color: Colors.red),
+                            label: const Text(
+                              'Cancel appointment',
+                              style: TextStyle(fontSize: 12, color: Colors.red),
+                            ),
+                            style: TextButton.styleFrom(
+                              visualDensity: VisualDensity.compact,
+                            ),
+                          ),
+                        ),
                     ],
                   ),
                 );

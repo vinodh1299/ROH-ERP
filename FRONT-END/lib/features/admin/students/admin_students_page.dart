@@ -1,10 +1,10 @@
 import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:roh_erp/core/constants/app_colors.dart';
-import 'package:roh_erp/core/constants/app_images.dart';
 import 'package:roh_erp/core/layout/responsive.dart';
 import 'package:roh_erp/core/services/api_service.dart';
-import 'admin_student_form_page.dart';
+import 'package:roh_erp/core/widgets/edit_record_dialogs.dart';
+import '../../director/students_section/widgets/add_student_dialog.dart';
 
 class AdminStudentsPage extends StatefulWidget {
   const AdminStudentsPage({super.key});
@@ -14,7 +14,6 @@ class AdminStudentsPage extends StatefulWidget {
 }
 
 class _AdminStudentsPageState extends State<AdminStudentsPage> {
-  bool _showForm = false;
   List<Map<String, dynamic>> _students = [];
   bool _isLoading = true;
   String? _error;
@@ -33,6 +32,7 @@ class _AdminStudentsPageState extends State<AdminStudentsPage> {
 
     try {
       final res = await ApiService().get('get_students');
+      if (!mounted) return;
       if (res is List) {
         setState(() {
           _students = List<Map<String, dynamic>>.from(res);
@@ -50,11 +50,24 @@ class _AdminStudentsPageState extends State<AdminStudentsPage> {
         });
       }
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _error = e.toString();
         _isLoading = false;
       });
     }
+  }
+
+  void _openAddDialog() {
+    showDialog(
+      context: context,
+      barrierColor: Colors.black45,
+      builder: (_) => AddStudentDialog(onSaved: _loadStudents),
+    );
+  }
+
+  Future<void> _editStudent(Map<String, dynamic> student) async {
+    if (await EditStudentDialog.show(context, student)) _loadStudents();
   }
 
   int _calculateAge(dynamic dob) {
@@ -120,12 +133,6 @@ class _AdminStudentsPageState extends State<AdminStudentsPage> {
 
   @override
   Widget build(BuildContext context) {
-    if (_showForm) {
-      return AdminStudentFormPage(onBack: () {
-        setState(() => _showForm = false);
-        _loadStudents();
-      });
-    }
     final isPhone = Breakpoints.isCompact(context);
     return Padding(
       padding: Breakpoints.pagePadding(context),
@@ -141,7 +148,7 @@ class _AdminStudentsPageState extends State<AdminStudentsPage> {
                       fontSize: 18)),
               const Spacer(),
               ElevatedButton(
-                onPressed: () => setState(() => _showForm = true),
+                onPressed: _openAddDialog,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
                   minimumSize: const Size(100, 44),
@@ -230,14 +237,7 @@ class _AdminStudentsPageState extends State<AdminStudentsPage> {
                                     constraints: const BoxConstraints(
                                         minWidth: 44, minHeight: 44),
                                     tooltip: 'Edit Student',
-                                    onPressed: () {
-                                      ScaffoldMessenger.of(context)
-                                          .showSnackBar(
-                                        SnackBar(
-                                            content:
-                                                Text('Editing student: $name')),
-                                      );
-                                    },
+                                    onPressed: () => _editStudent(student),
                                   );
                                   final deleteBtn = IconButton(
                                     icon: const Icon(Icons.delete,
@@ -347,7 +347,7 @@ class _AdminStudentsPageState extends State<AdminStudentsPage> {
           ),
         ),
         Expanded(
-          child: isInteractive
+          child: isInteractive && value != 'Not provided'
               ? InkWell(
                   onTap: () {
                     Clipboard.setData(ClipboardData(text: value));

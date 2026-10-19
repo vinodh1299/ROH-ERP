@@ -30,6 +30,7 @@ class _AddStudentDialogState extends State<AddStudentDialog> {
   // Holds the newly created student's id once tab 1 is saved — tabs 2 & 3
   // need this to attach medications / guardians / emergency contacts.
   String? _studentId;
+  bool _medicationsSaved = false;
 
   // ── Form state shared across tabs ─────────────────────────────────────
   final studentInfoKey = GlobalKey<StudentInfoTabState>();
@@ -38,6 +39,11 @@ class _AddStudentDialogState extends State<AddStudentDialog> {
 
   Future<void> _goNext() async {
     if (_currentTab == 0) {
+      // Already created (user went Back): don't insert a duplicate student.
+      if (_studentId != null) {
+        setState(() => _currentTab = 1);
+        return;
+      }
       // Validate + save student info first, since later tabs need student_id
       final formData = studentInfoKey.currentState?.collect();
       if (formData == null) return; // validation failed
@@ -58,6 +64,23 @@ class _AddStudentDialogState extends State<AddStudentDialog> {
       _studentId = '${result['id']}';
       setState(() => _currentTab = 1);
     } else if (_currentTab == 1) {
+      // Persist the medication tab once (going back and forward again must
+      // not insert the same medications twice).
+      if (!_medicationsSaved) {
+        setState(() => _submitting = true);
+        final ok = await medicationKey.currentState?.saveAll() ?? true;
+        if (!mounted) return;
+        setState(() => _submitting = false);
+        if (!ok) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+                content: Text('Failed to save medication history.'),
+                backgroundColor: Colors.red),
+          );
+          return;
+        }
+        _medicationsSaved = true;
+      }
       setState(() => _currentTab = 2);
     }
   }

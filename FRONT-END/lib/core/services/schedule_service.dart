@@ -71,8 +71,10 @@ class ScheduleService extends ChangeNotifier {
             AppointmentType aType = AppointmentType.diagnosticIntake;
             final typeStr = item['appointment_type']?.toString() ?? '';
             if (typeStr.contains('iep')) aType = AppointmentType.iepReview;
-            if (typeStr.contains('bacb')) aType = AppointmentType.bacbSupervision;
-            if (typeStr.contains('parent')) aType = AppointmentType.parentConference;
+            if (typeStr.contains('bacb'))
+              aType = AppointmentType.bacbSupervision;
+            if (typeStr.contains('parent'))
+              aType = AppointmentType.parentConference;
 
             _directorAppointments.add(DirectorAppointment(
               id: item['id'].toString(),
@@ -87,7 +89,9 @@ class ScheduleService extends ChangeNotifier {
               attendeeEmail: item['attendee_email'] ?? '',
               location: item['location'] ?? 'Director Office Suite',
               scheduledBy: item['scheduled_by'] ?? 'Admin',
-              status: AppointmentStatus.confirmed,
+              status: AppointmentStatus.values.firstWhere(
+                  (v) => v.name == item['status']?.toString(),
+                  orElse: () => AppointmentStatus.confirmed),
               notes: item['notes'] ?? '',
             ));
           }
@@ -102,7 +106,8 @@ class ScheduleService extends ChangeNotifier {
             _therapistsList.add({
               'id': t['id']?.toString() ?? '',
               'name': t['name']?.toString() ?? 'Therapist',
-              'designation': t['designation']?.toString() ?? 'Behavior Therapist',
+              'designation':
+                  t['designation']?.toString() ?? 'Behavior Therapist',
             });
           }
         }
@@ -115,9 +120,14 @@ class ScheduleService extends ChangeNotifier {
           if (s is Map<String, dynamic>) {
             _studentsList.add({
               'id': s['id']?.toString() ?? '',
-              'name': (s['name'] ?? '${s['first_name'] ?? ''} ${s['last_name'] ?? ''}').toString().trim(),
+              'name': (s['name'] ??
+                      '${s['first_name'] ?? ''} ${s['last_name'] ?? ''}')
+                  .toString()
+                  .trim(),
               'age': s['age'] ?? 10,
-              'programs': (s['program'] ?? s['primary_diagnosis'] ?? 'ABA Intervention').toString(),
+              'programs':
+                  (s['program'] ?? s['primary_diagnosis'] ?? 'ABA Intervention')
+                      .toString(),
             });
           }
         }
@@ -135,7 +145,8 @@ class ScheduleService extends ChangeNotifier {
   static final List<Map<String, dynamic>> _studentsList = [];
 
   List<TherapySession> get allSessions => List.unmodifiable(_sessions);
-  List<DirectorAppointment> get allDirectorAppointments => List.unmodifiable(_directorAppointments);
+  List<DirectorAppointment> get allDirectorAppointments =>
+      List.unmodifiable(_directorAppointments);
 
   // Standard Director Booking Slots
   static const List<String> standardTimeSlots = [
@@ -167,8 +178,10 @@ class ScheduleService extends ChangeNotifier {
   ];
 
   // Dynamic lists populated from live database
-  static List<Map<String, String>> get centerTherapists => List.unmodifiable(_therapistsList);
-  static List<Map<String, dynamic>> get centerStudents => List.unmodifiable(_studentsList);
+  static List<Map<String, String>> get centerTherapists =>
+      List.unmodifiable(_therapistsList);
+  static List<Map<String, dynamic>> get centerStudents =>
+      List.unmodifiable(_studentsList);
 
   /// Converts backend session_date/appointment date into a local calendar DateTime
   /// regardless of whether it was serialized as 'YYYY-MM-DD', UTC ISO string, or SQL timestamp.
@@ -195,7 +208,8 @@ class ScheduleService extends ChangeNotifier {
   // THERAPIST SCHEDULE METHODS
   // ──────────────────────────────────────────────────────────────────────────
 
-  List<TherapySession> getSessionsForTherapist(String therapistId, {DateTime? date}) {
+  List<TherapySession> getSessionsForTherapist(String therapistId,
+      {DateTime? date}) {
     final targetDate = date ?? DateTime.now();
     return _sessions.where((s) {
       final isSameDate = s.date.year == targetDate.year &&
@@ -266,7 +280,8 @@ class ScheduleService extends ChangeNotifier {
     }
   }
 
-  Future<void> updateSessionStatus(String sessionId, SessionStatus newStatus) async {
+  Future<void> updateSessionStatus(
+      String sessionId, SessionStatus newStatus) async {
     final index = _sessions.indexWhere((s) => s.id == sessionId);
     if (index != -1) {
       _sessions[index] = _sessions[index].copyWith(status: newStatus);
@@ -326,11 +341,14 @@ class ScheduleService extends ChangeNotifier {
         .map((a) => '${a.startTime} - ${a.endTime}')
         .toSet();
 
-    return standardTimeSlots.where((slot) => !bookedSlots.contains(slot)).toList();
+    return standardTimeSlots
+        .where((slot) => !bookedSlots.contains(slot))
+        .toList();
   }
 
   // Admin books appointment for Director
-  Future<bool> scheduleDirectorAppointment(DirectorAppointment appointment) async {
+  Future<bool> scheduleDirectorAppointment(
+      DirectorAppointment appointment) async {
     // Conflict check
     final conflict = _directorAppointments.any((a) =>
         a.date.year == appointment.date.year &&
@@ -377,8 +395,10 @@ class ScheduleService extends ChangeNotifier {
     }
   }
 
-  void updateAppointmentStatus(String appointmentId, AppointmentStatus newStatus) {
-    final index = _directorAppointments.indexWhere((a) => a.id == appointmentId);
+  void updateAppointmentStatus(
+      String appointmentId, AppointmentStatus newStatus) {
+    final index =
+        _directorAppointments.indexWhere((a) => a.id == appointmentId);
     if (index != -1) {
       _directorAppointments[index] =
           _directorAppointments[index].copyWith(status: newStatus);
@@ -395,10 +415,12 @@ class ScheduleService extends ChangeNotifier {
   // PARENT & CHILD QUERY HELPER METHODS
   // ──────────────────────────────────────────────────────────────────────────
 
-  List<TherapySession> getSessionsForStudent(String studentName, {DateTime? date}) {
+  List<TherapySession> getSessionsForStudent(String studentName,
+      {DateTime? date}) {
     return _sessions.where((s) {
-      final matchesStudent = s.studentName.toLowerCase().contains(studentName.toLowerCase()) ||
-          s.studentId.toLowerCase() == studentName.toLowerCase();
+      final matchesStudent =
+          s.studentName.toLowerCase().contains(studentName.toLowerCase()) ||
+              s.studentId.toLowerCase() == studentName.toLowerCase();
       if (!matchesStudent) return false;
       if (date != null) {
         return s.date.year == date.year &&
@@ -410,7 +432,8 @@ class ScheduleService extends ChangeNotifier {
       ..sort((a, b) => a.startTime.compareTo(b.startTime));
   }
 
-  List<DirectorAppointment> getAppointmentsForStudentOrParent(String query, {DateTime? date}) {
+  List<DirectorAppointment> getAppointmentsForStudentOrParent(String query,
+      {DateTime? date}) {
     final q = query.toLowerCase();
     return _directorAppointments.where((a) {
       final matches = a.attendeeName.toLowerCase().contains(q) ||

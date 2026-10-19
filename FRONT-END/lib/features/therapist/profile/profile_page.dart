@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:roh_erp/core/constants/app_colors.dart';
 import 'package:roh_erp/core/constants/app_images.dart';
+import 'package:roh_erp/core/services/api_service.dart';
+import 'package:roh_erp/core/widgets/edit_record_dialogs.dart';
 import 'package:roh_erp/features/auth/auth_service.dart';
+import 'package:roh_erp/features/auth/widgets/forced_password_change_dialog.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -16,28 +21,110 @@ class _ProfilePageState extends State<ProfilePage> {
   final TextEditingController _designationController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
-  final TextEditingController _empIdController = TextEditingController();
-  final TextEditingController _specializationController = TextEditingController();
-  final TextEditingController _experienceController = TextEditingController();
+  final TextEditingController _specializationController =
+      TextEditingController();
+  final TextEditingController _qualificationController =
+      TextEditingController();
   final TextEditingController _aboutController = TextEditingController();
+
+  static const _prefEmailNotifications = 'pref_notify_email_iep_requests';
+  static const _prefSessionAlerts = 'pref_notify_daily_session_reminders';
 
   bool _emailNotifications = true;
   bool _sessionAlerts = true;
+
+  // Profile as last loaded from / saved to the server (Reset restores it).
+  Map<String, dynamic> _profile = {};
+  bool _loading = true;
+  bool _saving = false;
 
   @override
   void initState() {
     super.initState();
     final user = context.read<AuthService>().currentUser;
     if (user != null) {
-      _nameController.text = user.name;
-      _emailController.text = user.email;
-      _designationController.text = 'Behavioral Clinician';
-      _empIdController.text = 'ROH-USR-${user.id}';
-      _phoneController.text = '';
-      _specializationController.text = 'Clinical ABA';
-      _experienceController.text = '';
-      _aboutController.text = '';
+      _profile = {'name': user.name, 'email': user.email};
+      _fillFields();
     }
+    _loadProfile();
+    _loadPreferences();
+  }
+
+  String _str(String key) => (_profile[key] ?? '').toString().trim();
+
+  void _fillFields() {
+    _nameController.text = _str('name');
+    _emailController.text = _str('email');
+    _designationController.text = _str('designation');
+    _phoneController.text = _str('phone');
+    _specializationController.text = _str('specialties');
+    _qualificationController.text = _str('qualification');
+    _aboutController.text = _str('about');
+  }
+
+  Future<void> _loadProfile() async {
+    final res = await ApiService().get('get_my_profile');
+    if (!mounted) return;
+    setState(() {
+      if (res is Map && res['error'] == null) {
+        _profile = Map<String, dynamic>.from(res);
+        _fillFields();
+      }
+      _loading = false;
+    });
+  }
+
+  Future<void> _loadPreferences() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (!mounted) return;
+      setState(() {
+        _emailNotifications = prefs.getBool(_prefEmailNotifications) ?? true;
+        _sessionAlerts = prefs.getBool(_prefSessionAlerts) ?? true;
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _savePreference(String key, bool value) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(key, value);
+    } catch (_) {}
+  }
+
+  Future<void> _saveProfile() async {
+    final name = _nameController.text.trim();
+    if (name.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Full name is required.'),
+        backgroundColor: AppColors.statusDeactivated,
+      ));
+      return;
+    }
+    setState(() => _saving = true);
+    final body = {
+      'name': name,
+      'phone': _phoneController.text.trim(),
+      'qualification': _qualificationController.text.trim(),
+      'specialties': _specializationController.text.trim(),
+      'about': _aboutController.text.trim(),
+    };
+    final res = await ApiService().post('update_my_profile', body);
+    if (!mounted) return;
+    setState(() => _saving = false);
+    if (showApiResult(context, res, 'Profile updated successfully.')) {
+      setState(() => _profile = {..._profile, ...body});
+      context.read<AuthService>().updateDisplayName(body['name'] as String);
+    }
+  }
+
+  /// "Joined: Sept 2021" from date_of_joining (or the account's creation).
+  String? get _joinedLabel {
+    final raw = _str('date_of_joining').isNotEmpty
+        ? _str('date_of_joining')
+        : _str('created_at');
+    final date = DateTime.tryParse(raw);
+    return date == null ? null : DateFormat('MMM yyyy').format(date.toLocal());
   }
 
   @override
@@ -46,9 +133,8 @@ class _ProfilePageState extends State<ProfilePage> {
     _designationController.dispose();
     _emailController.dispose();
     _phoneController.dispose();
-    _empIdController.dispose();
     _specializationController.dispose();
-    _experienceController.dispose();
+    _qualificationController.dispose();
     _aboutController.dispose();
     super.dispose();
   }
@@ -89,44 +175,24 @@ class _ProfilePageState extends State<ProfilePage> {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                // Avatar with Edit Badge
-                Stack(
-                  children: [
-                    Container(
-                      width: 90,
-                      height: 90,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 3),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.15),
-                            blurRadius: 8,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
+                // Avatar
+                Container(
+                  width: 90,
+                  height: 90,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 3),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.15),
+                        blurRadius: 8,
+                        offset: const Offset(0, 4),
                       ),
-                      child: AppImages.therapistAvatar(
-                        radius: 45,
-                      ),
-                    ),
-                    Positioned(
-                      bottom: 0,
-                      right: 0,
-                      child: Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: const BoxDecoration(
-                          color: Colors.white,
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.camera_alt,
-                          size: 16,
-                          color: AppColors.primary,
-                        ),
-                      ),
-                    ),
-                  ],
+                    ],
+                  ),
+                  child: AppImages.therapistAvatar(
+                    radius: 45,
+                  ),
                 ),
                 const SizedBox(width: 24),
 
@@ -139,8 +205,8 @@ class _ProfilePageState extends State<ProfilePage> {
                       Row(
                         children: [
                           Text(
-                            context.watch<AuthService>().currentUser?.name.isNotEmpty == true
-                                ? context.watch<AuthService>().currentUser!.name
+                            _str('name').isNotEmpty
+                                ? _str('name')
                                 : 'Clinical Staff',
                             style: const TextStyle(
                               fontFamily: 'Poppins',
@@ -151,7 +217,8 @@ class _ProfilePageState extends State<ProfilePage> {
                           ),
                           const SizedBox(width: 12),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 4),
                             decoration: BoxDecoration(
                               color: const Color(0xFF10B981),
                               borderRadius: BorderRadius.circular(20),
@@ -170,7 +237,9 @@ class _ProfilePageState extends State<ProfilePage> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'Senior Verbal Behavior Therapist | Ray of Hope Center for Autism',
+                        _str('designation').isNotEmpty
+                            ? '${_str('designation')} | Ray of Hope Center for Autism'
+                            : 'Ray of Hope Center for Autism',
                         style: TextStyle(
                           fontFamily: 'Poppins',
                           fontSize: 13,
@@ -178,21 +247,19 @@ class _ProfilePageState extends State<ProfilePage> {
                         ),
                       ),
                       const SizedBox(height: 10),
-                      Row(
+                      Wrap(
+                        spacing: 24,
+                        runSpacing: 6,
                         children: [
-                          const Icon(Icons.badge_outlined, size: 16, color: Colors.white70),
-                          const SizedBox(width: 6),
-                          const Text(
-                            'Employee ID: ROH-TH-0042',
-                            style: TextStyle(fontFamily: 'Poppins', fontSize: 12, color: Colors.white),
-                          ),
-                          const SizedBox(width: 24),
-                          const Icon(Icons.calendar_today_outlined, size: 16, color: Colors.white70),
-                          const SizedBox(width: 6),
-                          const Text(
-                            'Joined: Sept 2021',
-                            style: TextStyle(fontFamily: 'Poppins', fontSize: 12, color: Colors.white),
-                          ),
+                          if (_str('employee_id').isNotEmpty)
+                            _bannerInfo(Icons.badge_outlined,
+                                'Employee ID: ${_str('employee_id')}'),
+                          if (_str('license_number').isNotEmpty)
+                            _bannerInfo(Icons.verified_outlined,
+                                'License: ${_str('license_number')}'),
+                          if (_joinedLabel != null)
+                            _bannerInfo(Icons.calendar_today_outlined,
+                                'Joined: $_joinedLabel'),
                         ],
                       ),
                     ],
@@ -236,9 +303,14 @@ class _ProfilePageState extends State<ProfilePage> {
                 // Row 1: Full Name & Designation
                 Row(
                   children: [
-                    Expanded(child: _buildFormField('Full Name', _nameController, Icons.person_outline)),
+                    Expanded(
+                        child: _buildFormField('Full Name', _nameController,
+                            Icons.person_outline)),
                     const SizedBox(width: 20),
-                    Expanded(child: _buildFormField('Designation', _designationController, Icons.work_outline)),
+                    Expanded(
+                        child: _buildFormField('Designation',
+                            _designationController, Icons.work_outline,
+                            readOnly: true)),
                   ],
                 ),
                 const SizedBox(height: 18),
@@ -246,19 +318,30 @@ class _ProfilePageState extends State<ProfilePage> {
                 // Row 2: Email & Phone
                 Row(
                   children: [
-                    Expanded(child: _buildFormField('Email Address', _emailController, Icons.email_outlined)),
+                    Expanded(
+                        child: _buildFormField('Email Address',
+                            _emailController, Icons.email_outlined,
+                            readOnly: true)),
                     const SizedBox(width: 20),
-                    Expanded(child: _buildFormField('Phone Number', _phoneController, Icons.phone_outlined)),
+                    Expanded(
+                        child: _buildFormField('Phone Number', _phoneController,
+                            Icons.phone_outlined)),
                   ],
                 ),
                 const SizedBox(height: 18),
 
-                // Row 3: Specialization & Experience
+                // Row 3: Specialization & Qualification
                 Row(
                   children: [
-                    Expanded(child: _buildFormField('Specialization', _specializationController, Icons.school)),
+                    Expanded(
+                        child: _buildFormField('Specialization',
+                            _specializationController, Icons.school)),
                     const SizedBox(width: 20),
-                    Expanded(child: _buildFormField('Clinical Experience', _experienceController, Icons.timer_outlined)),
+                    Expanded(
+                        child: _buildFormField(
+                            'Qualification',
+                            _qualificationController,
+                            Icons.workspace_premium_outlined)),
                   ],
                 ),
                 const SizedBox(height: 18),
@@ -283,7 +366,10 @@ class _ProfilePageState extends State<ProfilePage> {
                   child: TextField(
                     controller: _aboutController,
                     maxLines: 3,
-                    style: const TextStyle(fontFamily: 'Poppins', fontSize: 13, color: AppColors.textPrimary),
+                    style: const TextStyle(
+                        fontFamily: 'Poppins',
+                        fontSize: 13,
+                        color: AppColors.textPrimary),
                     decoration: const InputDecoration(
                       border: InputBorder.none,
                       contentPadding: EdgeInsets.all(14),
@@ -312,11 +398,23 @@ class _ProfilePageState extends State<ProfilePage> {
                       child: Material(
                         color: Colors.transparent,
                         child: SwitchListTile(
-                          title: const Text('Email Notifications for New IEP Requests', style: TextStyle(fontFamily: 'Poppins', fontSize: 13, fontWeight: FontWeight.w500)),
-                          subtitle: const Text('Receive email alerts when parents or admin submit new IEP requests', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                          title: const Text(
+                              'Email Notifications for New IEP Requests',
+                              style: TextStyle(
+                                  fontFamily: 'Poppins',
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w500)),
+                          subtitle: const Text(
+                              'Receive email alerts when parents or admin submit new IEP requests',
+                              style: TextStyle(
+                                  fontSize: 11,
+                                  color: AppColors.textSecondary)),
                           value: _emailNotifications,
                           activeColor: AppColors.primary,
-                          onChanged: (val) => setState(() => _emailNotifications = val),
+                          onChanged: (val) {
+                            setState(() => _emailNotifications = val);
+                            _savePreference(_prefEmailNotifications, val);
+                          },
                           contentPadding: EdgeInsets.zero,
                         ),
                       ),
@@ -326,11 +424,22 @@ class _ProfilePageState extends State<ProfilePage> {
                       child: Material(
                         color: Colors.transparent,
                         child: SwitchListTile(
-                          title: const Text('Daily Session Reminders', style: TextStyle(fontFamily: 'Poppins', fontSize: 13, fontWeight: FontWeight.w500)),
-                          subtitle: const Text('Show pending daily data sheet reminders every morning', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                          title: const Text('Daily Session Reminders',
+                              style: TextStyle(
+                                  fontFamily: 'Poppins',
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w500)),
+                          subtitle: const Text(
+                              'Show pending daily data sheet reminders every morning',
+                              style: TextStyle(
+                                  fontSize: 11,
+                                  color: AppColors.textSecondary)),
                           value: _sessionAlerts,
                           activeColor: AppColors.primary,
-                          onChanged: (val) => setState(() => _sessionAlerts = val),
+                          onChanged: (val) {
+                            setState(() => _sessionAlerts = val);
+                            _savePreference(_prefSessionAlerts, val);
+                          },
                           contentPadding: EdgeInsets.zero,
                         ),
                       ),
@@ -340,33 +449,54 @@ class _ProfilePageState extends State<ProfilePage> {
                 const SizedBox(height: 32),
 
                 // Save Changes Button
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
+                Wrap(
+                  alignment: WrapAlignment.end,
+                  spacing: 16,
+                  runSpacing: 12,
                   children: [
+                    OutlinedButton.icon(
+                      onPressed: () => ForcedPasswordChangeDialog.show(context),
+                      icon: const Icon(Icons.lock_outline,
+                          size: 18, color: AppColors.primary),
+                      label: const Text('Change Password',
+                          style: TextStyle(
+                              color: AppColors.primary, fontFamily: 'Poppins')),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: AppColors.primary),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 20, vertical: 14),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8)),
+                      ),
+                    ),
                     OutlinedButton(
-                      onPressed: () {},
+                      onPressed: _loading || _saving
+                          ? null
+                          : () => setState(_fillFields),
                       style: OutlinedButton.styleFrom(
                         side: const BorderSide(color: AppColors.divider),
-                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 24, vertical: 14),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8)),
                       ),
-                      child: const Text('Reset', style: TextStyle(color: AppColors.textSecondary, fontFamily: 'Poppins')),
+                      child: const Text('Reset',
+                          style: TextStyle(
+                              color: AppColors.textSecondary,
+                              fontFamily: 'Poppins')),
                     ),
-                    const SizedBox(width: 16),
                     ElevatedButton(
-                      onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Profile updated successfully!')),
-                        );
-                      },
+                      onPressed: _loading || _saving ? null : _saveProfile,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.primary,
-                        padding: const EdgeInsets.symmetric(horizontal: 36, vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 36, vertical: 14),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8)),
                       ),
-                      child: const Text(
-                        'Save Changes',
-                        style: TextStyle(
+                      child: Text(
+                        _saving ? 'Saving…' : 'Save Changes',
+                        style: const TextStyle(
                           fontFamily: 'Poppins',
                           color: Colors.white,
                           fontWeight: FontWeight.bold,
@@ -384,7 +514,24 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Widget _buildFormField(String label, TextEditingController controller, IconData icon) {
+  Widget _bannerInfo(IconData icon, String text) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 16, color: Colors.white70),
+        const SizedBox(width: 6),
+        Text(
+          text,
+          style: const TextStyle(
+              fontFamily: 'Poppins', fontSize: 12, color: Colors.white),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFormField(
+      String label, TextEditingController controller, IconData icon,
+      {bool readOnly = false}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -406,11 +553,17 @@ class _ProfilePageState extends State<ProfilePage> {
           ),
           child: TextField(
             controller: controller,
-            style: const TextStyle(fontFamily: 'Poppins', fontSize: 13, color: AppColors.textPrimary),
+            readOnly: readOnly,
+            style: TextStyle(
+                fontFamily: 'Poppins',
+                fontSize: 13,
+                color:
+                    readOnly ? AppColors.textSecondary : AppColors.textPrimary),
             decoration: InputDecoration(
               prefixIcon: Icon(icon, color: AppColors.primary, size: 20),
               border: InputBorder.none,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             ),
           ),
         ),

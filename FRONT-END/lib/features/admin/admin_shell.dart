@@ -53,6 +53,8 @@ class _AdminShellState extends State<AdminShell> {
   late final List<Widget> _pages = [
     AdminDashboardPage(
       onNavigateCalendar: () => setState(() => _selectedIndex = 1),
+      onNavigateStudents: () => setState(() => _selectedIndex = 3),
+      onNavigateIepReports: () => setState(() => _selectedIndex = 5),
     ),
     const AdminDirectorCalendarPage(),
     const AdminTherapistsPage(),

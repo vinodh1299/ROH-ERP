@@ -2,6 +2,8 @@
 import 'package:flutter/material.dart';
 import 'package:roh_erp/core/constants/app_colors.dart';
 import 'package:roh_erp/core/layout/responsive.dart';
+import 'package:roh_erp/core/services/schedule_service.dart';
+import 'package:roh_erp/core/widgets/edit_record_dialogs.dart';
 import '../../../core/services/api_service.dart';
 import '../../../core/services/db_queries.dart';
 
@@ -13,13 +15,21 @@ class TherapistCard {
   final String name;
   final String email;
   final String status;
+  final String designation;
+
+  /// The row as returned by `get_therapists` (for the edit / status helpers).
+  final Map<String, dynamic> raw;
 
   const TherapistCard({
     required this.id,
     required this.name,
     required this.email,
     required this.status,
+    this.designation = '',
+    this.raw = const {},
   });
+
+  bool get isActive => status == 'Active';
 
   factory TherapistCard.fromMap(Map<String, dynamic> map) {
     return TherapistCard(
@@ -27,9 +37,37 @@ class TherapistCard {
       name: map['name'] ?? 'Unknown',
       email: map['email'] ?? '',
       status: map['status'] ?? 'Active',
+      designation: (map['designation'] ?? '').toString().trim(),
+      raw: map,
     );
   }
 }
+
+/// Per-therapist figures computed from sessions, students and supervision logs.
+class _TherapistStats {
+  int caseload = 0;
+  double weeklyHours = 0;
+  double monthTherapyHours = 0;
+  double monthSupervisionHours = 0;
+  int monthLogs = 0;
+  String? lastLog;
+}
+
+/// Minutes since midnight for "09:00 AM" / "13:30"; null when unreadable.
+int? _clockMinutes(dynamic raw) {
+  final m = RegExp(r'^(\d{1,2}):(\d{2})\s*([AaPp][Mm])?')
+      .firstMatch((raw ?? '').toString().trim());
+  if (m == null) return null;
+  var h = int.parse(m.group(1)!);
+  final min = int.parse(m.group(2)!);
+  final ap = m.group(3)?.toUpperCase();
+  if (ap == 'PM' && h < 12) h += 12;
+  if (ap == 'AM' && h == 12) h = 0;
+  return h * 60 + min;
+}
+
+String _fmtHours(double h) =>
+    h == h.roundToDouble() ? h.toStringAsFixed(0) : h.toStringAsFixed(1);
 
 class TherapistSectionPage extends StatefulWidget {
   const TherapistSectionPage({super.key});
@@ -42,8 +80,13 @@ class _TherapistSectionPageState extends State<TherapistSectionPage> {
   final ApiService _api = ApiService();
 
   List<TherapistCard> _therapists = [];
+  Map<String, _TherapistStats> _stats = {};
+  double _supervisionRatio = 5;
   bool _isLoading = true;
   String? _errorMessage;
+
+  _TherapistStats _statsFor(TherapistCard t) =>
+      _stats[t.id] ?? _TherapistStats();
 
   @override
   void initState() {
@@ -59,12 +102,72 @@ class _TherapistSectionPageState extends State<TherapistSectionPage> {
       _errorMessage = null;
     });
 
-    final list = await TherapistQueries.fetchAll();
+    final results = await Future.wait([
+      TherapistQueries.fetchAll(),
+      _api.get('get_sessions'),
+      _api.get('get_students'),
+      _api.get('get_supervision_logs'),
+      _api.get('get_governance_settings'),
+    ]);
 
     if (!mounted) return;
 
+    final list = results[0] as List<Map<String, dynamic>>;
+    final sessions = results[1] is List ? results[1] as List : const [];
+    final students = results[2] is List ? results[2] as List : const [];
+    final logs = results[3] is List ? results[3] as List : const [];
+    final gov = results[4];
+
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final weekStart = today.subtract(const Duration(days: 6));
+    final stats = <String, _TherapistStats>{};
+    _TherapistStats of(dynamic id) =>
+        stats.putIfAbsent('$id', _TherapistStats.new);
+
+    for (final st in students) {
+      if (st is! Map || st['primary_therapist_id'] == null) continue;
+      if ((st['status'] ?? 'Active').toString() != 'Active') continue;
+      of(st['primary_therapist_id']).caseload++;
+    }
+    for (final se in sessions) {
+      if (se is! Map || (se['status'] ?? '').toString() == 'cancelled') {
+        continue;
+      }
+      final d = ScheduleService.parseCalendarDate(se['session_date']);
+      if (d.isAfter(today)) continue;
+      final start = _clockMinutes(se['start_time']);
+      final end = _clockMinutes(se['end_time']);
+      if (start == null || end == null || end <= start) continue;
+      final hours = (end - start) / 60;
+      final s = of(se['therapist_id']);
+      if (d.year == now.year && d.month == now.month) {
+        s.monthTherapyHours += hours;
+      }
+      if (!d.isBefore(weekStart)) s.weeklyHours += hours;
+    }
+    for (final l in logs) {
+      if (l is! Map) continue;
+      final s = of(l['therapist_id']);
+      final d = ScheduleService.parseCalendarDate(l['log_date']);
+      final dateStr = (l['log_date'] ?? '').toString().split('T').first;
+      // Logs arrive newest first.
+      s.lastLog ??= '$dateStr • ${l['supervision_type'] ?? ''}';
+      if (d.year == now.year && d.month == now.month) {
+        s.monthSupervisionHours +=
+            double.tryParse((l['hours'] ?? '').toString()) ?? 0;
+        s.monthLogs++;
+      }
+    }
+
     setState(() {
       _therapists = list.map((json) => TherapistCard.fromMap(json)).toList();
+      _stats = stats;
+      if (gov is Map && gov['error'] == null) {
+        final r =
+            double.tryParse((gov['supervision_ratio_target'] ?? '').toString());
+        if (r != null && r > 0) _supervisionRatio = r;
+      }
       _isLoading = false;
     });
   }
@@ -183,25 +286,54 @@ class _TherapistSectionPageState extends State<TherapistSectionPage> {
           LayoutBuilder(
             builder: (ctx, constraints) {
               final w = constraints.maxWidth;
+              final active = _therapists.where((t) => t.isActive).toList();
+              final caseloads =
+                  active.map((t) => _statsFor(t).caseload).toList();
+              final avgCaseload = caseloads.isEmpty
+                  ? null
+                  : caseloads.reduce((a, b) => a + b) / caseloads.length;
+              final withSessions = active
+                  .where((t) => _statsFor(t).monthTherapyHours > 0)
+                  .toList();
+              final onTrack = withSessions
+                  .where((t) =>
+                      _statsFor(t).monthSupervisionHours >=
+                      _statsFor(t).monthTherapyHours * _supervisionRatio / 100)
+                  .length;
+              final monthSupervision = _therapists.fold<double>(
+                  0, (sum, t) => sum + _statsFor(t).monthSupervisionHours);
+              final monthLogs = _therapists.fold<int>(
+                  0, (sum, t) => sum + _statsFor(t).monthLogs);
+              final ratioLabel = _fmtHours(_supervisionRatio);
               final kpis = [
                 _buildStaffKpiCard(
                     'Clinical Staff',
-                    '${_therapists.isNotEmpty ? _therapists.length : 6} Clinicians',
-                    '3 BCBAs • 3 RBTs',
+                    _isLoading ? '…' : '${_therapists.length} Clinicians',
+                    '${active.length} active • ${_therapists.length - active.length} inactive',
                     Icons.people_outline,
                     AppColors.primary),
-                _buildStaffKpiCard('Average Caseload', '4.0 Students',
-                    'Optimal center ratio', Icons.work_outline, Colors.blue),
                 _buildStaffKpiCard(
-                    'BACB 5% Compliance',
-                    '100% On-Track',
-                    'All RBT hours logged',
+                    'Average Caseload',
+                    avgCaseload == null
+                        ? '—'
+                        : '${avgCaseload.toStringAsFixed(1)} Students',
+                    'Primary students per active clinician',
+                    Icons.work_outline,
+                    Colors.blue),
+                _buildStaffKpiCard(
+                    'BACB $ratioLabel% Compliance',
+                    withSessions.isEmpty
+                        ? '—'
+                        : '$onTrack / ${withSessions.length} On-Track',
+                    withSessions.isEmpty
+                        ? 'No therapy hours this month'
+                        : 'Supervision vs therapy hours this month',
                     Icons.verified_outlined,
                     Colors.green),
                 _buildStaffKpiCard(
-                    'Clinical Reviews Due',
-                    '2 Pending',
-                    'Fidelity audits this week',
+                    'Supervision Logged',
+                    '${_fmtHours(monthSupervision)} hrs',
+                    '$monthLogs log(s) this month',
                     Icons.pending_actions_outlined,
                     Colors.orange),
               ];
@@ -242,7 +374,9 @@ class _TherapistSectionPageState extends State<TherapistSectionPage> {
               _buildToggleTab(0, 'Clinicians Directory (${_therapists.length})',
                   Icons.badge_outlined),
               _buildToggleTab(
-                  1, 'BACB 5% Supervision Log', Icons.track_changes_outlined),
+                  1,
+                  'BACB ${_fmtHours(_supervisionRatio)}% Supervision Log',
+                  Icons.track_changes_outlined),
             ],
           ),
           const SizedBox(height: 16),
@@ -294,7 +428,10 @@ class _TherapistSectionPageState extends State<TherapistSectionPage> {
                                   ),
                                   itemCount: _therapists.length,
                                   itemBuilder: (ctx, i) => _TherapistTile(
-                                      therapist: _therapists[i], index: i),
+                                    therapist: _therapists[i],
+                                    stats: _statsFor(_therapists[i]),
+                                    onChanged: _fetchTherapists,
+                                  ),
                                 );
                               }),
           ),
@@ -418,6 +555,10 @@ class _TherapistSectionPageState extends State<TherapistSectionPage> {
   }
 
   Widget _buildSupervisionLogView() {
+    if (_isLoading) {
+      return const Center(
+          child: CircularProgressIndicator(color: AppColors.primary));
+    }
     if (_therapists.isEmpty) {
       return Center(
         child: Container(
@@ -447,15 +588,27 @@ class _TherapistSectionPageState extends State<TherapistSectionPage> {
       );
     }
 
+    final ratioLabel = _fmtHours(_supervisionRatio);
     final supervisionRows = _therapists.map((t) {
+      final st = _statsFor(t);
+      final required = st.monthTherapyHours * _supervisionRatio / 100;
+      final String status;
+      if (st.monthTherapyHours == 0) {
+        status = 'No Sessions';
+      } else if (st.monthSupervisionHours >= required) {
+        status = 'Compliant';
+      } else {
+        status = 'Below Target';
+      }
       return {
+        'id': t.id,
         'name': t.name,
-        'role': 'Behavioral Clinician',
-        'therapyHours': '0.0 hrs',
-        'reqSupervision': '0.0 hrs (5%)',
-        'doneSupervision': '0.0 hrs',
-        'fidelity': '0 / 0 Signed',
-        'status': 'Compliant',
+        'role': t.designation.isNotEmpty ? t.designation : 'Therapist',
+        'therapyHours': '${_fmtHours(st.monthTherapyHours)} hrs',
+        'reqSupervision': '${required.toStringAsFixed(1)} hrs ($ratioLabel%)',
+        'doneSupervision': '${_fmtHours(st.monthSupervisionHours)} hrs',
+        'lastLog': st.lastLog ?? 'None logged',
+        'status': status,
       };
     }).toList();
 
@@ -494,7 +647,7 @@ class _TherapistSectionPageState extends State<TherapistSectionPage> {
                                 fontSize: 13))),
                     Expanded(
                         flex: 2,
-                        child: Text('Required 5%',
+                        child: Text('Required Supervision',
                             style: TextStyle(
                                 color: AppColors.tableHeaderText,
                                 fontWeight: FontWeight.bold,
@@ -508,7 +661,7 @@ class _TherapistSectionPageState extends State<TherapistSectionPage> {
                                 fontSize: 13))),
                     Expanded(
                         flex: 2,
-                        child: Text('Fidelity Checklists',
+                        child: Text('Last Supervision',
                             style: TextStyle(
                                 color: AppColors.tableHeaderText,
                                 fontWeight: FontWeight.bold,
@@ -582,7 +735,9 @@ class _TherapistSectionPageState extends State<TherapistSectionPage> {
                                       color: Colors.green))),
                           Expanded(
                               flex: 2,
-                              child: Text(row['fidelity']!,
+                              child: Text(row['lastLog']!,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
                                   style: const TextStyle(
                                       fontSize: 12,
                                       color: AppColors.textSecondary))),
@@ -590,18 +745,7 @@ class _TherapistSectionPageState extends State<TherapistSectionPage> {
                             flex: 2,
                             child: Align(
                               alignment: Alignment.centerLeft,
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 8, vertical: 3),
-                                decoration: BoxDecoration(
-                                    color: AppColors.statusActiveBg,
-                                    borderRadius: BorderRadius.circular(10)),
-                                child: Text(row['status']!,
-                                    style: const TextStyle(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.bold,
-                                        color: AppColors.statusActive)),
-                              ),
+                              child: _statusChip(row['status']!),
                             ),
                           ),
                           SizedBox(
@@ -614,8 +758,8 @@ class _TherapistSectionPageState extends State<TherapistSectionPage> {
                                 shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(6)),
                               ),
-                              onPressed: () =>
-                                  _openLogSupervisionDialog(row['name']!),
+                              onPressed: () => _openLogSupervisionDialog(
+                                  row['id']!, row['name']!),
                               child: const Text('Log Hours',
                                   style: TextStyle(
                                       fontSize: 11,
@@ -714,27 +858,16 @@ class _TherapistSectionPageState extends State<TherapistSectionPage> {
                         ],
                       ),
                     ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                          color: AppColors.statusActiveBg,
-                          borderRadius: BorderRadius.circular(10)),
-                      child: Text(row['status']!,
-                          style: const TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.statusActive)),
-                    ),
+                    _statusChip(row['status']!),
                   ],
                 ),
                 const SizedBox(height: 10),
                 field('Monthly Therapy', row['therapyHours']!),
-                field('Required 5%', row['reqSupervision']!,
+                field('Required Supervision', row['reqSupervision']!,
                     weight: FontWeight.w600),
                 field('Completed Supervised', row['doneSupervision']!,
                     color: Colors.green, weight: FontWeight.bold),
-                field('Fidelity Checklists', row['fidelity']!,
+                field('Last Supervision', row['lastLog']!,
                     color: AppColors.textSecondary),
                 const SizedBox(height: 6),
                 Align(
@@ -747,7 +880,8 @@ class _TherapistSectionPageState extends State<TherapistSectionPage> {
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(6)),
                     ),
-                    onPressed: () => _openLogSupervisionDialog(row['name']!),
+                    onPressed: () =>
+                        _openLogSupervisionDialog(row['id']!, row['name']!),
                     child: const Text('Log Hours',
                         style: TextStyle(
                             fontSize: 11,
@@ -763,81 +897,160 @@ class _TherapistSectionPageState extends State<TherapistSectionPage> {
     );
   }
 
-  void _openLogSupervisionDialog(String therapistName) {
+  Widget _statusChip(String status) {
+    final Color fg;
+    final Color bg;
+    switch (status) {
+      case 'Compliant':
+        fg = AppColors.statusActive;
+        bg = AppColors.statusActiveBg;
+        break;
+      case 'Below Target':
+        fg = AppColors.statusDeactivated;
+        bg = AppColors.statusDeactivatedBg;
+        break;
+      default:
+        fg = AppColors.textSecondary;
+        bg = Colors.grey.shade100;
+    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration:
+          BoxDecoration(color: bg, borderRadius: BorderRadius.circular(10)),
+      child: Text(status,
+          style:
+              TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: fg)),
+    );
+  }
+
+  static const _supervisionTypes = [
+    'Direct In-Vivo Observation',
+    'Treatment Protocol Fidelity Audit',
+    'BACB Task List Competency Sign-Off',
+  ];
+
+  void _openLogSupervisionDialog(String therapistId, String therapistName) {
+    String type = _supervisionTypes.first;
+    final hoursCtrl = TextEditingController(text: '1.5');
+    final notesCtrl = TextEditingController();
+    String? hoursError;
+    bool saving = false;
+
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        insetPadding: Breakpoints.isCompact(context)
-            ? const EdgeInsets.symmetric(horizontal: 16, vertical: 24)
-            : const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
-        title: Text('Log BACB Supervision: $therapistName'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('Supervision Type:',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-              const SizedBox(height: 6),
-              DropdownButtonFormField<String>(
-                isExpanded: true,
-                value: 'Direct In-Vivo Observation',
-                items: const [
-                  DropdownMenuItem(
-                      value: 'Direct In-Vivo Observation',
-                      child: Text('Direct In-Vivo Observation')),
-                  DropdownMenuItem(
-                      value: 'Treatment Protocol Fidelity Audit',
-                      child: Text('Treatment Protocol Fidelity Audit')),
-                  DropdownMenuItem(
-                      value: 'BACB Task List Competency Sign-Off',
-                      child: Text('BACB Task List Competency Sign-Off')),
-                ],
-                onChanged: (_) {},
-                decoration: InputDecoration(
-                    border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8))),
-              ),
-              const SizedBox(height: 12),
-              const Text('Supervision Hours Logged:',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-              const SizedBox(height: 6),
-              TextFormField(
-                initialValue: '1.5',
-                keyboardType: TextInputType.number,
-                decoration: InputDecoration(
-                  border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8)),
-                  suffixText: 'Hours',
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          insetPadding: Breakpoints.isCompact(context)
+              ? const EdgeInsets.symmetric(horizontal: 16, vertical: 24)
+              : const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
+          title: Text('Log BACB Supervision: $therapistName'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Supervision Type:',
+                    style:
+                        TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                const SizedBox(height: 6),
+                DropdownButtonFormField<String>(
+                  isExpanded: true,
+                  initialValue: type,
+                  items: _supervisionTypes
+                      .map((t) => DropdownMenuItem(value: t, child: Text(t)))
+                      .toList(),
+                  onChanged: saving
+                      ? null
+                      : (v) {
+                          if (v != null) setDialogState(() => type = v);
+                        },
+                  decoration: InputDecoration(
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8))),
                 ),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('Cancel')),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8)),
+                const SizedBox(height: 12),
+                const Text('Supervision Hours Logged:',
+                    style:
+                        TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                const SizedBox(height: 6),
+                TextField(
+                  controller: hoursCtrl,
+                  enabled: !saving,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  onChanged: (_) {
+                    if (hoursError != null) {
+                      setDialogState(() => hoursError = null);
+                    }
+                  },
+                  decoration: InputDecoration(
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8)),
+                    suffixText: 'Hours',
+                    errorText: hoursError,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Text('Notes (optional):',
+                    style:
+                        TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                const SizedBox(height: 6),
+                TextField(
+                  controller: notesCtrl,
+                  enabled: !saving,
+                  maxLines: 3,
+                  decoration: InputDecoration(
+                    hintText: 'Observations, feedback given, competencies…',
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8)),
+                  ),
+                ),
+              ],
             ),
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                    content: Text(
-                        'Supervision session for $therapistName logged and signed!'),
-                    backgroundColor: AppColors.statusActive),
-              );
-            },
-            child: const Text('Save & Sign Log',
-                style: TextStyle(color: Colors.white)),
           ),
-        ],
+          actions: [
+            TextButton(
+                onPressed: saving ? null : () => Navigator.of(ctx).pop(),
+                child: const Text('Cancel')),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8)),
+              ),
+              onPressed: saving
+                  ? null
+                  : () async {
+                      final hours = double.tryParse(hoursCtrl.text.trim());
+                      if (hours == null || hours <= 0 || hours > 24) {
+                        setDialogState(() => hoursError =
+                            'Enter hours greater than 0 and at most 24.');
+                        return;
+                      }
+                      setDialogState(() => saving = true);
+                      final res = await _api.post('save_supervision_log', {
+                        'therapist_id': int.tryParse(therapistId) ?? 0,
+                        'supervision_type': type,
+                        'hours': hours,
+                        'notes': notesCtrl.text.trim(),
+                      });
+                      if (!mounted) return;
+                      final ok = showApiResult(context, res,
+                          'Supervision session for $therapistName logged and signed!');
+                      if (ok) {
+                        if (ctx.mounted) Navigator.of(ctx).pop();
+                        _fetchTherapists();
+                      } else {
+                        setDialogState(() => saving = false);
+                      }
+                    },
+              child: const Text('Save & Sign Log',
+                  style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -846,26 +1059,30 @@ class _TherapistSectionPageState extends State<TherapistSectionPage> {
 // ── Therapist Card Tile ───────────────────────────────────────────────────────
 class _TherapistTile extends StatelessWidget {
   final TherapistCard therapist;
-  final int index;
-  const _TherapistTile({required this.therapist, this.index = 0});
+  final _TherapistStats stats;
+  final VoidCallback onChanged;
+  const _TherapistTile({
+    required this.therapist,
+    required this.stats,
+    required this.onChanged,
+  });
+
+  Future<void> _edit(BuildContext context) async {
+    if (await EditTherapistDialog.show(context, therapist.raw)) onChanged();
+  }
+
+  Future<void> _toggle(BuildContext context) async {
+    if (await toggleTherapistStatus(context, therapist.raw)) onChanged();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final roles = [
-      'Lead BCBA',
-      'RBT Specialist',
-      'BCBA Supervisor',
-      'Senior Therapist',
-      'Behavioral Therapist',
-      'RBT Associate'
-    ];
-    final cases = [8, 6, 5, 5, 4, 4];
-    final hours = [32, 28, 26, 25, 22, 20];
-    final role = roles[index % roles.length];
-    final caseCount = cases[index % cases.length];
-    final weeklyHours = hours[index % hours.length];
+    final role =
+        therapist.designation.isNotEmpty ? therapist.designation : 'Therapist';
+    final caseCount = stats.caseload;
+    final weeklyHours = _fmtHours(stats.weeklyHours);
 
-    return Container(
+    final card = Container(
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -895,16 +1112,63 @@ class _TherapistTile extends StatelessWidget {
                   children: [
                     const Center(child: _AvatarPlaceholder()),
                     Positioned(
+                      top: 2,
+                      left: 2,
+                      child: PopupMenuButton<String>(
+                        tooltip: 'Therapist actions',
+                        icon: const Icon(Icons.more_vert,
+                            color: AppColors.primary, size: 20),
+                        onSelected: (v) {
+                          if (v == 'edit') _edit(context);
+                          if (v == 'toggle') _toggle(context);
+                        },
+                        itemBuilder: (_) => [
+                          const PopupMenuItem(
+                            value: 'edit',
+                            child: ListTile(
+                              dense: true,
+                              contentPadding: EdgeInsets.zero,
+                              leading: Icon(Icons.edit_outlined, size: 18),
+                              title: Text('Edit details'),
+                            ),
+                          ),
+                          PopupMenuItem(
+                            value: 'toggle',
+                            child: ListTile(
+                              dense: true,
+                              contentPadding: EdgeInsets.zero,
+                              leading: Icon(
+                                  therapist.isActive
+                                      ? Icons.block
+                                      : Icons.check_circle_outline,
+                                  size: 18,
+                                  color: therapist.isActive
+                                      ? AppColors.statusDeactivated
+                                      : AppColors.statusActive),
+                              title: Text(therapist.isActive
+                                  ? 'De-activate'
+                                  : 'Re-activate'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Positioned(
                       top: 10,
                       right: 10,
                       child: Container(
                         padding: const EdgeInsets.symmetric(
                             horizontal: 8, vertical: 3),
                         decoration: BoxDecoration(
-                          color: AppColors.primary,
+                          color: therapist.isActive
+                              ? AppColors.primary
+                              : AppColors.statusDeactivated,
                           borderRadius: BorderRadius.circular(10),
                         ),
-                        child: Text(role.split(' ').first,
+                        child: Text(
+                            therapist.isActive
+                                ? role.split(' ').first
+                                : therapist.status,
                             style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 10,
@@ -960,7 +1224,7 @@ class _TherapistTile extends StatelessWidget {
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(6),
                         border: Border.all(color: AppColors.divider)),
-                    child: Text('$caseCount Cases • $weeklyHours hrs/wk',
+                    child: Text('$caseCount Cases • $weeklyHours hrs this wk',
                         style: const TextStyle(
                             fontSize: 10,
                             color: AppColors.textSecondary,
@@ -971,6 +1235,15 @@ class _TherapistTile extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () => _edit(context),
+        child: card,
       ),
     );
   }

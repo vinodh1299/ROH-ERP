@@ -6,13 +6,17 @@ import 'package:roh_erp/core/models/schedule_model.dart';
 import 'package:roh_erp/core/services/schedule_service.dart';
 import '../../auth/auth_service.dart';
 import 'widgets/schedule_therapist_session_dialog.dart';
+import '../widgets/schedule_item_menus.dart';
 
 import 'package:roh_erp/core/services/api_service.dart';
 import 'package:roh_erp/core/services/progress_metrics.dart';
 import '../../shared_progress/progress_data.dart';
 
 class DirectorDashboardPage extends StatefulWidget {
-  const DirectorDashboardPage({super.key});
+  /// Switches the director shell to the IEP Reports tab.
+  final VoidCallback? onOpenIepReports;
+
+  const DirectorDashboardPage({super.key, this.onOpenIepReports});
 
   @override
   State<DirectorDashboardPage> createState() => _DirectorDashboardPageState();
@@ -22,6 +26,7 @@ class _DirectorDashboardPageState extends State<DirectorDashboardPage> {
   List<Map<String, dynamic>> _students = [];
   List<Map<String, dynamic>> _therapists = [];
   List<Map<String, dynamic>> _iepReports = [];
+  List<_SupervisionSummary> _supervision = [];
   bool _isLoading = true;
   ProgressData? _progress; // daily data + milestones for the KPI cards
 
@@ -36,6 +41,9 @@ class _DirectorDashboardPageState extends State<DirectorDashboardPage> {
       final sRes = await ApiService().get('get_students');
       final tRes = await ApiService().get('get_therapists');
       final iRes = await ApiService().get('get_iep_reports');
+      final sessRes = await ApiService().get('get_sessions');
+      final logRes = await ApiService().get('get_supervision_logs');
+      final govRes = await ApiService().get('get_governance_settings');
       final progress = await ProgressData.load();
 
       if (mounted) {
@@ -44,6 +52,17 @@ class _DirectorDashboardPageState extends State<DirectorDashboardPage> {
           if (tRes is List) _therapists = List<Map<String, dynamic>>.from(tRes);
           if (iRes is List) _iepReports = List<Map<String, dynamic>>.from(iRes);
           _progress = progress;
+          _supervision = _SupervisionSummary.build(
+            therapists: _therapists,
+            students: _students,
+            sessions: sessRes is List ? sessRes : const [],
+            logs: logRes is List ? logRes : const [],
+            ratio: govRes is Map
+                ? double.tryParse((govRes['supervision_ratio_target'] ?? '')
+                        .toString()) ??
+                    5
+                : 5,
+          );
           _isLoading = false;
         });
       }
@@ -137,7 +156,10 @@ class _DirectorDashboardPageState extends State<DirectorDashboardPage> {
           const SizedBox(height: 20),
 
           // ── Urgent Executive Action Banners ─────────────────────────────
-          _UrgentActionBanners(iepReports: _iepReports),
+          _UrgentActionBanners(
+            iepReports: _iepReports,
+            onOpenIepReports: widget.onOpenIepReports,
+          ),
           const SizedBox(height: 20),
 
           // ── Center-Wide Clinical KPI Grid (Responsive 1/2/4 Columns) ────
@@ -206,8 +228,10 @@ class _DirectorDashboardPageState extends State<DirectorDashboardPage> {
           // ── Clinical Operations Tabbed Panel ────────────────────────────
           _ClinicalOperationsSection(
             iepReports: _iepReports,
-            therapists: _therapists,
-            studentsCount: enrolledCount,
+            supervision: _supervision,
+            targets: _progress?.targets ?? const [],
+            isLoading: _isLoading,
+            onOpenIepReports: widget.onOpenIepReports,
           ),
         ],
       ),
@@ -429,8 +453,10 @@ class _CenterCapacityCard extends StatelessWidget {
 // ── Urgent Action Banners ────────────────────────────────────────────────────
 class _UrgentActionBanners extends StatelessWidget {
   final List<Map<String, dynamic>> iepReports;
+  final VoidCallback? onOpenIepReports;
 
-  const _UrgentActionBanners({this.iepReports = const []});
+  const _UrgentActionBanners(
+      {this.iepReports = const [], this.onOpenIepReports});
 
   @override
   Widget build(BuildContext context) {
@@ -494,6 +520,7 @@ class _UrgentActionBanners extends StatelessWidget {
                       .map((r) => r['student_name'] ?? 'Student')
                       .join(', '),
                   const Color(0xFFD97706),
+                  onTap: onOpenIepReports,
                 ),
               ],
             )
@@ -521,12 +548,12 @@ class _UrgentActionBanners extends StatelessWidget {
     );
   }
 
-  Widget _actionItem(
-      IconData icon, String title, String subtitle, Color color) {
+  Widget _actionItem(IconData icon, String title, String subtitle, Color color,
+      {VoidCallback? onTap}) {
     return Builder(
       builder: (context) {
         final isMobile = Breakpoints.isCompact(context);
-        return Container(
+        final item = Container(
           width: isMobile ? double.infinity : null,
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           decoration: BoxDecoration(
@@ -557,7 +584,20 @@ class _UrgentActionBanners extends StatelessWidget {
                   ],
                 ),
               ),
+              if (onTap != null) ...[
+                const SizedBox(width: 8),
+                Icon(Icons.chevron_right, color: color, size: 18),
+              ],
             ],
+          ),
+        );
+        if (onTap == null) return item;
+        return Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(10),
+            onTap: onTap,
+            child: item,
           ),
         );
       },
@@ -633,13 +673,17 @@ class _KpiStatCard extends StatelessWidget {
 // ── Clinical Operations Section ──────────────────────────────────────────────
 class _ClinicalOperationsSection extends StatefulWidget {
   final List<Map<String, dynamic>> iepReports;
-  final List<Map<String, dynamic>> therapists;
-  final int studentsCount;
+  final List<_SupervisionSummary> supervision;
+  final List<TargetProgress> targets;
+  final bool isLoading;
+  final VoidCallback? onOpenIepReports;
 
   const _ClinicalOperationsSection({
     this.iepReports = const [],
-    this.therapists = const [],
-    this.studentsCount = 0,
+    this.supervision = const [],
+    this.targets = const [],
+    this.isLoading = false,
+    this.onOpenIepReports,
   });
 
   @override
@@ -758,9 +802,12 @@ class _ClinicalOperationsSectionState extends State<_ClinicalOperationsSection>
             child: TabBarView(
               controller: _tabController,
               children: [
-                _PendingIepsTab(iepReports: widget.iepReports),
-                _ClinicianSupervisionTab(therapists: widget.therapists),
-                _DomainVelocityTab(studentsCount: widget.studentsCount),
+                _PendingIepsTab(
+                    iepReports: widget.iepReports,
+                    onOpen: widget.onOpenIepReports),
+                _ClinicianSupervisionTab(rows: widget.supervision),
+                _DomainVelocityTab(
+                    targets: widget.targets, isLoading: widget.isLoading),
               ],
             ),
           ),
@@ -773,8 +820,20 @@ class _ClinicalOperationsSectionState extends State<_ClinicalOperationsSection>
 // ── Tab 1: Pending IEPs ──────────────────────────────────────────────────────
 class _PendingIepsTab extends StatelessWidget {
   final List<Map<String, dynamic>> iepReports;
+  final VoidCallback? onOpen;
 
-  const _PendingIepsTab({this.iepReports = const []});
+  const _PendingIepsTab({this.iepReports = const [], this.onOpen});
+
+  static int _age(dynamic dob) {
+    final d = DateTime.tryParse((dob ?? '').toString());
+    if (d == null) return 0;
+    final now = DateTime.now();
+    var age = now.year - d.year;
+    if (now.month < d.month || (now.month == d.month && now.day < d.day)) {
+      age--;
+    }
+    return age < 0 ? 0 : age;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -809,71 +868,91 @@ class _PendingIepsTab extends StatelessWidget {
               const Divider(height: 1, color: AppColors.divider),
           itemBuilder: (ctx, i) {
             final item = pendingList[i];
-            return Padding(
-              padding: const EdgeInsets.symmetric(vertical: 10),
-              child: Row(
-                children: [
-                  CircleAvatar(
-                    radius: 18,
-                    backgroundColor: AppColors.primary.withValues(alpha: 0.1),
-                    child: Text(item['student']!.substring(0, 1),
-                        style: const TextStyle(
-                            color: AppColors.primary,
-                            fontWeight: FontWeight.bold)),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    flex: 3,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(item['student']!,
-                            style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 13,
-                                color: AppColors.textPrimary)),
-                        Text(
-                            'Age: ${item['age']} yrs • Sub: ${item['submitted']}',
-                            style: const TextStyle(
-                                fontSize: 11, color: AppColors.textSecondary)),
-                      ],
+            final student = (item['student_name'] ?? '').toString().trim();
+            final studentName = student.isEmpty ? 'Student' : student;
+            final submitted =
+                (item['created_at'] ?? '—').toString().split('T').first;
+            final therapist =
+                (item['therapist_name'] ?? 'Unassigned').toString();
+            final cycle =
+                (item['cycle_term'] ?? item['title'] ?? 'IEP Plan').toString();
+            final targets =
+                (item['goals_summary'] ?? item['title'] ?? '').toString();
+            return InkWell(
+              onTap: onOpen,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 18,
+                      backgroundColor: AppColors.primary.withValues(alpha: 0.1),
+                      child: Text(studentName.substring(0, 1).toUpperCase(),
+                          style: const TextStyle(
+                              color: AppColors.primary,
+                              fontWeight: FontWeight.bold)),
                     ),
-                  ),
-                  Expanded(
-                    flex: 3,
-                    child: Text('Therapist: ${item['therapist']!}',
-                        style: const TextStyle(
-                            fontSize: 12, color: AppColors.textPrimary)),
-                  ),
-                  Expanded(
-                    flex: 3,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(item['cycle']!,
-                            style: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.textPrimary)),
-                        Text(item['targets']!,
-                            style: const TextStyle(
-                                fontSize: 11, color: AppColors.textSecondary)),
-                      ],
+                    const SizedBox(width: 14),
+                    Expanded(
+                      flex: 3,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(studentName,
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                  color: AppColors.textPrimary)),
+                          Text(
+                              'Age: ${_age(item['student_dob'])} yrs • Sub: $submitted',
+                              style: const TextStyle(
+                                  fontSize: 11,
+                                  color: AppColors.textSecondary)),
+                        ],
+                      ),
                     ),
-                  ),
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                        color: AppColors.statusPendingBg,
-                        borderRadius: BorderRadius.circular(12)),
-                    child: const Text('Pending Audit',
-                        style: TextStyle(
-                            color: AppColors.statusPending,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 11)),
-                  ),
-                ],
+                    Expanded(
+                      flex: 3,
+                      child: Text('Therapist: $therapist',
+                          style: const TextStyle(
+                              fontSize: 12, color: AppColors.textPrimary)),
+                    ),
+                    Expanded(
+                      flex: 3,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(cycle,
+                              style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.textPrimary)),
+                          Text(targets,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                  fontSize: 11,
+                                  color: AppColors.textSecondary)),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                          color: AppColors.statusPendingBg,
+                          borderRadius: BorderRadius.circular(12)),
+                      child: const Text('Pending Audit',
+                          style: TextStyle(
+                              color: AppColors.statusPending,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 11)),
+                    ),
+                    if (onOpen != null)
+                      const Icon(Icons.chevron_right,
+                          color: AppColors.textHint, size: 18),
+                  ],
+                ),
               ),
             );
           },
@@ -884,21 +963,111 @@ class _PendingIepsTab extends StatelessWidget {
 }
 
 // ── Tab 2: Clinician Supervision ─────────────────────────────────────────────
-class _ClinicianSupervisionTab extends StatelessWidget {
-  final List<Map<String, dynamic>> therapists;
+/// One therapist's caseload and this month's therapy vs supervision hours.
+class _SupervisionSummary {
+  final String name;
+  final String role;
+  final int cases;
+  final double therapyHours;
+  final double supervisionHours;
+  final double ratio;
 
-  const _ClinicianSupervisionTab({this.therapists = const []});
+  const _SupervisionSummary({
+    required this.name,
+    required this.role,
+    required this.cases,
+    required this.therapyHours,
+    required this.supervisionHours,
+    required this.ratio,
+  });
+
+  double get requiredHours => therapyHours * ratio / 100;
+
+  static int? _minutes(dynamic raw) {
+    final m = RegExp(r'^(\d{1,2}):(\d{2})\s*([AaPp][Mm])?')
+        .firstMatch((raw ?? '').toString().trim());
+    if (m == null) return null;
+    var h = int.parse(m.group(1)!);
+    final ap = m.group(3)?.toUpperCase();
+    if (ap == 'PM' && h < 12) h += 12;
+    if (ap == 'AM' && h == 12) h = 0;
+    return h * 60 + int.parse(m.group(2)!);
+  }
+
+  static List<_SupervisionSummary> build({
+    required List<Map<String, dynamic>> therapists,
+    required List<Map<String, dynamic>> students,
+    required List sessions,
+    required List logs,
+    required double ratio,
+  }) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    bool thisMonth(DateTime d) => d.year == now.year && d.month == now.month;
+
+    final cases = <String, int>{};
+    for (final st in students) {
+      final tid = st['primary_therapist_id'];
+      if (tid == null || (st['status'] ?? 'Active').toString() != 'Active') {
+        continue;
+      }
+      cases['$tid'] = (cases['$tid'] ?? 0) + 1;
+    }
+    final therapy = <String, double>{};
+    for (final se in sessions) {
+      if (se is! Map || (se['status'] ?? '').toString() == 'cancelled') {
+        continue;
+      }
+      final d = ScheduleService.parseCalendarDate(se['session_date']);
+      if (!thisMonth(d) || d.isAfter(today)) continue;
+      final a = _minutes(se['start_time']);
+      final b = _minutes(se['end_time']);
+      if (a == null || b == null || b <= a) continue;
+      final id = '${se['therapist_id']}';
+      therapy[id] = (therapy[id] ?? 0) + (b - a) / 60;
+    }
+    final supervised = <String, double>{};
+    for (final l in logs) {
+      if (l is! Map) continue;
+      if (!thisMonth(ScheduleService.parseCalendarDate(l['log_date']))) {
+        continue;
+      }
+      final id = '${l['therapist_id']}';
+      supervised[id] = (supervised[id] ?? 0) +
+          (double.tryParse((l['hours'] ?? '').toString()) ?? 0);
+    }
+    return therapists
+        .where((t) => (t['status'] ?? 'Active').toString() == 'Active')
+        .map((t) {
+      final id = '${t['id']}';
+      final designation = (t['designation'] ?? '').toString().trim();
+      return _SupervisionSummary(
+        name: (t['name'] ?? 'Therapist').toString(),
+        role: designation.isEmpty ? 'Therapist' : designation,
+        cases: cases[id] ?? 0,
+        therapyHours: therapy[id] ?? 0,
+        supervisionHours: supervised[id] ?? 0,
+        ratio: ratio,
+      );
+    }).toList();
+  }
+}
+
+class _ClinicianSupervisionTab extends StatelessWidget {
+  final List<_SupervisionSummary> rows;
+
+  const _ClinicianSupervisionTab({this.rows = const []});
 
   @override
   Widget build(BuildContext context) {
-    if (therapists.isEmpty) {
+    if (rows.isEmpty) {
       return const Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(Icons.people_outline, size: 40, color: Colors.grey),
             SizedBox(height: 8),
-            Text('No clinicians registered',
+            Text('No active clinicians registered',
                 style:
                     TextStyle(color: Colors.grey, fontWeight: FontWeight.w600)),
           ],
@@ -912,17 +1081,23 @@ class _ClinicianSupervisionTab extends StatelessWidget {
         width: 650,
         child: ListView.separated(
           padding: const EdgeInsets.all(16),
-          itemCount: therapists.length,
+          itemCount: rows.length,
           separatorBuilder: (_, __) =>
               const Divider(height: 1, color: AppColors.divider),
           itemBuilder: (ctx, i) {
-            final t = therapists[i];
-            final name = t['name']?.toString() ?? 'Therapist';
-            final role = t['designation']?.toString() ?? 'Behavior Therapist';
-            final cases = (t['student_count'] ?? 0) as int;
-            final hours = (cases * 1.5).toStringAsFixed(1);
-            final reqHours =
-                cases > 0 ? (cases * 1.5).toStringAsFixed(1) : '0.0';
+            final r = rows[i];
+            final required = r.requiredHours;
+            final noSessions = r.therapyHours == 0;
+            final compliant = !noSessions && r.supervisionHours >= required;
+            final statusText = noSessions
+                ? 'No sessions this month'
+                : (compliant ? 'BACB Compliant' : 'Below Target');
+            final statusColor = noSessions
+                ? AppColors.textSecondary
+                : (compliant ? Colors.green : AppColors.statusDeactivated);
+            final progress = noSessions || required == 0
+                ? 0.0
+                : (r.supervisionHours / required).clamp(0.0, 1.0);
 
             return Padding(
               padding: const EdgeInsets.symmetric(vertical: 10),
@@ -932,7 +1107,7 @@ class _ClinicianSupervisionTab extends StatelessWidget {
                     radius: 18,
                     backgroundColor: AppColors.primary.withValues(alpha: 0.1),
                     child: Text(
-                      name.isNotEmpty ? name.substring(0, 1) : 'T',
+                      r.name.isNotEmpty ? r.name.substring(0, 1) : 'T',
                       style: const TextStyle(
                           color: AppColors.primary,
                           fontWeight: FontWeight.bold),
@@ -944,12 +1119,12 @@ class _ClinicianSupervisionTab extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(name,
+                        Text(r.name,
                             style: const TextStyle(
                                 fontWeight: FontWeight.bold,
                                 fontSize: 13,
                                 color: AppColors.textPrimary)),
-                        Text(role,
+                        Text(r.role,
                             style: const TextStyle(
                                 fontSize: 11, color: AppColors.textSecondary)),
                       ],
@@ -957,7 +1132,7 @@ class _ClinicianSupervisionTab extends StatelessWidget {
                   ),
                   Expanded(
                     flex: 2,
-                    child: Text('$cases Cases',
+                    child: Text('${r.cases} Cases',
                         style: const TextStyle(
                             fontSize: 12, color: AppColors.textPrimary)),
                   ),
@@ -969,27 +1144,28 @@ class _ClinicianSupervisionTab extends StatelessWidget {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text('Supervision: $hours / $reqHours hrs',
+                            Text(
+                                'Supervision: ${r.supervisionHours.toStringAsFixed(1)} / ${required.toStringAsFixed(1)} hrs',
                                 style: const TextStyle(
                                     fontSize: 11,
                                     fontWeight: FontWeight.w600,
                                     color: AppColors.textPrimary)),
-                            const Text('BACB Compliant',
+                            Text(statusText,
                                 style: TextStyle(
                                     fontSize: 11,
                                     fontWeight: FontWeight.bold,
-                                    color: Colors.green)),
+                                    color: statusColor)),
                           ],
                         ),
                         const SizedBox(height: 4),
                         ClipRRect(
                           borderRadius: BorderRadius.circular(4),
                           child: LinearProgressIndicator(
-                            value: cases > 0 ? 1.0 : 0.0,
+                            value: progress,
                             minHeight: 6,
                             backgroundColor: Colors.grey.shade200,
-                            valueColor: const AlwaysStoppedAnimation<Color>(
-                                Colors.green),
+                            valueColor:
+                                AlwaysStoppedAnimation<Color>(statusColor),
                           ),
                         ),
                       ],
@@ -1007,13 +1183,17 @@ class _ClinicianSupervisionTab extends StatelessWidget {
 
 // ── Tab 3: Domain Velocity ───────────────────────────────────────────────────
 class _DomainVelocityTab extends StatelessWidget {
-  final int studentsCount;
+  final List<TargetProgress> targets;
+  final bool isLoading;
 
-  const _DomainVelocityTab({this.studentsCount = 0});
+  const _DomainVelocityTab({this.targets = const [], this.isLoading = false});
 
   @override
   Widget build(BuildContext context) {
-    if (studentsCount == 0) {
+    if (isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (targets.isEmpty) {
       return const Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -1028,28 +1208,34 @@ class _DomainVelocityTab extends StatelessWidget {
       );
     }
 
-    final domains = [
-      {
-        'name': 'Manding (Speech/Requests)',
-        'percent': '88% Mastery',
-        'speed': '3.4 days / target'
-      },
-      {
-        'name': 'Tacting (Labeling/Objects)',
-        'percent': '82% Mastery',
-        'speed': '3.7 days / target'
-      },
-      {
-        'name': 'Listener Responding',
-        'percent': '78% Mastery',
-        'speed': '4.1 days / target'
-      },
-      {
-        'name': 'Motor Imitation',
-        'percent': '85% Mastery',
-        'speed': '3.2 days / target'
-      },
-    ];
+    // Group skill targets by domain (case-insensitive).
+    final names = <String, String>{};
+    final introduced = <String, int>{};
+    final mastered = <String, int>{};
+    final days = <String, List<int>>{};
+    for (final t in targets) {
+      final label = t.domain.trim().isEmpty ? 'General' : t.domain.trim();
+      final key = label.toLowerCase();
+      names.putIfAbsent(key, () => label);
+      introduced[key] = (introduced[key] ?? 0) + 1;
+      if (t.mastered) mastered[key] = (mastered[key] ?? 0) + 1;
+      final d = t.daysToMastery;
+      if (d != null) (days[key] ??= []).add(d);
+    }
+    final keys = introduced.keys.toList()
+      ..sort((x, y) => introduced[y]!.compareTo(introduced[x]!));
+    final domains = keys.map((k) {
+      final pct = ((mastered[k] ?? 0) / introduced[k]! * 100).round();
+      final list = days[k] ?? const <int>[];
+      final speed = list.isEmpty
+          ? '— (none mastered yet)'
+          : '${(list.reduce((a, b) => a + b) / list.length).toStringAsFixed(1)} days / target';
+      return {
+        'name': names[k]!,
+        'percent': '$pct% Mastery (${mastered[k] ?? 0}/${introduced[k]})',
+        'speed': speed,
+      };
+    }).toList();
 
     return ListView.separated(
       padding: const EdgeInsets.all(16),
@@ -1097,8 +1283,12 @@ class _DomainVelocityTab extends StatelessWidget {
               );
             }
             return Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [name, chip, speed],
+              children: [
+                Expanded(child: name),
+                chip,
+                const SizedBox(width: 16),
+                speed,
+              ],
             );
           }),
         );
@@ -1655,10 +1845,14 @@ class _DirectorExecutiveAppointmentsSection extends StatelessWidget {
               separatorBuilder: (ctx, i) => const SizedBox(height: 12),
               itemBuilder: (ctx, i) {
                 final appt = todayAppointments[i];
+                final inactive = appt.status == AppointmentStatus.cancelled ||
+                    appt.status == AppointmentStatus.completed;
                 return Container(
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFAFAFA),
+                    color: inactive
+                        ? const Color(0xFFF1F1F1)
+                        : const Color(0xFFFAFAFA),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(color: AppColors.divider),
                   ),
@@ -1818,9 +2012,25 @@ class _DirectorExecutiveAppointmentsSection extends StatelessWidget {
                                 overflow: TextOverflow.ellipsis,
                               ),
                             ],
+                            if (inactive) ...[
+                              const SizedBox(height: 6),
+                              Text(
+                                appt.status == AppointmentStatus.cancelled
+                                    ? 'Cancelled'
+                                    : 'Completed',
+                                style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                    color: appt.status ==
+                                            AppointmentStatus.cancelled
+                                        ? AppColors.statusDeactivated
+                                        : AppColors.statusActive),
+                              ),
+                            ],
                           ],
                         ),
                       ),
+                      DirectorAppointmentMenu(appointment: appt),
                     ],
                   ),
                 );
