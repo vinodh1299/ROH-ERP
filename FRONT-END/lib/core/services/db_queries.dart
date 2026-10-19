@@ -291,8 +291,25 @@ class IepQueries {
 // DEDICATED CLINICAL ASSESSMENTS
 // ════════════════════════════════════════════════════════════════════════════
 
+/// Posts an assessment save. Returns null on success, otherwise the server's
+/// error message (e.g. a 400 range-validation message) or a generic one.
+Future<String?> _saveAssessment(String action, Map<String, dynamic> data) async {
+  try {
+    final result = await _api.post(action, data);
+    if (result is Map && result['error'] == null) return null;
+    if (result is Map && result['error'] != null) {
+      return result['error'].toString();
+    }
+  } catch (_) {}
+  return 'Could not reach the server. Please try again.';
+}
+
 /// Milestone Assessments
 class MilestoneAssessmentQueries {
+  /// Saves; returns null, or the error message (e.g. server validation).
+  static Future<String?> trySave(Map<String, dynamic> data) =>
+      _saveAssessment('save_milestone_assessment', data);
+
   static Future<List<Map<String, dynamic>>> fetchForStudent(String studentId) async {
     try {
       final result = await _api.get('get_milestone_assessments', params: {'student_id': studentId});
@@ -314,6 +331,10 @@ class MilestoneAssessmentQueries {
 
 /// Barriers Assessments (24 Learning Barriers)
 class BarriersAssessmentQueries {
+  /// Saves; returns null, or the error message (e.g. server validation).
+  static Future<String?> trySave(Map<String, dynamic> data) =>
+      _saveAssessment('save_barriers_assessment', data);
+
   static Future<List<Map<String, dynamic>>> fetchForStudent(String studentId) async {
     try {
       final result = await _api.get('get_barriers_assessments', params: {'student_id': studentId});
@@ -335,6 +356,10 @@ class BarriersAssessmentQueries {
 
 /// Transition Assessments (18 Readiness Areas)
 class TransitionAssessmentQueries {
+  /// Saves; returns null, or the error message (e.g. server validation).
+  static Future<String?> trySave(Map<String, dynamic> data) =>
+      _saveAssessment('save_transition_assessment', data);
+
   static Future<List<Map<String, dynamic>>> fetchForStudent(String studentId) async {
     try {
       final result = await _api.get('get_transition_assessments', params: {'student_id': studentId});
@@ -356,6 +381,10 @@ class TransitionAssessmentQueries {
 
 /// Early Echoic Skills Assessments (EESA Groups 1 & 2)
 class EesaAssessmentQueries {
+  /// Saves; returns null, or the error message (e.g. server validation).
+  static Future<String?> trySave(Map<String, dynamic> data) =>
+      _saveAssessment('save_eesa_assessment', data);
+
   static Future<List<Map<String, dynamic>>> fetchForStudent(String studentId) async {
     try {
       final result = await _api.get('get_eesa_assessments', params: {'student_id': studentId});
@@ -396,6 +425,26 @@ class PreferenceAssessmentQueries {
     } catch (_) {}
     return false;
   }
+}
+
+/// Preference assessment sessions (MSWO: multiple-stimulus without
+/// replacement), one row per session.
+class PreferenceSessionQueries {
+  static Future<List<Map<String, dynamic>>> fetchForStudent(String studentId) async {
+    try {
+      final result = await _api.get('get_preference_sessions', params: {'student_id': studentId});
+      if (result is List) {
+        return result.map((e) => Map<String, dynamic>.from(e)).toList();
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  /// [data]: student_id, session_date, method ('MSWO'), items
+  /// [{name, category}], trials [[item index, …] in selection order],
+  /// results [{name, category, selections, opportunities, percentage, rank}].
+  static Future<String?> trySave(Map<String, dynamic> data) =>
+      _saveAssessment('save_preference_session', data);
 }
 
 /// Legacy backward compatibility wrapper

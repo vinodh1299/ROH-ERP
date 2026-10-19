@@ -4,6 +4,7 @@ import '../../../core/layout/responsive.dart';
 import '../../../core/services/db_queries.dart';
 import '../widgets/student_card_grid.dart';
 import '../widgets/student_assessment_banner.dart';
+import 'mswo_session_view.dart';
 
 class PreferenceAssessmentPage extends StatefulWidget {
   const PreferenceAssessmentPage({super.key});
@@ -45,7 +46,8 @@ class _PreferenceAssessmentPageState extends State<PreferenceAssessmentPage> {
   Future<void> _loadPreferences() async {
     final studentId = _selectedStudentId;
     if (studentId == null) return;
-    final rows = await PreferenceAssessmentQueries.fetchForStudent('$studentId');
+    final rows =
+        await PreferenceAssessmentQueries.fetchForStudent('$studentId');
     if (!mounted || rows.isEmpty) return;
     // Rows come newest first; keep only the latest assessment date.
     final latestDate =
@@ -78,6 +80,43 @@ class _PreferenceAssessmentPageState extends State<PreferenceAssessmentPage> {
     });
   }
 
+  /// Inventory label for a rating. Only edibles are primary (unconditioned)
+  /// reinforcers; other highly rated items are "high-preference items".
+  static String _rankFor(String category, int rating) {
+    if (rating >= 4) {
+      return category == 'Edible'
+          ? 'High-Preference Primary Reinforcer'
+          : 'High-Preference Item';
+    }
+    return rating == 3 ? 'Moderate Preference' : 'Low Preference';
+  }
+
+  int _tab = 0; // 0: inventory, 1: MSWO session
+
+  Widget _buildModeTab(String label, int index) {
+    final selected = _tab == index;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => setState(() => _tab = index),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.primary : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: selected ? Colors.white : AppColors.primary,
+            fontWeight: FontWeight.bold,
+            fontSize: 13,
+            fontFamily: 'Poppins',
+          ),
+        ),
+      ),
+    );
+  }
+
   Future<void> _savePreferences() async {
     final studentId = _selectedStudentId;
     if (studentId == null || _saving) return;
@@ -89,9 +128,8 @@ class _PreferenceAssessmentPageState extends State<PreferenceAssessmentPage> {
               'category': _categoryValues[entry.key] ?? 'Other',
               ...?_savedItems[_itemId(entry.key, item)],
               'rating': _ratings[_itemId(entry.key, item)] ?? 5,
-              'hierarchy_rank': (_ratings[_itemId(entry.key, item)] ?? 5) >= 4
-                  ? 'High-Preference Primary Reinforcer'
-                  : 'Moderate Preference',
+              'hierarchy_rank': _rankFor(_categoryValues[entry.key] ?? 'Other',
+                  _ratings[_itemId(entry.key, item)] ?? 5),
               'item_name': item,
             },
     ];
@@ -123,7 +161,8 @@ class _PreferenceAssessmentPageState extends State<PreferenceAssessmentPage> {
       return;
     }
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Preference Assessment Saved Successfully!')),
+      const SnackBar(
+          content: Text('Preference Assessment Saved Successfully!')),
     );
     await _loadPreferences();
   }
@@ -334,59 +373,95 @@ class _PreferenceAssessmentPageState extends State<PreferenceAssessmentPage> {
             rightContent: const SizedBox.shrink(),
           ),
           const SizedBox(height: 20),
-          if (_lastSavedDate != null) ...[
-            Text(
-              'Showing preferences saved on $_lastSavedDate',
-              style: const TextStyle(
-                  fontSize: 12, color: AppColors.textSecondary),
+
+          // Inventory (interview/observation) | MSWO session
+          Container(
+            decoration: BoxDecoration(
+              color: AppColors.primaryLight.withValues(alpha: 0.25),
+              borderRadius: BorderRadius.circular(8),
             ),
-            const SizedBox(height: 12),
-          ],
-
-          // 4 Category sections
-          for (final entry in _reinforcers.entries) ...[
-            _buildCategoryCard(entry.key, entry.value),
-            const SizedBox(height: 16),
-          ],
-          const SizedBox(height: 16),
-
-          // Cancel & Save Buttons
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              OutlinedButton(
-                onPressed: () => setState(() => _selectedStudent = null),
-                style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: AppColors.primary),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8)),
-                ),
-                child: const Text('Cancel',
-                    style: TextStyle(
-                        color: AppColors.primary, fontWeight: FontWeight.bold)),
-              ),
-              const SizedBox(width: 16),
-              ElevatedButton(
-                onPressed: _saving ? null : _savePreferences,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8)),
-                ),
-                child: Text(_saving ? 'Saving…' : 'Save',
-                    style: const TextStyle(
-                        color: Colors.white, fontWeight: FontWeight.bold)),
-              ),
-            ],
+            child: Wrap(
+              children: [
+                _buildModeTab(
+                    'Preference Inventory (interview/observation)', 0),
+                _buildModeTab('MSWO Session', 1),
+              ],
+            ),
           ),
+          const SizedBox(height: 20),
+          if (_tab == 1)
+            MswoSessionView(
+              studentId: _selectedStudentId ?? 0,
+              itemsByCategory: {
+                for (final e in _reinforcers.entries)
+                  _categoryValues[e.key] ?? 'Other': e.value,
+              },
+            )
+          else
+            ..._buildInventory(),
           const SizedBox(height: 40),
         ],
       ),
     );
+  }
+
+  List<Widget> _buildInventory() {
+    return [
+      const Text(
+        'Rate each item the child prefers (★1–5) from caregiver '
+        'interview and direct observation. Only edibles are primary '
+        'reinforcers; other highly rated items are high-preference items. '
+        'Use an MSWO session to rank items by actual selection.',
+        style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+      ),
+      const SizedBox(height: 12),
+      if (_lastSavedDate != null) ...[
+        Text(
+          'Showing preferences saved on $_lastSavedDate',
+          style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+        ),
+        const SizedBox(height: 12),
+      ],
+
+      // 4 Category sections
+      for (final entry in _reinforcers.entries) ...[
+        _buildCategoryCard(entry.key, entry.value),
+        const SizedBox(height: 16),
+      ],
+      const SizedBox(height: 16),
+
+      // Cancel & Save Buttons
+      Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          OutlinedButton(
+            onPressed: () => setState(() => _selectedStudent = null),
+            style: OutlinedButton.styleFrom(
+              side: const BorderSide(color: AppColors.primary),
+              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8)),
+            ),
+            child: const Text('Cancel',
+                style: TextStyle(
+                    color: AppColors.primary, fontWeight: FontWeight.bold)),
+          ),
+          const SizedBox(width: 16),
+          ElevatedButton(
+            onPressed: _saving ? null : _savePreferences,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8)),
+            ),
+            child: Text(_saving ? 'Saving…' : 'Save',
+                style: const TextStyle(
+                    color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    ];
   }
 
   Widget _buildCategoryCard(String category, List<String> items) {

@@ -5,7 +5,9 @@ import '../../../core/layout/responsive.dart';
 import '../../../core/services/db_queries.dart';
 import '../widgets/student_card_grid.dart';
 import '../widgets/student_assessment_banner.dart';
+import '../../../core/services/vbmapp_protocol_content.dart';
 import 'assessment_records.dart';
+import 'vbmapp_charts.dart';
 
 class BarriersAssessmentPage extends StatefulWidget {
   const BarriersAssessmentPage({super.key});
@@ -21,28 +23,23 @@ class _BarriersAssessmentPageState extends State<BarriersAssessmentPage> {
   List<Map<String, dynamic>> _barrierRecords = [];
   bool _saving = false;
 
-  /// The 18 barriers; these names are the keys of barrier_scores.
-  static const List<String> _barrierNames = [
-    'Behaviour Problems',
-    'Instructional Control',
-    'Impaired Mand',
-    'Impaired Tact',
-    'Impaired Imitation',
-    'Impaired Echoic',
-    'Impaired VP-MTS',
-    'Impaired Listener Responding',
-    'Impaired Intraverbal',
-    'Impaired Social Skills',
-    'Prompt Dependent',
-    'Scrolling',
-    'Impaired Scanning',
-    'Impaired Conditional Discrimination',
-    'Failure to Generalize',
-    'Weak Motivators',
-    'Response Requirement weakens MO',
-    'Reinforcer Dependent',
+  /// The 24 barriers (shared list); their keys are the barrier_scores keys,
+  /// so records saved with the original 18 still load (the rest unscored).
+  static final List<String> _barrierNames = [
+    for (final b in vbBarriers) b.key,
   ];
-  static const _testLabels = ['1ST', '2ND', '3RD', '4TH'];
+  static const _testLabels = vbTestLabels;
+
+  /// Protocol scoring guidance (placeholders until the centre fills it in).
+  VbMappProtocolContent _protocol = VbMappProtocolContent.current;
+
+  @override
+  void initState() {
+    super.initState();
+    VbMappProtocolContent.load().then((c) {
+      if (mounted) setState(() => _protocol = c);
+    });
+  }
 
   /// Score boxes keyed '<barrier>|<test number>'.
   final Map<String, TextEditingController> _scoreControllers = {};
@@ -89,7 +86,8 @@ class _BarriersAssessmentPageState extends State<BarriersAssessmentPage> {
         if (text.isEmpty) continue;
         final v = int.tryParse(text);
         if (v == null || v < 0 || v > 4) {
-          _showError('"$barrier" ${_testLabels[t - 1]} score must be 0 to 4.');
+          _showError('"${_labelOf(barrier)}" ${_testLabels[t - 1]} score must '
+              'be 0 to 4.');
           return;
         }
         (byTest[t] ??= {})[barrier] = v;
@@ -110,23 +108,23 @@ class _BarriersAssessmentPageState extends State<BarriersAssessmentPage> {
     }
 
     setState(() => _saving = true);
-    var ok = true;
+    String? error;
     for (final entry in byTest.entries) {
-      ok = await BarriersAssessmentQueries.save({
+      error = await BarriersAssessmentQueries.trySave({
         'student_id': studentId,
         'test_number': entry.key,
         'assessment_date':
             assessmentDateFor(newestRecordForTest(_barrierRecords, entry.key)),
         'barrier_scores': entry.value,
         'total_score': entry.value.values.fold<int>(0, (a, b) => a + b),
-        'max_score': _barrierNames.length * 4,
+        'max_score': vbBarriersMaxScore,
       });
-      if (!ok) break;
+      if (error != null) break;
     }
     if (!mounted) return;
     setState(() => _saving = false);
-    if (!ok) {
-      _showError('Could not save the barriers assessment. Please try again.');
+    if (error != null) {
+      _showError('Could not save the barriers assessment: $error');
       return;
     }
     ScaffoldMessenger.of(context).showSnackBar(
@@ -135,6 +133,11 @@ class _BarriersAssessmentPageState extends State<BarriersAssessmentPage> {
     await _loadBarriersData();
     if (mounted) setState(() => _activeTab = 1);
   }
+
+  static VbBarrier _barrierOf(String key) =>
+      vbBarriers.firstWhere((b) => b.key == key);
+
+  static String _labelOf(String key) => _barrierOf(key).label;
 
   void _showError(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -372,7 +375,20 @@ class _BarriersAssessmentPageState extends State<BarriersAssessmentPage> {
     );
   }
 
+  static const _genericLevels = [
+    'No problem',
+    'Occasional problem',
+    'Moderate problem',
+    'Persistent problem',
+    'Severe problem',
+  ];
+
+  /// [title] is the barrier key; the card shows its number and label, and the
+  /// scoring guidance from the protocol content file (or the generic 0–4
+  /// levels plus a placeholder note when the centre has not filled it in).
   Widget _buildBarrierQuestionCard(String title) {
+    final barrier = _barrierOf(title);
+    final hasCriteria = _protocol.hasBarrierCriteria(barrier);
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
@@ -386,7 +402,7 @@ class _BarriersAssessmentPageState extends State<BarriersAssessmentPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                title,
+                '${barrier.number}. ${barrier.label}',
                 style: const TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
@@ -395,24 +411,22 @@ class _BarriersAssessmentPageState extends State<BarriersAssessmentPage> {
                 ),
               ),
               const SizedBox(height: 12),
-              if (title == 'Behaviour Problems') ...[
-                _buildScoreOption('0',
-                    'Does not demonstrate any significant negative behaviors'),
-                _buildScoreOption('1',
-                    'Engages in some minor negative behaviors weekly, but recovery is quick'),
-                _buildScoreOption('2',
-                    'Emits a variety of minor negative behaviors daily (e.g., crying, verbal refusal)'),
-                _buildScoreOption('3',
-                    'Emits more severe negative behavior daily (e.g., tantrums, throwing things)'),
-                _buildScoreOption('4',
-                    'Often emits severe negative behavior that is a danger to himself or others'),
-              ] else ...[
-                _buildScoreOption('0', 'No problem'),
-                _buildScoreOption('1', 'Occasional problem'),
-                _buildScoreOption('2', 'Moderate problem'),
-                _buildScoreOption('3', 'Persistent problem'),
-                _buildScoreOption('4', 'Severe problem'),
-              ],
+              for (int s = 0; s <= 4; s++)
+                _buildScoreOption(
+                    '$s',
+                    hasCriteria
+                        ? _protocol.barrierCriterion(barrier, s)
+                        : _genericLevels[s]),
+              if (!hasCriteria)
+                Text(
+                  _protocol
+                      .barrierCriterion(barrier, 0)
+                      .replaceFirst(' · Score 0', ' scoring criteria'),
+                  style: const TextStyle(
+                      fontSize: 11,
+                      fontStyle: FontStyle.italic,
+                      color: AppColors.textSecondary),
+                ),
             ],
           );
           const scoreTitle = Text(
@@ -562,9 +576,15 @@ class _BarriersAssessmentPageState extends State<BarriersAssessmentPage> {
     );
   }
 
-  // ── 2. GRAPH VIEW (18 BARRIER CHARTS) ──
+  // ── 2. GRAPH VIEW: total per test + one chart per barrier (24) ──
   Widget _buildGraphView() {
-    const chartTitles = _barrierNames;
+    final scoresPerTest = _scoresPerTest;
+    final totals = <int, double?>{
+      for (int t = 1; t <= 4; t++)
+        t: (scoresPerTest[t]?.isNotEmpty ?? false)
+            ? scoresPerTest[t]!.values.fold<int>(0, (a, b) => a + b).toDouble()
+            : null,
+    };
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -572,6 +592,14 @@ class _BarriersAssessmentPageState extends State<BarriersAssessmentPage> {
         StudentAssessmentBanner(
           studentName: _selectedStudent ?? 'Student',
           records: _barrierRecords,
+        ),
+        const SizedBox(height: 24),
+        TestTotalsChart(
+          title: 'Barriers total score per test',
+          subtitle: 'Sum of the scored barriers (lower is better). '
+              'Older tests scored with 18 barriers count only those.',
+          totals: totals,
+          maxScore: vbBarriersMaxScore.toDouble(),
         ),
         const SizedBox(height: 24),
         LayoutBuilder(
@@ -585,106 +613,26 @@ class _BarriersAssessmentPageState extends State<BarriersAssessmentPage> {
             return GridView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
-              itemCount: chartTitles.length,
+              itemCount: vbBarriers.length,
               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: crossAxisCount,
                 crossAxisSpacing: 16,
                 mainAxisSpacing: 16,
-                childAspectRatio: 0.8,
+                childAspectRatio: 0.75,
               ),
               itemBuilder: (context, index) {
-                return _buildBarrierChartCard(
-                    chartTitles[index], index, chartTitles);
+                final b = vbBarriers[index];
+                return BarrierMiniChart(
+                  title: '${b.number}. ${b.label}',
+                  barrierKey: b.key,
+                  scoresPerTest: scoresPerTest,
+                );
               },
             );
           },
         ),
         const SizedBox(height: 40),
       ],
-    );
-  }
-
-  Widget _buildBarrierChartCard(
-      String title, int chartIndex, List<String> chartTitles) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.textPrimary, width: 1.5),
-      ),
-      padding: const EdgeInsets.all(10),
-      child: Column(
-        children: [
-          Text(
-            title,
-            textAlign: TextAlign.center,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              fontFamily: 'Poppins',
-              fontSize: 11,
-              fontWeight: FontWeight.bold,
-              color: AppColors.textPrimary,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Expanded(
-            child: _buildBarrierGrid(chartIndex, chartTitles),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildBarrierGrid(int chartIndex, List<String> chartTitles) {
-    final title =
-        chartIndex < chartTitles.length ? chartTitles[chartIndex] : '';
-    final scoresPerTest = _scoresPerTest;
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final cellWidth = constraints.maxWidth / 4;
-        final cellHeight = constraints.maxHeight / 5;
-
-        return Column(
-          children: List.generate(5, (rowIndex) {
-            // Row 0 is rating 4 (top), Row 4 is rating 0 (bottom)
-            final rating = 4 - rowIndex;
-
-            return Row(
-              children: List.generate(4, (colIndex) {
-                final testNum = colIndex + 1;
-                Color cellColor = Colors.transparent;
-
-                final score = scoresPerTest[testNum]?[title] ?? 0;
-                if (score >= rating && rating > 0) {
-                  if (testNum == 1) {
-                    cellColor =
-                        const Color(0xFFFBBF24); // Yellow (1st Test)
-                  } else if (testNum == 2) {
-                    cellColor =
-                        const Color(0xFFF97316); // Orange (2nd Test)
-                  } else if (testNum == 3) {
-                    cellColor = const Color(0xFF10B981); // Green (3rd Test)
-                  } else if (testNum == 4) {
-                    cellColor = const Color(0xFF3B82F6); // Blue (4th Test)
-                  }
-                }
-
-                return Container(
-                  width: cellWidth,
-                  height: cellHeight,
-                  decoration: BoxDecoration(
-                    color: cellColor,
-                    border:
-                        Border.all(color: const Color(0xFFE5D5F5), width: 0.8),
-                  ),
-                );
-              }),
-            );
-          }),
-        );
-      },
     );
   }
 }

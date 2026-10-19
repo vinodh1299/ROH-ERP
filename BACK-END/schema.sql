@@ -303,7 +303,8 @@ CREATE TABLE IF NOT EXISTS `transition_assessments` (
   FOREIGN KEY (`therapist_id`) REFERENCES `users`(`id`) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 10D. VB-MAPP EARLY ECHOIC SKILLS ASSESSMENTS (EESA - Groups 1 & 2)
+-- 10D. VB-MAPP EARLY ECHOIC SKILLS ASSESSMENTS (EESA - Groups 1 to 5, 100 items)
+-- group3..group5 were added later: server.js ensureColumn() adds them to existing databases.
 CREATE TABLE IF NOT EXISTS `eesa_assessments` (
   `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   `student_id` INT UNSIGNED NOT NULL,
@@ -312,8 +313,13 @@ CREATE TABLE IF NOT EXISTS `eesa_assessments` (
   `assessment_date` DATE NOT NULL,
   `group1_score` DECIMAL(5,2) DEFAULT 0.00,
   `group2_score` DECIMAL(5,2) DEFAULT 0.00,
+  `group3_score` DECIMAL(5,2) DEFAULT 0.00,
+  `group4_score` DECIMAL(5,2) DEFAULT 0.00,
+  `group5_score` DECIMAL(5,2) DEFAULT 0.00,
   `total_score` DECIMAL(5,2) DEFAULT 0.00,
-  `responses` JSON DEFAULT NULL, -- Detailed map of target items with response state ('Yes', 'Half', 'No')
+  -- Per-item detail: {"items": {"<group>-<item>": 1 | 0.5 | 0}} (unscored items absent).
+  -- App v1 records: {"group1": {word: 'Yes'|'Half'|'No'}, "group2": {...}}.
+  `responses` JSON DEFAULT NULL,
   `therapist_notes` TEXT DEFAULT NULL,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -334,12 +340,32 @@ CREATE TABLE IF NOT EXISTS `preference_assessments` (
   `category` ENUM('Edible', 'Toys/Materials', 'Social', 'Sensory', 'Other') NOT NULL,
   `item_name` VARCHAR(150) NOT NULL,
   `rating` TINYINT UNSIGNED NOT NULL DEFAULT 5, -- 1 to 5 scale
-  `hierarchy_rank` VARCHAR(50) DEFAULT 'High-Preference Primary Reinforcer',
+  `hierarchy_rank` VARCHAR(50) DEFAULT 'High-Preference Item', -- only edibles are 'Primary Reinforcer'
   `notes` TEXT DEFAULT NULL,
   `assessment_date` DATE DEFAULT NULL,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   INDEX `idx_preference_student` (`student_id`),
+  FOREIGN KEY (`student_id`) REFERENCES `students`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`therapist_id`) REFERENCES `users`(`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 11B. PREFERENCE ASSESSMENT SESSIONS (MSWO — multiple-stimulus without replacement)
+-- One row per session: 4–8 items presented together, the selection order of up to 5 trials,
+-- and the computed selection percentage / rank of each item (computed by the server).
+CREATE TABLE IF NOT EXISTS `preference_sessions` (
+  `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `student_id` INT UNSIGNED NOT NULL,
+  `therapist_id` INT UNSIGNED DEFAULT NULL,
+  `session_date` DATE NOT NULL,
+  `method` ENUM('MSWO') NOT NULL DEFAULT 'MSWO',
+  `items` JSON NOT NULL,   -- [{"name": "Bubbles", "category": "Toys/Materials"}, ...]
+  `trials` JSON NOT NULL,  -- [[2, 0, 3, 1], ...] item indexes in selection order, one list per trial
+  `results` JSON NOT NULL, -- [{"name", "category", "selections", "opportunities", "percentage", "rank"}, ...]
+  `notes` TEXT DEFAULT NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX `idx_pref_session_student` (`student_id`),
   FOREIGN KEY (`student_id`) REFERENCES `students`(`id`) ON DELETE CASCADE,
   FOREIGN KEY (`therapist_id`) REFERENCES `users`(`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

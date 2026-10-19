@@ -2,9 +2,48 @@ import 'package:flutter/material.dart';
 import 'package:roh_erp/core/constants/app_colors.dart';
 import '../../../core/layout/responsive.dart';
 import '../../../core/services/db_queries.dart';
+import '../../../core/services/vbmapp_protocol_content.dart';
 import '../widgets/student_card_grid.dart';
 import '../widgets/student_assessment_banner.dart';
 import 'assessment_records.dart';
+import 'vbmapp_charts.dart';
+
+/// EESA item scores of a saved record, keyed '<group>-<item>' (1-based) →
+/// 1 / 0.5 / 0. Unscored items are absent. Reads the current format
+/// (responses.items) and app v1 records (responses.group1/group2 keyed by
+/// word, matched against the legacy word lists of the protocol content).
+Map<String, double> eesaItemScoresOf(
+    Map<String, dynamic> record, VbMappProtocolContent protocol) {
+  final responses = jsonColumnMap(record['responses']);
+  final result = <String, double>{};
+  final items = jsonColumnMap(responses['items']);
+  if (items.isNotEmpty) {
+    items.forEach((key, v) {
+      final score = double.tryParse(v.toString());
+      if (score != null && (score == 0 || score == 0.5 || score == 1)) {
+        result[key] = score;
+      }
+    });
+    return result;
+  }
+  const legacy = {'Yes': 1.0, 'Half': 0.5, 'No': 0.0};
+  final groups = protocol.eesaGroups;
+  for (int g = 1; g <= 2; g++) {
+    var words = protocol.eesaLegacyWords(g);
+    if (words.isEmpty) words = groups[g - 1].items;
+    jsonColumnMap(responses['group$g']).forEach((word, answer) {
+      final index = words.indexOf(word);
+      final score = legacy[answer.toString()];
+      if (index >= 0 && score != null) result['$g-${index + 1}'] = score;
+    });
+  }
+  return result;
+}
+
+/// EESA total saved for each test (null = test not saved).
+double? eesaTotalOf(Map<String, dynamic>? record) => record == null
+    ? null
+    : double.tryParse(record['total_score']?.toString() ?? '');
 
 class EesAssessmentPage extends StatefulWidget {
   const EesAssessmentPage({super.key});
@@ -13,31 +52,53 @@ class EesAssessmentPage extends StatefulWidget {
   State<EesAssessmentPage> createState() => _EesAssessmentPageState();
 }
 
+/// Early Echoic Skills Assessment: 100 items in 5 groups (item text from the
+/// protocol content file), each scored 1 (Yes), ½ (Half) or 0 (No). An item
+/// left blank is "not scored", which is different from a score of 0.
 class _EesAssessmentPageState extends State<EesAssessmentPage> {
   String? _selectedStudent;
   int? _selectedStudentId;
   List<Map<String, dynamic>> _eesaRecords = [];
   int _testNumber = 1; // which of the 4 assessments this probe is
   bool _saving = false;
-  static const _testLabels = ['1ST', '2ND', '3RD', '4TH'];
+  static const _testLabels = vbTestLabels;
 
-  // Track response state: 0 = None, 1 = No, 2 = Yes, 3 = Half
-  final Map<String, int> _responses = {};
-  static const _responseNames = {1: 'No', 2: 'Yes', 3: 'Half'};
+  VbMappProtocolContent _protocol = VbMappProtocolContent.current;
+  List<EesaGroup> get _groups => _protocol.eesaGroups;
 
-  /// Yes = 1 point, Half = 1/2 point, No / unscored = 0.
-  double _groupScore(String prefix) {
+  /// Item scores being edited: '<group>-<item>' → 1 / 0.5 / 0.
+  final Map<String, double> _scores = {};
+
+  // The saved record for this test has group scores but no item responses,
+  // so the item pills can't be restored.
+  bool _scoresOnly = false;
+
+  @override
+  void initState() {
+    super.initState();
+    VbMappProtocolContent.load().then((c) {
+      if (!mounted) return;
+      setState(() {
+        _protocol = c;
+        _prefillForTest();
+      });
+    });
+  }
+
+  double _groupScore(int group) {
     var total = 0.0;
-    _responses.forEach((key, v) {
-      if (!key.startsWith('${prefix}_')) return;
-      if (v == 2) total += 1;
-      if (v == 3) total += 0.5;
+    _scores.forEach((key, v) {
+      if (key.startsWith('$group-')) total += v;
     });
     return total;
   }
 
-  String _formatScore(double v) =>
-      v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(1);
+  int _groupScoredCount(int group) =>
+      _scores.keys.where((k) => k.startsWith('$group-')).length;
+
+  double get _totalScore => [
+        for (int g = 1; g <= eesaGroupCount; g++) _groupScore(g)
+      ].fold(0.0, (a, b) => a + b);
 
   Future<void> _loadEesaData() async {
     final studentId = _selectedStudentId;
@@ -50,50 +111,28 @@ class _EesAssessmentPageState extends State<EesAssessmentPage> {
     });
   }
 
-  // The saved record for this test has group scores but no item responses,
-  // so the Yes/Half/No pills can't be restored.
-  bool _scoresOnly = false;
-
-  /// Restores the Yes/Half/No responses from the newest saved record for the
-  /// selected test, or clears them when that test has not been saved yet.
+  /// Restores the item scores from the newest saved record for the selected
+  /// test, or clears them when that test has not been saved yet.
   void _prefillForTest() {
-    _responses.clear();
+    _scores.clear();
     _scoresOnly = false;
     final record = newestRecordForTest(_eesaRecords, _testNumber);
     if (record == null) return;
-    final responses = jsonColumnMap(record['responses']);
-    final codes = {for (final e in _responseNames.entries) e.value: e.key};
-    for (final group in [
-      ('g1', 'group1', _group1Items),
-      ('g2', 'group2', _group2Items),
-    ]) {
-      jsonColumnMap(responses[group.$2]).forEach((word, answer) {
-        final index = group.$3.indexOf(word);
-        final code = codes[answer.toString()];
-        if (index >= 0 && code != null) _responses['${group.$1}_$index'] = code;
-      });
-    }
-    _scoresOnly = _responses.isEmpty &&
-        (double.tryParse(record['total_score']?.toString() ?? '') ?? 0) > 0;
+    _scores.addAll(eesaItemScoresOf(record, _protocol));
+    _scoresOnly = _scores.isEmpty && (eesaTotalOf(record) ?? 0) > 0;
   }
 
-  /// Group 1 score of the latest saved record for [testNum], if any.
-  double? _savedGroup1Score(int testNum) {
+  /// Saved score of [group] (1–5) for [testNum], or null.
+  double? _savedGroupScore(int testNum, int group) {
     final latest = newestRecordForTest(_eesaRecords, testNum);
     if (latest == null) return null;
-    return double.tryParse(latest['group1_score']?.toString() ?? '');
+    return double.tryParse(latest['group${group}_score']?.toString() ?? '');
   }
-
-  Map<String, String> _groupResponses(String prefix, List<String> items) => {
-        for (int i = 0; i < items.length; i++)
-          if (_responseNames.containsKey(_responses['${prefix}_$i']))
-            items[i]: _responseNames[_responses['${prefix}_$i']]!,
-      };
 
   Future<void> _saveEesaAssessment() async {
     final studentId = _selectedStudentId;
     if (studentId == null || _saving) return;
-    if (_responses.isEmpty) {
+    if (_scores.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Score at least one item before saving.'),
@@ -103,27 +142,22 @@ class _EesAssessmentPageState extends State<EesAssessmentPage> {
       return;
     }
     setState(() => _saving = true);
-    final g1 = _groupScore('g1');
-    final g2 = _groupScore('g2');
-    final ok = await EesaAssessmentQueries.save({
+    final error = await EesaAssessmentQueries.trySave({
       'student_id': studentId,
       'test_number': _testNumber,
       'assessment_date':
           assessmentDateFor(newestRecordForTest(_eesaRecords, _testNumber)),
-      'group1_score': g1,
-      'group2_score': g2,
-      'total_score': g1 + g2,
-      'responses': {
-        'group1': _groupResponses('g1', _group1Items),
-        'group2': _groupResponses('g2', _group2Items),
-      },
+      for (int g = 1; g <= eesaGroupCount; g++)
+        'group${g}_score': _groupScore(g),
+      'total_score': _totalScore,
+      'responses': {'items': Map<String, double>.from(_scores)},
     });
     if (!mounted) return;
     setState(() => _saving = false);
-    if (!ok) {
+    if (error != null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Could not save the EES assessment. Please try again.'),
+        SnackBar(
+          content: Text('Could not save the EES assessment: $error'),
           backgroundColor: Colors.red,
         ),
       );
@@ -134,53 +168,6 @@ class _EesAssessmentPageState extends State<EesAssessmentPage> {
     );
     await _loadEesaData();
   }
-
-  final List<String> _group1Items = [
-    'ah',
-    'ee',
-    'oo',
-    'oh',
-    'ay',
-    'm',
-    'b',
-    'p',
-    'w',
-    'h',
-    'mama',
-    'bye',
-    'uh-oh',
-    'baby',
-    'pup',
-    'moo',
-    'neigh',
-    'night',
-    'hi',
-    'me',
-    'cookie',
-    'bubble',
-    'open',
-    'bottle',
-    'happy',
-  ];
-
-  final List<String> _group2Items = [
-    'no-no',
-    'dada',
-    'kitty',
-    'ball',
-    'go',
-    'eat',
-    'shoe',
-    'car',
-    'up',
-    'hot',
-    'two',
-    'key',
-    'see',
-    'light',
-    'cup',
-    'boat',
-  ];
 
   @override
   Widget build(BuildContext context) {
@@ -193,7 +180,7 @@ class _EesAssessmentPageState extends State<EesAssessmentPage> {
             _selectedStudent = student;
             _selectedStudentId = studentId;
             _eesaRecords = [];
-            _responses.clear();
+            _scores.clear();
             _testNumber = 1;
           });
           _loadEesaData();
@@ -235,17 +222,7 @@ class _EesAssessmentPageState extends State<EesAssessmentPage> {
           StudentAssessmentBanner(
             studentName: _selectedStudent ?? 'Student',
             records: _eesaRecords,
-            scoreLabel: (r) {
-              String f(Object? v) {
-                final d = double.tryParse(v?.toString() ?? '') ?? 0;
-                return d == d.roundToDouble()
-                    ? d.toStringAsFixed(0)
-                    : d.toStringAsFixed(1);
-              }
-              // Group 1 + Group 2 = total
-              return '${f(r['group1_score'])}+${f(r['group2_score'])}='
-                  '${f(r['total_score'])}';
-            },
+            scoreLabel: (r) => '${formatVbScore(eesaTotalOf(r) ?? 0)} / 100',
           ),
           const SizedBox(height: 20),
 
@@ -257,48 +234,38 @@ class _EesAssessmentPageState extends State<EesAssessmentPage> {
               color: const Color(0xFFF3E8FF), // Light purple bg
               borderRadius: BorderRadius.circular(10),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Scoring Group 1 - 3 For each item, score the best response upto 3 trials',
-                  style: TextStyle(fontSize: 13, color: AppColors.textPrimary),
-                ),
-                const SizedBox(height: 4),
-                RichText(
-                  text: const TextSpan(
-                    style: TextStyle(
-                        fontSize: 13,
-                        color: AppColors.textPrimary,
-                        fontFamily: 'Poppins'),
-                    children: [
-                      TextSpan(
-                          text: 'Yes',
-                          style: TextStyle(fontWeight: FontWeight.bold)),
-                      TextSpan(
-                          text:
-                              ' - Correct sounds and correct number of syllables - 1 point    '),
-                      TextSpan(
-                          text: 'No',
-                          style: TextStyle(fontWeight: FontWeight.bold)),
-                      TextSpan(
-                          text:
-                              ' - No response, incorrect vowels, or missing syllables - 0 point\n'),
-                      TextSpan(
-                          text: 'Half',
-                          style: TextStyle(fontWeight: FontWeight.bold)),
-                      TextSpan(
-                          text:
-                              ' - Recognizable response, but incorrect or missing consonants or extra syllables - 1/2 point'),
-                    ],
-                  ),
-                ),
-              ],
+            child: RichText(
+              text: const TextSpan(
+                style: TextStyle(
+                    fontSize: 13,
+                    color: AppColors.textPrimary,
+                    fontFamily: 'Poppins'),
+                children: [
+                  TextSpan(
+                      text: 'Yes',
+                      style: TextStyle(fontWeight: FontWeight.bold)),
+                  TextSpan(text: ' = 1 point    '),
+                  TextSpan(
+                      text: 'Half',
+                      style: TextStyle(fontWeight: FontWeight.bold)),
+                  TextSpan(text: ' = ½ point    '),
+                  TextSpan(
+                      text: 'No',
+                      style: TextStyle(fontWeight: FontWeight.bold)),
+                  TextSpan(text: ' = 0 points\n'),
+                  TextSpan(
+                      text: 'Items left blank are not scored (not the same '
+                          'as 0). Tap a selected answer again to clear it. '
+                          'Use the scoring criteria of the licensed protocol.'),
+                ],
+              ),
             ),
           ),
           const SizedBox(height: 16),
 
-          // Group 1 Card
+          _buildSummaryCard(),
+          const SizedBox(height: 16),
+
           if (_scoresOnly) ...[
             const Text(
               'This test was saved as group scores only, so its item responses '
@@ -308,12 +275,11 @@ class _EesAssessmentPageState extends State<EesAssessmentPage> {
             ),
             const SizedBox(height: 12),
           ],
-          _buildGroup1Card(),
-          const SizedBox(height: 16),
-
-          // Group 2 Card
-          _buildGroup2Card(),
-          const SizedBox(height: 24),
+          for (final group in _groups) ...[
+            _buildGroupCard(group),
+            const SizedBox(height: 16),
+          ],
+          const SizedBox(height: 8),
 
           // Buttons Row
           SizedBox(
@@ -329,21 +295,22 @@ class _EesAssessmentPageState extends State<EesAssessmentPage> {
                   onPressed: () => setState(() => _selectedStudent = null),
                   style: OutlinedButton.styleFrom(
                     side: const BorderSide(color: AppColors.primary),
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 28, vertical: 14),
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8)),
                   ),
                   child: const Text('Cancel',
                       style: TextStyle(
-                          color: AppColors.primary, fontWeight: FontWeight.bold)),
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.bold)),
                 ),
                 ElevatedButton(
                   onPressed: _saving ? null : _saveEesaAssessment,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 32, vertical: 14),
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8)),
                   ),
@@ -360,117 +327,140 @@ class _EesAssessmentPageState extends State<EesAssessmentPage> {
     );
   }
 
-  Widget _buildGroup1Card() {
+  /// Group scores of every test: the live scores for the test being
+  /// administered (once scoring has started), otherwise the saved ones.
+  Widget _buildSummaryCard() {
+    String cell(int test, int? group) {
+      final isCurrent = test == _testNumber && _scores.isNotEmpty;
+      if (group == null) {
+        if (isCurrent) return formatVbScore(_totalScore);
+        final total = eesaTotalOf(newestRecordForTest(_eesaRecords, test));
+        return total == null ? '–' : formatVbScore(total);
+      }
+      if (isCurrent) return formatVbScore(_groupScore(group));
+      final saved = _savedGroupScore(test, group);
+      return saved == null ? '–' : formatVbScore(saved);
+    }
+
+    String echoic(int test) {
+      final isCurrent = test == _testNumber && _scores.isNotEmpty;
+      final total = isCurrent
+          ? _totalScore
+          : eesaTotalOf(newestRecordForTest(_eesaRecords, test));
+      if (total == null) return '–';
+      final e = _protocol.echoicScoreForEesaTotal(total);
+      return e == null ? 'n/a' : formatVbScore(e);
+    }
+
+    const headerStyle = TextStyle(
+        fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.primary);
+    const cellStyle = TextStyle(
+        fontSize: 12,
+        fontWeight: FontWeight.bold,
+        color: AppColors.textPrimary);
+    Widget pad(Widget w) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
+        child: Center(child: w));
+
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(Breakpoints.isCompact(context) ? 12 : 20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.divider),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Assessment Score',
+              style: TextStyle(
+                  fontFamily: 'Poppins',
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary)),
+          const SizedBox(height: 4),
+          Text(
+            _protocol.hasEchoicMapping
+                ? 'Echoic = the Echoic milestone score this EESA total gives '
+                    '(shown read-only on the Milestones page).'
+                : 'Echoic milestone mapping not entered in the protocol '
+                    'content file yet: Echoic is scored by hand on the '
+                    'Milestones page.',
+            style:
+                const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+          ),
+          const SizedBox(height: 12),
+          ScrollableMinWidth(
+            minWidth: 520,
+            child: Table(
+              border: TableBorder.all(color: AppColors.divider),
+              columnWidths: const {0: FixedColumnWidth(64)},
+              children: [
+                TableRow(
+                  decoration: const BoxDecoration(color: Color(0xFFEDE9FE)),
+                  children: [
+                    pad(const Text('Test', style: headerStyle)),
+                    for (final g in _groups)
+                      pad(Text('G${g.number} /${g.items.length}',
+                          style: headerStyle)),
+                    pad(const Text('Total /100', style: headerStyle)),
+                    pad(const Text('Echoic', style: headerStyle)),
+                  ],
+                ),
+                for (int t = 1; t <= 4; t++)
+                  TableRow(
+                    decoration: BoxDecoration(
+                      color: t == _testNumber
+                          ? AppColors.primary.withValues(alpha: 0.06)
+                          : null,
+                    ),
+                    children: [
+                      pad(Text(_testLabels[t - 1], style: cellStyle)),
+                      for (final g in _groups)
+                        pad(Text(cell(t, g.number), style: cellStyle)),
+                      pad(Text(cell(t, null), style: cellStyle)),
+                      pad(Text(echoic(t), style: cellStyle)),
+                    ],
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGroupCard(EesaGroup group) {
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
         color: const Color(0xFFE5E7EB).withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(12),
       ),
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.all(Breakpoints.isCompact(context) ? 12 : 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Title + target description
-          _buildGroupHeader(
-            'Group - 1 Simple and reduplicated syllables',
-            'Targets: vowels, diphthongs, consonants p, b, m, n, h, w\nProbe: 1',
-          ),
+          _buildGroupHeader(group.title, group.description),
           const SizedBox(height: 16),
-
-          // First 20 items in 4 columns
           _buildSyllableGrid([
-            for (int i = 0; i < 20; i++)
-              _buildSyllableItem('g1_$i', _group1Items[i]),
+            for (int i = 1; i <= group.items.length; i++)
+              _buildSyllableItem('${group.number}-$i', i, group.items[i - 1]),
           ]),
           const SizedBox(height: 16),
-
-          // Bottom section: 5 items on left + Subtotal & Assessment Score on right.
-          // Narrow: items flow in the grid, the score column stacks below.
-          LayoutBuilder(
-            builder: (context, constraints) {
-              const subTotal = Column(
-                children: [
-                  Text(
-                    'Sub Total',
-                    style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textPrimary),
-                  ),
-                  Text(
-                    'Group - 1',
-                    style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textPrimary),
-                  ),
-                ],
-              );
-              // Assessment score table
-              final scoreTable = Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  const Text(
-                    'Assessment Score',
-                    style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 13,
-                        color: AppColors.textPrimary),
-                  ),
-                  const SizedBox(height: 10),
-                  for (int t = 1; t <= 4; t++) ...[
-                    if (t > 1) const SizedBox(height: 6),
-                    _buildScoreRow(t),
-                  ],
-                ],
-              );
-              if (constraints.maxWidth < 600) {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildSyllableGrid([
-                      for (int i = 20; i < 25; i++)
-                        _buildSyllableItem('g1_$i', _group1Items[i]),
-                    ]),
-                    const SizedBox(height: 20),
-                    const Divider(height: 1),
-                    const SizedBox(height: 16),
-                    Wrap(
-                      spacing: 24,
-                      runSpacing: 16,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [subTotal, scoreTable],
-                    ),
-                  ],
-                );
-              }
-              return Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // 5 vertical items
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      for (int i = 20; i < 25; i++) ...[
-                        SizedBox(
-                          width: 200,
-                          child: _buildSyllableItem('g1_$i', _group1Items[i]),
-                        ),
-                        const SizedBox(height: 10),
-                      ],
-                    ],
-                  ),
-                  const Spacer(),
-                  // Sub total text
-                  const Padding(
-                    padding: EdgeInsets.only(top: 24, right: 32),
-                    child: subTotal,
-                  ),
-                  scoreTable,
-                ],
-              );
-            },
+          Align(
+            alignment: Alignment.centerRight,
+            child: Text(
+              'Sub Total Group ${group.number}: '
+              '${formatVbScore(_groupScore(group.number))} / '
+              '${group.items.length}  ·  scored '
+              '${_groupScoredCount(group.number)} of ${group.items.length}',
+              style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary),
+            ),
           ),
         ],
       ),
@@ -489,18 +479,16 @@ class _EesAssessmentPageState extends State<EesAssessmentPage> {
             color: AppColors.textPrimary,
           ),
         );
+        final targetsWidget = Text(
+          targets,
+          textAlign:
+              constraints.maxWidth < 600 ? TextAlign.left : TextAlign.right,
+          style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+        );
         if (constraints.maxWidth < 600) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              titleWidget,
-              const SizedBox(height: 4),
-              Text(
-                targets,
-                style: const TextStyle(
-                    fontSize: 11, color: AppColors.textSecondary),
-              ),
-            ],
+            children: [titleWidget, const SizedBox(height: 4), targetsWidget],
           );
         }
         return Row(
@@ -508,24 +496,19 @@ class _EesAssessmentPageState extends State<EesAssessmentPage> {
           children: [
             Flexible(child: titleWidget),
             const SizedBox(width: 16),
-            Text(
-              targets,
-              textAlign: TextAlign.right,
-              style:
-                  const TextStyle(fontSize: 11, color: AppColors.textSecondary),
-            ),
+            Flexible(child: targetsWidget),
           ],
         );
       },
     );
   }
 
-  /// Lays syllable items out in as many columns as fit (max 4, as on desktop).
-  /// Each item keeps a readable minimum width; if even one column is too
-  /// narrow the grid scrolls sideways instead of squeezing the pills.
+  /// Lays items out in as many columns as fit (max 4). Each item keeps a
+  /// readable minimum width; if even one column is too narrow the grid
+  /// scrolls sideways instead of squeezing the pills.
   Widget _buildSyllableGrid(List<Widget> items) {
     const spacing = 16.0;
-    const minItemWidth = 170.0;
+    const minItemWidth = 230.0;
     return ScrollableMinWidth(
       minWidth: minItemWidth,
       child: LayoutBuilder(
@@ -548,61 +531,38 @@ class _EesAssessmentPageState extends State<EesAssessmentPage> {
     );
   }
 
-  Widget _buildGroup2Card() {
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: const Color(0xFFE5E7EB).withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildGroupHeader(
-            'Group - 2 Simple and reduplicated syllables',
-            'Targets: vowels, diphthongs, consonants p, b, m, n, h, w\nProbe: 2',
-          ),
-          const SizedBox(height: 16),
-          _buildSyllableGrid([
-            for (int i = 0; i < _group2Items.length; i++)
-              _buildSyllableItem('g2_$i', _group2Items[i]),
-          ]),
-          const SizedBox(height: 16),
-          Align(
-            alignment: Alignment.centerRight,
-            child: Text(
-              'Sub Total Group - 2: ${_formatScore(_groupScore('g2'))}',
-              style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textPrimary),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSyllableItem(String key, String word) {
-    final currentVal = _responses[key] ??
-        0; // Starts unselected (0) until therapist administers probe
+  Widget _buildSyllableItem(String key, int number, String text) {
+    final current = _scores[key]; // null = not scored
+    final placeholder = !isProtocolText(text);
+    void choose(double v) => setState(() {
+          if (current == v) {
+            _scores.remove(key); // tap again → back to "not scored"
+          } else {
+            _scores[key] = v;
+          }
+        });
 
     return Row(
-      mainAxisSize: MainAxisSize.min,
       children: [
-        SizedBox(
-          width: 40,
-          child: Text(
-            word,
-            style: const TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: 13,
-                color: AppColors.textPrimary),
+        Expanded(
+          child: Tooltip(
+            message: text,
+            child: Text(
+              placeholder ? 'Item $number' : text,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                  fontStyle: placeholder ? FontStyle.italic : FontStyle.normal,
+                  color: placeholder
+                      ? AppColors.textSecondary
+                      : AppColors.textPrimary),
+            ),
           ),
         ),
         const SizedBox(width: 6),
-        // Pill toggle: No | Yes | Half
+        // Pill toggle: No | Half | Yes
         Container(
           decoration: BoxDecoration(
             color: Colors.white,
@@ -614,19 +574,19 @@ class _EesAssessmentPageState extends State<EesAssessmentPage> {
             children: [
               _buildPillSegment(
                 label: 'No',
-                isSelected: currentVal == 1,
-                onTap: () => setState(() => _responses[key] = 1),
+                isSelected: current == 0,
+                onTap: () => choose(0),
                 isFirst: true,
               ),
               _buildPillSegment(
-                label: 'Yes',
-                isSelected: currentVal == 2,
-                onTap: () => setState(() => _responses[key] = 2),
+                label: 'Half',
+                isSelected: current == 0.5,
+                onTap: () => choose(0.5),
               ),
               _buildPillSegment(
-                label: 'Half',
-                isSelected: currentVal == 3,
-                onTap: () => setState(() => _responses[key] = 3),
+                label: 'Yes',
+                isSelected: current == 1,
+                onTap: () => choose(1),
                 isLast: true,
               ),
             ],
@@ -702,55 +662,6 @@ class _EesAssessmentPageState extends State<EesAssessmentPage> {
           },
         ),
       ),
-    );
-  }
-
-  /// Group 1 score for test [testNum]: the live score for the test being
-  /// administered (once scoring has started), otherwise the latest saved one.
-  Widget _buildScoreRow(int testNum) {
-    final label = _testLabels[testNum - 1];
-    final isCurrent = testNum == _testNumber && _responses.isNotEmpty;
-    final saved = _savedGroup1Score(testNum);
-    final value = isCurrent
-        ? _formatScore(_groupScore('g1'))
-        : (saved == null ? '–' : _formatScore(saved));
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Container(
-          width: 40,
-          padding: const EdgeInsets.symmetric(vertical: 4),
-          decoration: BoxDecoration(
-            color: AppColors.primary,
-            borderRadius: BorderRadius.circular(6),
-          ),
-          alignment: Alignment.center,
-          child: Text(
-            label,
-            style: const TextStyle(
-                color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Container(
-          width: 54,
-          height: 28,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: AppColors.divider),
-          ),
-          alignment: Alignment.center,
-          child: Text(
-            value,
-            style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                color:
-                    isCurrent ? AppColors.primary : AppColors.textPrimary),
-          ),
-        ),
-      ],
     );
   }
 }
