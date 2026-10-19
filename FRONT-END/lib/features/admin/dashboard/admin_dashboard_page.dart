@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:roh_erp/core/constants/app_colors.dart';
 import 'package:roh_erp/core/layout/responsive.dart';
-import 'package:roh_erp/core/constants/app_images.dart';
 import 'package:roh_erp/core/models/schedule_model.dart';
 import 'package:roh_erp/core/services/schedule_service.dart';
 import 'package:roh_erp/core/services/api_service.dart';
@@ -12,13 +11,11 @@ import 'widgets/schedule_director_appointment_dialog.dart';
 class AdminDashboardPage extends StatefulWidget {
   final VoidCallback? onNavigateCalendar;
   final VoidCallback? onNavigateStudents;
-  final VoidCallback? onNavigateIepReports;
 
   const AdminDashboardPage({
     super.key,
     this.onNavigateCalendar,
     this.onNavigateStudents,
-    this.onNavigateIepReports,
   });
 
   @override
@@ -28,7 +25,6 @@ class AdminDashboardPage extends StatefulWidget {
 class _AdminDashboardPageState extends State<AdminDashboardPage> {
   List<Map<String, dynamic>> _students = [];
   List<Map<String, dynamic>> _therapists = [];
-  List<Map<String, dynamic>> _iepReports = [];
   bool _isLoading = true;
 
   static const int _studentsPerPage = 5;
@@ -65,7 +61,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     try {
       final sRes = await ApiService().get('get_students');
       final tRes = await ApiService().get('get_therapists');
-      final iRes = await ApiService().get('get_iep_reports');
 
       if (mounted) {
         setState(() {
@@ -76,7 +71,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
             }
           }
           if (tRes is List) _therapists = List<Map<String, dynamic>>.from(tRes);
-          if (iRes is List) _iepReports = List<Map<String, dynamic>>.from(iRes);
           _isLoading = false;
         });
       }
@@ -103,18 +97,12 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
 
   @override
   Widget build(BuildContext context) {
-    final pendingIeps = _iepReports
-        .where((r) => (r['status'] ?? '').toString().contains('Pending'))
-        .toList();
-
     return SingleChildScrollView(
       padding: Breakpoints.pagePadding(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           LayoutBuilder(builder: (context, constraints) {
-            final isWide = constraints.maxWidth >= 950;
-
             final welcomeAndStats = Column(
               children: [
                 Container(
@@ -234,102 +222,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
               ],
             );
 
-            final pendingReports = Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-              ),
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Pending IEP Reports',
-                    style: TextStyle(
-                        color: AppColors.textPrimary,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16),
-                  ),
-                  const SizedBox(height: 16),
-                  if (pendingIeps.isEmpty)
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 24.0),
-                      child: Center(
-                          child: Text('No pending IEP sign-offs',
-                              style:
-                                  TextStyle(color: AppColors.textSecondary))),
-                    )
-                  else
-                    ...pendingIeps.take(4).map((iep) {
-                      final sName = iep['student_name'] ?? 'Student';
-                      final createdDate = iep['created_at'] != null
-                          ? iep['created_at'].toString().split('T')[0]
-                          : '—';
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 12.0),
-                        child: InkWell(
-                          onTap: widget.onNavigateIepReports,
-                          borderRadius: BorderRadius.circular(8),
-                          child: Row(
-                            children: [
-                              AppImages.therapistAvatar(radius: 20),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(sName,
-                                        style: const TextStyle(
-                                            color: AppColors.textPrimary,
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.w600)),
-                                    Text(createdDate,
-                                        style: const TextStyle(
-                                            color: AppColors.primary,
-                                            fontSize: 12)),
-                                  ],
-                                ),
-                              ),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 12, vertical: 4),
-                                decoration: BoxDecoration(
-                                  color: AppColors.statusPendingBg,
-                                  borderRadius: BorderRadius.circular(16),
-                                ),
-                                child: const Text('Pending',
-                                    style: TextStyle(
-                                        color: AppColors.statusPending,
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w600)),
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    }),
-                ],
-              ),
-            );
-
-            if (isWide) {
-              return Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(flex: 3, child: welcomeAndStats),
-                  const SizedBox(width: 20),
-                  Expanded(flex: 2, child: pendingReports),
-                ],
-              );
-            }
-
-            return Column(
-              children: [
-                welcomeAndStats,
-                const SizedBox(height: 20),
-                pendingReports,
-              ],
-            );
+            return welcomeAndStats;
           }),
           const SizedBox(height: 20),
 
@@ -338,40 +231,13 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
               onNavigateCalendar: widget.onNavigateCalendar),
           const SizedBox(height: 24),
 
-          const Text('Recent Activities',
+          const Text('Recent Students',
               style: TextStyle(
                   color: AppColors.textPrimary,
                   fontWeight: FontWeight.bold,
                   fontSize: 18)),
           const SizedBox(height: 16),
-          DefaultTabController(
-            length: 2,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const TabBar(
-                  isScrollable: true,
-                  labelColor: AppColors.primary,
-                  unselectedLabelColor: AppColors.textHint,
-                  indicatorColor: AppColors.primary,
-                  tabs: [
-                    Tab(text: 'Recent Students'),
-                    Tab(text: 'Recent IEP Requested'),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                SizedBox(
-                  height: 400,
-                  child: TabBarView(
-                    children: [
-                      _buildStudentsTable(),
-                      _buildIepTable(),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
+          SizedBox(height: 400, child: _buildStudentsTable()),
         ],
       ),
     );
@@ -602,145 +468,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     );
   }
 
-  Widget _buildIepTable() {
-    // Phone: one card per IEP request instead of the 5-column table.
-    if (Breakpoints.isCompact(context)) return _buildIepCards();
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: SizedBox(
-          width: 750,
-          child: Column(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: AppColors.primaryLight.withValues(alpha: 0.3),
-                  borderRadius:
-                      const BorderRadius.vertical(top: Radius.circular(16)),
-                ),
-                child: const Row(
-                  children: [
-                    Expanded(
-                        flex: 2,
-                        child: Text('Student',
-                            style: TextStyle(
-                                color: AppColors.tableHeaderText,
-                                fontWeight: FontWeight.bold))),
-                    Expanded(
-                        flex: 2,
-                        child: Text('Therapist',
-                            style: TextStyle(
-                                color: AppColors.tableHeaderText,
-                                fontWeight: FontWeight.bold))),
-                    Expanded(
-                        flex: 2,
-                        child: Text('Title',
-                            style: TextStyle(
-                                color: AppColors.tableHeaderText,
-                                fontWeight: FontWeight.bold))),
-                    Expanded(
-                        flex: 2,
-                        child: Text('Cycle',
-                            style: TextStyle(
-                                color: AppColors.tableHeaderText,
-                                fontWeight: FontWeight.bold))),
-                    Expanded(
-                        flex: 1,
-                        child: Text('Status',
-                            style: TextStyle(
-                                color: AppColors.tableHeaderText,
-                                fontWeight: FontWeight.bold))),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: _iepReports.isEmpty
-                    ? const Center(
-                        child: Text('No IEP records found in database',
-                            style: TextStyle(color: AppColors.textSecondary)))
-                    : ListView.separated(
-                        itemCount: _iepReports.length,
-                        separatorBuilder: (context, index) =>
-                            const Divider(height: 1, color: AppColors.divider),
-                        itemBuilder: (context, index) {
-                          final iep = _iepReports[index];
-                          final sName = iep['student_name'] ?? 'Student';
-                          final tName = iep['therapist_name'] ?? 'Therapist';
-                          final title = iep['title'] ?? 'IEP Plan';
-                          final cycle = iep['cycle_term'] ?? 'Q3 2026';
-                          final status = iep['status'] ?? 'Active';
-                          final isActive = status == 'Active';
-
-                          return Padding(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 16, vertical: 12),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                    flex: 2,
-                                    child: Text(sName,
-                                        style: const TextStyle(
-                                            color: AppColors.textPrimary,
-                                            fontWeight: FontWeight.w500))),
-                                Expanded(
-                                    flex: 2,
-                                    child: Text(tName,
-                                        style: const TextStyle(
-                                            color: AppColors.textPrimary))),
-                                Expanded(
-                                    flex: 2,
-                                    child: Text(title,
-                                        style: const TextStyle(
-                                            color: AppColors.textPrimary))),
-                                Expanded(
-                                    flex: 2,
-                                    child: Text(cycle,
-                                        style: const TextStyle(
-                                            color: AppColors.textPrimary))),
-                                Expanded(
-                                  flex: 1,
-                                  child: Align(
-                                    alignment: Alignment.centerLeft,
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 10, vertical: 4),
-                                      decoration: BoxDecoration(
-                                        color: isActive
-                                            ? AppColors.statusActiveBg
-                                            : AppColors.statusPendingBg,
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      child: Text(
-                                        status,
-                                        style: TextStyle(
-                                          color: isActive
-                                              ? AppColors.statusActive
-                                              : AppColors.statusPending,
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
-                      ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _statusChip(String label, Color color, Color bg) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -872,61 +599,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     );
   }
 
-  /// Phone layout of "Recent IEP Requested".
-  Widget _buildIepCards() {
-    return Container(
-      decoration: BoxDecoration(
-          color: Colors.white, borderRadius: BorderRadius.circular(16)),
-      child: _iepReports.isEmpty
-          ? const Center(
-              child: Text('No IEP records found in database',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: AppColors.textSecondary)))
-          : ListView.separated(
-              itemCount: _iepReports.length,
-              separatorBuilder: (context, index) =>
-                  const Divider(height: 1, color: AppColors.divider),
-              itemBuilder: (context, index) {
-                final iep = _iepReports[index];
-                final sName = iep['student_name'] ?? 'Student';
-                final tName = iep['therapist_name'] ?? 'Therapist';
-                final title = iep['title'] ?? 'IEP Plan';
-                final cycle = iep['cycle_term'] ?? 'Q3 2026';
-                final status = iep['status'] ?? 'Active';
-                final isActive = status == 'Active';
-                return Padding(
-                  padding: const EdgeInsets.all(14),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                              child: Text('$sName',
-                                  style: const TextStyle(
-                                      color: AppColors.textPrimary,
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 14))),
-                          const SizedBox(width: 8),
-                          isActive
-                              ? _statusChip('$status', AppColors.statusActive,
-                                  AppColors.statusActiveBg)
-                              : _statusChip('$status', AppColors.statusPending,
-                                  AppColors.statusPendingBg),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      _cardLine('Therapist', '$tName'),
-                      _cardLine('Title', '$title'),
-                      _cardLine('Cycle', '$cycle'),
-                    ],
-                  ),
-                );
-              },
-            ),
-    );
-  }
-
   Widget _buildStudentPagination() {
     final page = _studentPage.clamp(0, _studentPageCount - 1);
     return Row(
@@ -1051,7 +723,7 @@ class _AdminDirectorSchedulingDashboardWidget extends StatelessWidget {
                           ),
                         ),
                         Text(
-                          'Admin Clinical Coordination • Check availability & book parent diagnostic intakes for Dr. Vincent Sterling',
+                          'Admin Clinical Coordination • Check availability & book parent diagnostic intakes for the Clinical Director',
                           style: TextStyle(
                               fontSize: 12, color: AppColors.textSecondary),
                         ),

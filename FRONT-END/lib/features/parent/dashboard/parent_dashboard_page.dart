@@ -873,7 +873,7 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
                       ),
                     ),
                     Text(
-                      'Conferences & Evaluations with Dr. Sterling',
+                      'Conferences & Evaluations with the Clinical Director',
                       style: TextStyle(
                           fontSize: 12, color: AppColors.textSecondary),
                     ),
