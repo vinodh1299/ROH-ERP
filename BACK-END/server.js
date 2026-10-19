@@ -55,7 +55,16 @@ app.use((req, res, next) => {
 });
 
 // ── MySQL Connection Pool ──
+// DB_SSL=require encrypts the connection; DB_SSL=verify also validates the server certificate.
+const dbSsl = (() => {
+  const mode = (process.env.DB_SSL || '').toLowerCase();
+  if (mode === 'verify') return { rejectUnauthorized: true };
+  if (mode === 'require' || mode === 'true') return { rejectUnauthorized: false };
+  return undefined;
+})();
+
 const pool = mysql.createPool({
+  ssl: dbSsl,
   host: process.env.DB_HOST || '127.0.0.1',
   port: parseInt(process.env.DB_PORT || '3306'),
   user: process.env.DB_USER || 'root',
@@ -73,6 +82,7 @@ const pool = mysql.createPool({
   let conn;
   try {
     conn = await mysql.createConnection({
+      ssl: dbSsl,
       host: process.env.DB_HOST || '127.0.0.1',
       port: parseInt(process.env.DB_PORT || '3306'),
       user: process.env.DB_USER || 'root',
@@ -85,12 +95,35 @@ const pool = mysql.createPool({
     await conn.query(require('fs').readFileSync(require('path').join(__dirname, 'schema.sql'), 'utf8'));
     const [after] = await conn.query('SHOW TABLES');
     console.log(`📦 Schema check: ${after.length - before.length} table(s) created, ${after.length} total`);
+    await applyColumnMigrations(conn);
+    const [[tls]] = await conn.query("SHOW STATUS LIKE 'Ssl_cipher'");
+    console.log(`🔐 Database connection encryption: ${tls && tls.Value ? tls.Value : 'OFF'}`);
   } catch (err) {
     console.error('❌ MySQL connection / schema setup error:', err.message);
   } finally {
     if (conn) await conn.end().catch(() => {});
   }
 })();
+
+// schema.sql only creates missing tables. Columns added to existing tables later are listed
+// here and added on startup when absent, so live databases pick them up without manual SQL.
+const COLUMN_MIGRATIONS = [
+  ['parental_consents', 'user_id', 'INT UNSIGNED DEFAULT NULL AFTER `guardian_id`'],
+  ['parental_consents', 'withdrawn_at', 'TIMESTAMP NULL DEFAULT NULL'],
+];
+
+async function applyColumnMigrations(conn) {
+  for (const [table, column, ddl] of COLUMN_MIGRATIONS) {
+    const [found] = await conn.query(
+      'SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?',
+      [table, column]
+    );
+    if (!found.length) {
+      await conn.query(`ALTER TABLE \`${table}\` ADD COLUMN \`${column}\` ${ddl}`);
+      console.log(`🧱 Added column ${table}.${column}`);
+    }
+  }
+}
 
 // ── Utility Helpers ──
 async function auditLog(userId, role, action, targetEntity = null, targetId = null, ip = null, userAgent = null, details = null) {
@@ -111,7 +144,8 @@ async function createNotification(recipientUserId, eventType, title, message, me
       'INSERT INTO notifications (recipient_user_id, event_type, title, message, is_read, metadata_json) VALUES (?, ?, ?, ?, 0, ?)',
       [recipientUserId, eventType, title, message, metaJson]
     );
-    console.log(`🔔 Created notification #${res.insertId} for User #${recipientUserId}: "${title}"`);
+    // Titles can contain names; log only the event type.
+    console.log(`🔔 Created notification #${res.insertId} (${eventType}) for User #${recipientUserId}`);
   } catch (err) {
     console.error('Create notification error:', err.message);
   }
@@ -158,6 +192,28 @@ async function verifyAuth(req) {
 
 // Student IDs the caller may read: null = unrestricted (admin/director),
 // therapist = assigned caseload, parent = their own children.
+// Password rule shared by every place a password is set.
+function passwordPolicyError(password) {
+  if (!password || password.length < 8 || !/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/[0-9]/.test(password)) {
+    return 'Password must be at least 8 characters long and contain uppercase, lowercase, and a number.';
+  }
+  return null;
+}
+
+// Random one-time password that satisfies passwordPolicyError (e.g. "Roh-4kQ9mZp2Xw").
+function generateTempPassword() {
+  for (;;) {
+    const candidate = 'Roh-' + crypto.randomBytes(9).toString('base64url').replace(/[-_]/g, '').slice(0, 10);
+    if (!passwordPolicyError(candidate)) return candidate;
+  }
+}
+
+// Sends a notification to every active user with [role] (instead of fixed user ids).
+async function notifyRole(role, type, title, message, metadata) {
+  const [users] = await pool.query('SELECT id FROM users WHERE role = ? AND status = "Active"', [role]);
+  for (const u of users) await createNotification(u.id, type, title, message, metadata);
+}
+
 async function accessibleStudentIds(auth) {
   if (['admin', 'director'].includes(auth.role)) return null;
   if (auth.role === 'therapist') {
@@ -287,17 +343,8 @@ app.all(['/api.php', '/api', '/api/api.php', '/api/v1'], async (req, res) => {
           return res.status(403).json({ error: `Account locked due to consecutive failed logins. Try again in ${waitMins} minute(s) or contact Admin.` });
         }
 
-        let passwordMatches = false;
-        if (user.password.startsWith('$2') || user.password.startsWith('$argon2')) {
-          passwordMatches = await bcrypt.compare(password, user.password);
-        } else {
-          // Plain text fallback from initial seeds: auto-upgrade to Bcrypt
-          passwordMatches = (user.password === password);
-          if (passwordMatches) {
-            const newHash = await bcrypt.hash(password, 10);
-            await pool.query('UPDATE users SET password = ? WHERE id = ?', [newHash, user.id]);
-          }
-        }
+        // Only bcrypt hashes are accepted; a non-hash value never matches.
+        const passwordMatches = user.password.startsWith('$2') && await bcrypt.compare(password, user.password);
 
         if (passwordMatches) {
           if (user.status !== 'Active') {
@@ -322,7 +369,7 @@ app.all(['/api.php', '/api', '/api/api.php', '/api/v1'], async (req, res) => {
           if (attempts >= 5) {
             const lockUntil = new Date(Date.now() + 15 * 60000);
             await pool.query('UPDATE users SET failed_login_attempts = ?, locked_until = ? WHERE id = ?', [attempts, lockUntil, user.id]);
-            await createNotification(1, 'ACCOUNT_LOCKED', 'Security Alert: Account Locked', `User ${user.email} locked after 5 failed attempts.`);
+            await notifyRole('admin', 'ACCOUNT_LOCKED', 'Security Alert: Account Locked', `A ${user.role} account was locked after 5 failed attempts.`);
             await auditLog(user.id, user.role, 'ACCOUNT_LOCKED', 'users', user.id, ip, ua, `Locked after ${attempts} attempts`);
             return res.status(403).json({ error: 'Account locked after 5 consecutive failed login attempts. Please wait 15 minutes or contact Admin.' });
           } else {
@@ -341,14 +388,13 @@ app.all(['/api.php', '/api', '/api/api.php', '/api/v1'], async (req, res) => {
         const currentPassword = (input.current_password || '').trim();
         const newPassword = (input.new_password || '').trim();
 
-        if (!newPassword || newPassword.length < 8 || !/[A-Z]/.test(newPassword) || !/[a-z]/.test(newPassword) || !/[0-9]/.test(newPassword)) {
-          return res.status(400).json({ error: 'Password must be at least 8 characters long and contain uppercase, lowercase, and a number.' });
-        }
+        const policyError = passwordPolicyError(newPassword);
+        if (policyError) return res.status(400).json({ error: policyError });
 
         const [users] = await pool.query('SELECT password FROM users WHERE id = ? LIMIT 1', [auth.sub]);
         if (!users.length) return res.status(404).json({ error: 'User not found' });
 
-        const isMatch = await bcrypt.compare(currentPassword, users[0].password) || (users[0].password === currentPassword);
+        const isMatch = users[0].password.startsWith('$2') && await bcrypt.compare(currentPassword, users[0].password);
         if (!isMatch) return res.status(400).json({ error: 'Current password does not match.' });
 
         const newHash = await bcrypt.hash(newPassword, 10);
@@ -379,7 +425,7 @@ app.all(['/api.php', '/api', '/api/api.php', '/api/v1'], async (req, res) => {
 
         const reqId = result.insertId;
         await auditLog(auth.sub, 'admin', 'INITIATE_PASSWORD_RESET', 'password_reset_requests', reqId, ip, ua, `Reset requested for ${targets[0].email}`);
-        await createNotification(2, 'PASSWORD_RESET_REQUESTED', 'Password Reset Approval Required', `Admin requested reset for ${targets[0].name} (${targets[0].email}).`, { request_id: reqId });
+        await notifyRole('director', 'PASSWORD_RESET_REQUESTED', 'Password Reset Approval Required', `Admin requested a password reset for ${targets[0].name}.`, { request_id: reqId });
 
         return res.json({ success: true, request_id: reqId, message: 'Reset request forwarded to Clinical Director for approval' });
       }
@@ -411,7 +457,7 @@ app.all(['/api.php', '/api', '/api/api.php', '/api/v1'], async (req, res) => {
         const reqItem = rows[0];
 
         if (decision === 'Approved') {
-          const tempPass = 'Roh@' + crypto.randomBytes(3).toString('hex');
+          const tempPass = generateTempPassword();
           const hash = await bcrypt.hash(tempPass, 10);
 
           await pool.query(
@@ -489,13 +535,18 @@ app.all(['/api.php', '/api', '/api/api.php', '/api/v1'], async (req, res) => {
 
         const name = (input.name || '').trim();
         const email = (input.email || '').trim().toLowerCase();
-        const password = input.password || 'therapist123';
-
         if (!name || !email) return res.status(400).json({ error: 'Valid name and email are required' });
+
+        // A supplied password must meet the policy; otherwise a one-time password is generated
+        // and returned once. Either way the user must change it at first login.
+        const generated = !input.password;
+        const password = generated ? generateTempPassword() : String(input.password);
+        const policyError = passwordPolicyError(password);
+        if (policyError) return res.status(400).json({ error: policyError });
 
         const hash = await bcrypt.hash(password, 10);
         const [resUser] = await pool.query(
-          'INSERT INTO users (name, email, password, role, status) VALUES (?, ?, ?, "therapist", "Active")',
+          'INSERT INTO users (name, email, password, role, status, must_change_password) VALUES (?, ?, ?, "therapist", "Active", 1)',
           [name, email, hash]
         );
         const newId = resUser.insertId;
@@ -506,7 +557,7 @@ app.all(['/api.php', '/api', '/api/api.php', '/api/v1'], async (req, res) => {
         );
 
         await auditLog(auth.sub, auth.role, 'ADD_THERAPIST', 'users', newId, ip, ua, `Added therapist: ${name}`);
-        return res.json({ success: true, id: newId });
+        return res.json({ success: true, id: newId, ...(generated ? { temporary_password: password } : {}) });
       }
 
       case 'update_therapist': {
@@ -599,13 +650,18 @@ app.all(['/api.php', '/api', '/api/api.php', '/api/v1'], async (req, res) => {
 
         const name = (input.name || '').trim();
         const email = (input.email || '').trim().toLowerCase();
-        const password = input.password || 'parent123';
-
         if (!name || !email) return res.status(400).json({ error: 'Valid name and email are required' });
+
+        // A supplied password must meet the policy; otherwise a one-time password is generated
+        // and returned once. Either way the user must change it at first login.
+        const generated = !input.password;
+        const password = generated ? generateTempPassword() : String(input.password);
+        const policyError = passwordPolicyError(password);
+        if (policyError) return res.status(400).json({ error: policyError });
 
         const hash = await bcrypt.hash(password, 10);
         const [resUser] = await pool.query(
-          'INSERT INTO users (name, email, password, role, status, phone) VALUES (?, ?, ?, "parent", "Active", ?)',
+          'INSERT INTO users (name, email, password, role, status, phone, must_change_password) VALUES (?, ?, ?, "parent", "Active", ?, 1)',
           [name, email, hash, input.phone || null]
         );
         const newId = resUser.insertId;
@@ -616,7 +672,7 @@ app.all(['/api.php', '/api', '/api/api.php', '/api/v1'], async (req, res) => {
         );
 
         await auditLog(auth.sub, auth.role, 'ADD_PARENT', 'users', newId, ip, ua, `Added parent: ${name}`);
-        return res.json({ success: true, id: newId });
+        return res.json({ success: true, id: newId, ...(generated ? { temporary_password: password } : {}) });
       }
 
       case 'update_parent': {
@@ -823,8 +879,8 @@ app.all(['/api.php', '/api', '/api/api.php', '/api/v1'], async (req, res) => {
         const auth = await verifyAuth(req);
         if (!auth || !['admin', 'director', 'therapist'].includes(auth.role)) return res.status(403).json({ error: 'Forbidden' });
 
-        const studentId = parseInt(input.student_id || 0);
-        if (!studentId) return res.status(400).json({ error: 'student_id required' });
+        const studentId = await writableStudentId(auth, input, res);
+        if (!studentId) return;
 
         await pool.query(
           `INSERT INTO medical_histories (
@@ -890,9 +946,10 @@ app.all(['/api.php', '/api', '/api/api.php', '/api/v1'], async (req, res) => {
         const auth = await verifyAuth(req);
         if (!auth || !['admin', 'director', 'therapist'].includes(auth.role)) return res.status(403).json({ error: 'Forbidden' });
 
-        const studentId = parseInt(input.student_id || 0);
         const medicationName = (input.medication_name || '').trim();
-        if (!studentId || !medicationName) return res.status(400).json({ error: 'student_id and medication_name required' });
+        if (!medicationName) return res.status(400).json({ error: 'medication_name required' });
+        const studentId = await writableStudentId(auth, input, res);
+        if (!studentId) return;
 
         const [result] = await pool.query(
           `INSERT INTO medications (student_id, medication_name, dosage, date_prescribed, administration_timeline, used_for, prescribing_doctor, is_administered_at_center)
@@ -918,7 +975,11 @@ app.all(['/api.php', '/api', '/api/api.php', '/api/v1'], async (req, res) => {
         if (!auth || !['admin', 'director', 'therapist'].includes(auth.role)) return res.status(403).json({ error: 'Forbidden' });
 
         const medId = parseInt(input.id || req.query.id || 0);
+        const [med] = await pool.query('SELECT student_id, medication_name FROM medications WHERE id = ? LIMIT 1', [medId]);
+        if (!med.length) return res.status(404).json({ error: 'Medication not found' });
+        if (!(await canAccessStudent(auth, med[0].student_id))) return res.status(403).json({ error: 'Forbidden: student is outside your caseload' });
         await pool.query('DELETE FROM medications WHERE id = ?', [medId]);
+        await auditLog(auth.sub, auth.role, 'DELETE_MEDICATION', 'medications', medId, ip, ua, `Removed medication ${med[0].medication_name} for student ${med[0].student_id}`);
         return res.json({ success: true, id: medId });
       }
 
@@ -1632,12 +1693,23 @@ app.all(['/api.php', '/api', '/api/api.php', '/api/v1'], async (req, res) => {
         const sessionId = parseInt(input.id || input.session_id || 0);
         if (!sessionId) return res.status(400).json({ error: 'Session ID required' });
 
+        // Staff may change anything; a therapist only the status and notes of their own sessions.
+        const isStaff = ['admin', 'director'].includes(auth.role);
+        if (!isStaff) {
+          if (auth.role !== 'therapist') return res.status(403).json({ error: 'Forbidden' });
+          const [own] = await pool.query('SELECT therapist_id FROM therapy_sessions WHERE id = ? LIMIT 1', [sessionId]);
+          if (!own.length) return res.status(404).json({ error: 'Session not found' });
+          if (own[0].therapist_id !== auth.sub) return res.status(403).json({ error: 'Forbidden: not your session' });
+        }
+
+        const allowedStatus = ['upcoming', 'inProgress', 'completed', 'cancelled'];
+        if (input.status && !allowedStatus.includes(input.status)) return res.status(400).json({ error: 'Invalid session status' });
         const status = input.status || null;
         const notes = input.clinical_notes !== undefined ? input.clinical_notes : (input.notes !== undefined ? input.notes : null);
-        const room = input.room || null;
-        const startTime = input.start_time || null;
-        const endTime = input.end_time || null;
-        const programTitle = input.program_title || null;
+        const room = isStaff ? (input.room || null) : null;
+        const startTime = isStaff ? (input.start_time || null) : null;
+        const endTime = isStaff ? (input.end_time || null) : null;
+        const programTitle = isStaff ? (input.program_title || null) : null;
 
         await pool.query(
           `UPDATE therapy_sessions SET 
@@ -1700,11 +1772,16 @@ app.all(['/api.php', '/api', '/api/api.php', '/api/v1'], async (req, res) => {
         const startTime = input.start_time || '09:00 AM';
         const endTime = input.end_time || '10:00 AM';
 
+        // The clinical director's calendar: the first active director account.
+        const [[director]] = await pool.query('SELECT id FROM users WHERE role = "director" AND status = "Active" ORDER BY id LIMIT 1');
+        if (!director) return res.status(409).json({ error: 'No active director account to book with' });
+        const directorId = director.id;
+
         const [result] = await pool.query(
           `INSERT INTO director_appointments (director_user_id, title, appointment_type, date, start_time, end_time, attendee_name, attendee_role, attendee_phone, attendee_email, location, scheduled_by, status, notes) 
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, "confirmed", ?)`,
           [
-            2,
+            directorId,
             title,
             input.appointment_type || 'diagnosticIntake',
             date,
@@ -1721,11 +1798,11 @@ app.all(['/api.php', '/api', '/api/api.php', '/api/v1'], async (req, res) => {
         );
 
         const newApptId = result.insertId;
-        console.log(`✅ [APPOINTMENT_SCHEDULED] Appointment #${newApptId} booked for Attendee "${attendeeName}" with Director`);
+        console.log(`✅ [APPOINTMENT_SCHEDULED] Appointment #${newApptId}`);
 
-        // Dispatch real-time notification to Director (ID 2)
+        // Notify the director whose calendar it is
         await createNotification(
-          2,
+          directorId,
           'APPOINTMENT_SCHEDULED',
           `New Appointment: ${attendeeName}`,
           `${userName} (${userRole}) scheduled "${title}" with Attendee: ${attendeeName} (${attendeeRole}) on ${date} at ${startTime}.`,
@@ -1770,7 +1847,7 @@ app.all(['/api.php', '/api', '/api/api.php', '/api/v1'], async (req, res) => {
       // ──────────────────────────────────────────────────────────────────────
       case 'get_governance_settings': {
         const auth = await verifyAuth(req);
-        if (!auth || !['admin', 'director'].includes(auth.role)) return res.status(403).json({ error: 'Forbidden' });
+        if (!auth) return res.status(401).json({ error: 'Unauthorized' });
         const [rows] = await pool.query('SELECT * FROM clinical_governance_settings WHERE setting_key = "default" LIMIT 1');
         return res.json(rows[0] || null);
       }
@@ -1940,20 +2017,47 @@ app.all(['/api.php', '/api', '/api/api.php', '/api/v1'], async (req, res) => {
       case 'record_parental_consent': {
         const auth = await verifyAuth(req);
         if (!auth) return res.status(401).json({ error: 'Unauthorized' });
+        if (auth.role !== 'parent') return res.status(403).json({ error: 'Only a parent or guardian can give consent' });
         const studentId = parseInt(input.student_id || 0);
         if (!studentId) return res.status(400).json({ error: 'student_id required' });
         if (!(await canAccessStudent(auth, studentId))) return res.status(403).json({ error: 'Forbidden' });
-        const version = input.consent_version || 'DPDP-2023-V1';
+        const version = (input.consent_version || 'DPDP-2023-V1').toString().slice(0, 50);
 
         const [result] = await pool.query(
-          'INSERT INTO parental_consents (student_id, consent_version, ip_address, user_agent) VALUES (?, ?, ?, ?)',
-          [studentId, version, ip, ua.substring(0, 255)]
+          'INSERT INTO parental_consents (student_id, user_id, consent_version, ip_address, user_agent) VALUES (?, ?, ?, ?, ?)',
+          [studentId, auth.sub, version, ip, ua.substring(0, 255)]
         );
-
-        if (auth) {
-          await auditLog(auth.sub, auth.role, 'RECORD_CONSENT', 'parental_consents', result.insertId, ip, ua, `Consent recorded for student ${studentId}`);
-        }
+        await auditLog(auth.sub, auth.role, 'RECORD_CONSENT', 'parental_consents', result.insertId, ip, ua, `Consent ${version} recorded for student ${studentId}`);
         return res.json({ success: true, consent_id: result.insertId });
+      }
+
+      // Latest consent per child the caller can see: { student_id, consent_version, agreed_at, withdrawn_at }.
+      case 'get_parental_consents': {
+        const auth = await verifyAuth(req);
+        if (!auth) return res.status(401).json({ error: 'Unauthorized' });
+        const scope = studentScopeSql('c.student_id', await accessibleStudentIds(auth));
+        const [rows] = await pool.query(
+          `SELECT c.student_id, c.consent_version, c.agreed_at, c.withdrawn_at
+           FROM parental_consents c
+           JOIN (SELECT student_id, MAX(id) AS id FROM parental_consents GROUP BY student_id) latest ON latest.id = c.id
+           WHERE ${scope.sql}`,
+          scope.params
+        );
+        return res.json(rows);
+      }
+
+      case 'withdraw_parental_consent': {
+        const auth = await verifyAuth(req);
+        if (!auth || auth.role !== 'parent') return res.status(403).json({ error: 'Only a parent or guardian can withdraw consent' });
+        const studentId = parseInt(input.student_id || 0);
+        if (!studentId || !(await canAccessStudent(auth, studentId))) return res.status(403).json({ error: 'Forbidden' });
+        const [result] = await pool.query(
+          'UPDATE parental_consents SET withdrawn_at = NOW() WHERE student_id = ? AND withdrawn_at IS NULL',
+          [studentId]
+        );
+        await auditLog(auth.sub, auth.role, 'WITHDRAW_CONSENT', 'parental_consents', null, ip, ua, `Consent withdrawn for student ${studentId}`);
+        await notifyRole('director', 'CONSENT_WITHDRAWN', 'Parental Consent Withdrawn', `A parent withdrew data-processing consent for student #${studentId}.`, { student_id: studentId });
+        return res.json({ success: true, updated: result.affectedRows });
       }
 
       case 'export_student_dossier': {

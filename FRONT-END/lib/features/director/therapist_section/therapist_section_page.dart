@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:roh_erp/core/constants/app_colors.dart';
 import 'package:roh_erp/core/layout/responsive.dart';
 import 'package:roh_erp/core/services/schedule_service.dart';
+import 'package:roh_erp/core/widgets/account_password.dart';
 import 'package:roh_erp/core/widgets/edit_record_dialogs.dart';
 import '../../../core/services/api_service.dart';
 import '../../../core/services/db_queries.dart';
@@ -173,32 +174,22 @@ class _TherapistSectionPageState extends State<TherapistSectionPage> {
   }
 
   // ── Add Therapist ───────────────────────────────────
-  Future<void> _addTherapistToDatabase(Map<String, String> entryData) async {
-    final success = await TherapistQueries.add(
-      name: entryData['name'] ?? '',
+  /// Saves the therapist; returns true when the add dialog can close.
+  Future<bool> _addTherapistToDatabase(Map<String, String> entryData) async {
+    final name = entryData['name'] ?? '';
+    final res = await TherapistQueries.add(
+      name: name,
       email: entryData['email'] ?? '',
-      password: entryData['password'] ?? 'therapist123',
+      password: entryData['password'],
     );
 
-    if (!mounted) return;
-
-    if (success) {
-      _fetchTherapists(); // refresh grid
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Therapist saved successfully!'),
-          backgroundColor: Colors.green,
-        ),
-      );
-    } else {
-      _showErrorSnackBar('Failed to save therapist.');
+    if (!mounted) return false;
+    if (!showApiResult(context, res, 'Therapist saved successfully!')) {
+      return false;
     }
-  }
-
-  void _showErrorSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: Colors.red),
-    );
+    _fetchTherapists(); // refresh grid
+    await showTemporaryPasswordIfAny(context, res, accountLabel: name);
+    return true;
   }
 
   void _openAddDialog() {
@@ -1268,7 +1259,8 @@ class _AvatarPlaceholder extends StatelessWidget {
 // Your users table only stores: name, email, password, role, status.
 // So this form only collects what can actually be saved right now.
 class _AddTherapistDialog extends StatefulWidget {
-  final void Function(Map<String, String> data) onSubmit;
+  /// Saves the entry; resolves true when the dialog should close.
+  final Future<bool> Function(Map<String, String> data) onSubmit;
   const _AddTherapistDialog({required this.onSubmit});
 
   @override
@@ -1279,7 +1271,8 @@ class _AddTherapistDialogState extends State<_AddTherapistDialog> {
   final _formKey = GlobalKey<FormState>();
   final _name = TextEditingController();
   final _email = TextEditingController();
-  final _password = TextEditingController(text: 'therapist123');
+  final _password = TextEditingController();
+  bool _saving = false;
 
   @override
   void dispose() {
@@ -1289,14 +1282,17 @@ class _AddTherapistDialogState extends State<_AddTherapistDialog> {
     super.dispose();
   }
 
-  void _submit() {
+  Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
-    widget.onSubmit({
+    setState(() => _saving = true);
+    final ok = await widget.onSubmit({
       'name': _name.text.trim(),
       'email': _email.text.trim(),
-      'password': _password.text.trim(),
+      'password': _password.text,
     });
-    Navigator.of(context).pop();
+    if (!mounted) return;
+    setState(() => _saving = false);
+    if (ok) Navigator.of(context).pop();
   }
 
   @override
@@ -1375,22 +1371,20 @@ class _AddTherapistDialogState extends State<_AddTherapistDialog> {
                           const SizedBox(height: 14),
                           _Field(
                             ctrl: _password,
-                            label: 'Password',
-                            hint: 'login password for this therapist',
-                            required: true,
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            'Default password is therapist123 — the therapist can change it later.',
-                            style: TextStyle(
-                                fontSize: 11, color: Colors.grey.shade500),
+                            label: 'Password (optional)',
+                            hint: 'set an initial password',
+                            obscure: true,
+                            helper: kOptionalPasswordHelper,
+                            validator: optionalPasswordPolicyError,
                           ),
                           const SizedBox(height: 20),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.end,
                             children: [
                               OutlinedButton(
-                                onPressed: () => Navigator.of(context).pop(),
+                                onPressed: _saving
+                                    ? null
+                                    : () => Navigator.of(context).pop(),
                                 style: OutlinedButton.styleFrom(
                                   foregroundColor: AppColors.primary,
                                   side: const BorderSide(
@@ -1404,7 +1398,7 @@ class _AddTherapistDialogState extends State<_AddTherapistDialog> {
                               ),
                               const SizedBox(width: 12),
                               ElevatedButton(
-                                onPressed: _submit,
+                                onPressed: _saving ? null : _submit,
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: AppColors.primary,
                                   foregroundColor: Colors.white,
@@ -1413,7 +1407,14 @@ class _AddTherapistDialogState extends State<_AddTherapistDialog> {
                                   padding: const EdgeInsets.symmetric(
                                       horizontal: 24, vertical: 10),
                                 ),
-                                child: const Text('Submit'),
+                                child: _saving
+                                    ? const SizedBox(
+                                        width: 16,
+                                        height: 16,
+                                        child: CircularProgressIndicator(
+                                            color: Colors.white,
+                                            strokeWidth: 2))
+                                    : const Text('Submit'),
                               ),
                             ],
                           ),
@@ -1438,6 +1439,9 @@ class _Field extends StatelessWidget {
   final String hint;
   final bool required;
   final TextInputType? keyboardType;
+  final bool obscure;
+  final String? helper;
+  final String? Function(String?)? validator;
 
   const _Field({
     required this.ctrl,
@@ -1445,6 +1449,9 @@ class _Field extends StatelessWidget {
     required this.hint,
     this.required = false,
     this.keyboardType,
+    this.obscure = false,
+    this.helper,
+    this.validator,
   });
 
   @override
@@ -1461,11 +1468,18 @@ class _Field extends StatelessWidget {
         TextFormField(
           controller: ctrl,
           keyboardType: keyboardType,
-          validator: required
-              ? (v) => v == null || v.isEmpty ? 'Required' : null
-              : null,
+          obscureText: obscure,
+          autocorrect: !obscure,
+          enableSuggestions: !obscure,
+          validator: validator ??
+              (required
+                  ? (v) => v == null || v.isEmpty ? 'Required' : null
+                  : null),
           decoration: InputDecoration(
             hintText: hint,
+            helperText: helper,
+            helperStyle: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+            errorMaxLines: 2,
             hintStyle: TextStyle(fontSize: 12, color: Colors.grey.shade400),
             contentPadding:
                 const EdgeInsets.symmetric(horizontal: 12, vertical: 10),

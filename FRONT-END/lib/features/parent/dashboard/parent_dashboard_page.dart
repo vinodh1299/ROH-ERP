@@ -8,6 +8,7 @@ import 'package:roh_erp/core/models/schedule_model.dart';
 import 'package:roh_erp/core/services/api_service.dart';
 import 'package:roh_erp/core/services/db_queries.dart';
 import 'package:roh_erp/core/services/progress_metrics.dart';
+import 'package:roh_erp/core/services/governance_settings.dart';
 import 'package:roh_erp/core/services/schedule_service.dart';
 import 'package:roh_erp/core/widgets/edit_record_dialogs.dart';
 import 'package:roh_erp/features/auth/auth_service.dart';
@@ -46,7 +47,10 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
     _masteryLoadedFor = id;
     _masteryLoading = true;
     _masteredTargets = null;
-    DailyDataQueries.fetchForStudent(id).then((rows) {
+    // Mastery uses the director's criteria, so load those first.
+    GovernanceSettings.load()
+        .then((_) => DailyDataQueries.fetchForStudent(id))
+        .then((rows) {
       if (!mounted || _masteryLoadedFor != id) return;
       final childRows = rows.where((r) => '${r['student_id']}' == id).toList();
       setState(() {
@@ -1105,7 +1109,7 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
                     ? 'Loading data sheets'
                     : (_masteredTargets == null
                         ? 'No data sheets yet'
-                        : 'Skill targets at 80%+ criteria'),
+                        : 'Met ${GovernanceSettings.current.masteryDescription}'),
                 Colors.green,
               );
               final stat2 = _buildKpiBox(

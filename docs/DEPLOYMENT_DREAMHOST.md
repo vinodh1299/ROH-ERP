@@ -23,6 +23,14 @@
 - A crontab `@reboot` entry for `dh_tdq9bh` runs `pm2 resurrect`, so the API comes back after a server restart.
 - The 2020 site that was in `test.rohautism.org` is backed up at `~dh_gp9jnd/test.rohautism.org.backup-20261015.tar.gz`.
 
+### Database backups and encryption (since 2026-10-19)
+
+- **Nightly backup:** `dh_tdq9bh`'s crontab runs `~/roh-erp-api/ops/backup_db.sh` at 02:30 server time. It writes a compressed `mysqldump` to `~/backups/roh-erp/roherp-YYYYMMDD-HHMM.sql.gz`, keeps 14 days, and logs to `~/backups/roh-erp/backup.log`.
+  - Credentials come from `~/.my.cnf` (`[mysqldump]` section, mode 600), generated from the API's `.env`. If the DB password changes, update that file too.
+  - Restore: `zcat FILE.sql.gz | mysql --defaults-extra-file=~/.my.cnf --ssl-mode=REQUIRED roherp`. Test a restore into a scratch database before relying on it.
+  - These copies live on the same server; also download one periodically, e.g. `scp dh_tdq9bh@vps18579.dreamhostps.com:backups/roh-erp/<file> .`.
+- **Encrypted DB connection:** `DB_SSL=require` in the API's `.env` makes the API connect to MySQL over TLS. DreamHost's MySQL uses a self-signed certificate, so `DB_SSL=verify` fails; `require` still encrypts. On startup the log prints `Database connection encryption: <cipher>`.
+
 ## Redeploying (packages in `deploy/`, git-ignored)
 
 Rebuild the packages, then:

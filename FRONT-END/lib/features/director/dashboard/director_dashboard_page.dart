@@ -101,8 +101,8 @@ class _DirectorDashboardPageState extends State<DirectorDashboardPage> {
     for (final r in _progress?.dailyRows ?? const <Map<String, dynamic>>[]) {
       final d = rowDate(r);
       if (!isSkillRow(r) || d == null || d.isBefore(since)) continue;
-      completed30 += int.tryParse('${r['trials_completed']}') ?? 0;
-      successful30 += int.tryParse('${r['trials_successful']}') ?? 0;
+      completed30 += trialsCompleted(r);
+      successful30 += trialsSuccessful(r);
     }
     final double? avgSuccess30 =
         completed30 > 0 ? successful30 / completed30 * 100 : null;
@@ -183,9 +183,9 @@ class _DirectorDashboardPageState extends State<DirectorDashboardPage> {
                   color: AppColors.primary,
                 ),
                 _KpiStatCard(
-                  label: 'Mastery Velocity',
+                  label: 'Targets mastered (30 days)',
                   value: _progress == null ? '—' : '$masteredLast30 Targets',
-                  subtext: 'mastered in the last 30 days',
+                  subtext: masteryRuleText,
                   icon: Icons.trending_up,
                   color: Colors.green,
                 ),
@@ -214,7 +214,9 @@ class _DirectorDashboardPageState extends State<DirectorDashboardPage> {
 
           // ── Executive Analytics & Caseload Intelligence (FRS 8) ────────
           _DirectorExecutiveAnalyticsSection(
-              therapists: _therapists, studentsCount: enrolledCount),
+              therapists: _therapists,
+              students: _students,
+              studentsCount: enrolledCount),
           const SizedBox(height: 24),
 
           // ── Today's Center Operations & Live Therapist Timetable ────────
@@ -722,61 +724,14 @@ class _ClinicalOperationsSectionState extends State<_ClinicalOperationsSection>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final isNarrow = constraints.maxWidth < 600;
-                if (isNarrow) {
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Clinical Operations & Governance',
-                        style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.textPrimary),
-                      ),
-                      const SizedBox(height: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                            color: AppColors.primary.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(12)),
-                        child: const Text('Live Supervision Active',
-                            style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.primary)),
-                      ),
-                    ],
-                  );
-                }
-                return Row(
-                  children: [
-                    const Text('Clinical Operations & Governance',
-                        style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.textPrimary)),
-                    const Spacer(),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                          color: AppColors.primary.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(12)),
-                      child: const Text('Live Supervision Active',
-                          style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.primary)),
-                    ),
-                  ],
-                );
-              },
+          const Padding(
+            padding: EdgeInsets.fromLTRB(20, 20, 20, 0),
+            child: Text(
+              'Clinical Operations & Governance',
+              style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary),
             ),
           ),
           TabBar(
@@ -793,7 +748,7 @@ class _ClinicalOperationsSectionState extends State<_ClinicalOperationsSection>
             tabs: [
               Tab(text: 'Pending IEP Approvals ($pendingCount)'),
               const Tab(text: 'BACB Clinician Supervision'),
-              const Tab(text: 'Center Domain Velocity'),
+              const Tab(text: 'Progress by domain'),
             ],
           ),
           const Divider(height: 1, color: AppColors.divider),
@@ -1181,7 +1136,7 @@ class _ClinicianSupervisionTab extends StatelessWidget {
   }
 }
 
-// ── Tab 3: Domain Velocity ───────────────────────────────────────────────────
+// ── Tab 3: Progress by domain ───────────────────────────────────────────────────
 class _DomainVelocityTab extends StatelessWidget {
   final List<TargetProgress> targets;
   final bool isLoading;
@@ -2045,12 +2000,27 @@ class _DirectorExecutiveAppointmentsSection extends StatelessWidget {
 // ── Executive Analytics & Caseload Intelligence Section (FRS 8) ──────────────
 class _DirectorExecutiveAnalyticsSection extends StatelessWidget {
   final List<Map<String, dynamic>> therapists;
+  final List<Map<String, dynamic>> students;
   final int studentsCount;
 
   const _DirectorExecutiveAnalyticsSection({
     this.therapists = const [],
+    this.students = const [],
     this.studentsCount = 0,
   });
+
+  /// Active students per primary therapist id (get_therapists has no count).
+  Map<String, int> get _caseloads {
+    final cases = <String, int>{};
+    for (final st in students) {
+      final tid = st['primary_therapist_id'];
+      if (tid == null || (st['status'] ?? 'Active').toString() != 'Active') {
+        continue;
+      }
+      cases['$tid'] = (cases['$tid'] ?? 0) + 1;
+    }
+    return cases;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -2066,19 +2036,7 @@ class _DirectorExecutiveAnalyticsSection extends StatelessWidget {
 
     final displayTherapists = therapists;
 
-    final isPhone = Breakpoints.isCompact(context);
-    final liveBadge = Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: const Color(0xFFDCFCE7),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: const Text('Live Sync Active',
-          style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF15803D))),
-    );
+    final caseloads = _caseloads;
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -2105,31 +2063,25 @@ class _DirectorExecutiveAnalyticsSection extends StatelessWidget {
                     color: AppColors.primary, size: 20),
               ),
               const SizedBox(width: 12),
-              Expanded(
+              const Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
+                    Text(
                       'Executive Analytics & Caseload Intelligence',
                       style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
                           color: AppColors.textPrimary),
                     ),
-                    const Text(
-                      'Therapist capacity, completion velocities, and security audit monitoring (FRS 8.0)',
+                    Text(
+                      'Active students assigned to each primary therapist',
                       style: TextStyle(
                           fontSize: 12, color: AppColors.textSecondary),
                     ),
-                    // Phone: badge moves under the subtitle.
-                    if (isPhone) ...[
-                      const SizedBox(height: 6),
-                      liveBadge,
-                    ],
                   ],
                 ),
               ),
-              if (!isPhone) liveBadge,
             ],
           ),
           const SizedBox(height: 20),
@@ -2153,7 +2105,7 @@ class _DirectorExecutiveAnalyticsSection extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   const Text(
-                    'Caseload distribution and capacity velocity will appear here once clinicians are added to the center.',
+                    'Caseload distribution will appear here once clinicians are added to the center.',
                     textAlign: TextAlign.center,
                     style:
                         TextStyle(fontSize: 12, color: AppColors.textSecondary),
@@ -2171,7 +2123,7 @@ class _DirectorExecutiveAnalyticsSection extends StatelessWidget {
                 final t = entry.value;
                 final name =
                     '${t['name'] ?? 'Therapist'} (${t['designation'] ?? 'Therapist'})';
-                final caseload = (t['student_count'] ?? 0) as int;
+                final caseload = caseloads['${t['id']}'] ?? 0;
                 final maxCaseload = 10;
                 final color = barColors[idx % barColors.length];
 

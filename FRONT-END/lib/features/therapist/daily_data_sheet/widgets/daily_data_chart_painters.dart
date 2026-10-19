@@ -32,6 +32,12 @@ double _maxLabelWidth(List<Map<String, dynamic>> data, TextStyle style) {
   return widest + 6;
 }
 
+/// Minutes for display: one decimal, without a trailing ".0" (1.5, 2).
+String formatMinutes(num mins) {
+  final v = (mins * 10).round() / 10;
+  return v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(1);
+}
+
 /// Footprint of a -45° rotated label along the x axis (roughly its height
 /// times sqrt(2)), plus a small gap.
 const double _rotatedLabelFootprint = 18;
@@ -40,7 +46,9 @@ const double _rotatedLabelFootprint = 18;
 const double _valueBadgeFootprint = 22;
 
 // ══════════════════════════════════════════════════════════════════════════════
-// 1. MANDING TREND LINE CHART (Prompted vs Unprompted)
+// 1. MANDING TREND LINE CHART (Prompted vs Unprompted, plus Errors)
+//    Errors (incorrect / no response) are their own series and are never
+//    part of the Unprompted (independent) line.
 // ══════════════════════════════════════════════════════════════════════════════
 class MandingLineChart extends StatelessWidget {
   final List<Map<String, dynamic>> data;
@@ -74,6 +82,8 @@ class MandingLineChart extends StatelessWidget {
                 _buildLegendChip(
                     'Unprompted (Independent)', const Color(0xFF7C3AED)),
                 _buildLegendChip('Prompted', const Color(0xFFF97316)),
+                _buildLegendChip(
+                    'Error (incorrect / no response)', const Color(0xFF9CA3AF)),
               ],
             ),
           ),
@@ -124,8 +134,10 @@ class _MandingChartPainter extends CustomPainter {
     for (final d in data) {
       final p = (d['prompted'] as num? ?? 0).toDouble();
       final u = (d['unprompted'] as num? ?? 0).toDouble();
+      final e = (d['errors'] as num? ?? 0).toDouble();
       if (p > maxVal) maxVal = p;
       if (u > maxVal) maxVal = u;
+      if (e > maxVal) maxVal = e;
     }
     maxVal = (maxVal * 1.2).ceilToDouble();
 
@@ -173,6 +185,19 @@ class _MandingChartPainter extends CustomPainter {
       textPainter.paint(canvas,
           Offset(x - textPainter.width / 2, size.height - bottomMargin + 6));
     }
+
+    // Draw Error line (Grey) first so it sits underneath the others
+    _drawLine(
+      canvas: canvas,
+      color: const Color(0xFF9CA3AF),
+      key: 'errors',
+      leftMargin: leftMargin,
+      topMargin: topMargin,
+      chartH: chartH,
+      chartW: chartW,
+      xStep: xStep,
+      maxVal: maxVal,
+    );
 
     // Draw Unprompted line (Purple)
     _drawLine(
@@ -563,7 +588,7 @@ class _PbDurationChartPainter extends CustomPainter {
       if (!valueMask[i]) continue;
 
       textPainter.text = TextSpan(
-        text: '${values[i]}',
+        text: formatMinutes(values[i]),
         style: const TextStyle(
             fontSize: 9.5,
             fontWeight: FontWeight.bold,

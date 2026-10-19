@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:roh_erp/core/constants/app_colors.dart';
 import 'package:roh_erp/core/layout/responsive.dart';
+import 'package:roh_erp/core/services/api_service.dart';
 import 'package:roh_erp/core/services/schedule_service.dart';
+import 'package:roh_erp/core/widgets/edit_record_dialogs.dart';
 import 'package:roh_erp/features/auth/auth_service.dart';
 import 'package:roh_erp/features/auth/widgets/forced_password_change_dialog.dart';
+import 'package:roh_erp/features/parent/consent/dpdp_consent_dialog.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ProfilePage extends StatefulWidget {
@@ -23,10 +27,94 @@ class _ProfilePageState extends State<ProfilePage> {
   bool _sessionAlerts = true;
   bool _iepUpdates = true;
 
+  /// Children with their latest consent; null while loading or on error.
+  List<ChildConsent>? _consents;
+  bool _consentLoading = true;
+  bool _consentLoadFailed = false;
+  final Set<int> _consentBusy = {};
+
   @override
   void initState() {
     super.initState();
     _loadPreferences();
+    _loadConsents();
+    DpdpConsentDialog.changed.addListener(_loadConsents);
+  }
+
+  @override
+  void dispose() {
+    DpdpConsentDialog.changed.removeListener(_loadConsents);
+    super.dispose();
+  }
+
+  Future<void> _loadConsents() async {
+    setState(() {
+      _consentLoading = true;
+      _consentLoadFailed = false;
+    });
+    final list = await DpdpConsentDialog.loadChildConsents();
+    if (!mounted) return;
+    setState(() {
+      _consents = list;
+      _consentLoadFailed = list == null;
+      _consentLoading = false;
+    });
+  }
+
+  Future<void> _giveConsent(ChildConsent child) async {
+    final ok = await DpdpConsentDialog.show(context,
+        studentId: child.studentId, studentName: child.studentName);
+    if (ok == true) await _loadConsents();
+  }
+
+  Future<void> _withdrawConsent(ChildConsent child) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+        title: Text('Withdraw consent for ${child.studentName}?'),
+        content: const SizedBox(
+          width: 420,
+          child: Text(
+            'You are withdrawing your consent for the centre to process your '
+            "child's therapy, behaviour and progress records.\n\n"
+            '• The centre will be notified and may contact you about how '
+            'this affects ongoing therapy.\n'
+            '• Records already created are not deleted by this step. You can '
+            'ask the centre for a copy or for erasure.\n'
+            '• You can give consent again at any time from this page.',
+            style: TextStyle(
+                fontSize: 13, height: 1.5, color: AppColors.textSecondary),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Keep consent'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.statusDeactivated,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Withdraw consent'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _consentBusy.add(child.studentId));
+    final res = await ApiService()
+        .post('withdraw_parental_consent', {'student_id': child.studentId});
+    if (!mounted) return;
+    setState(() => _consentBusy.remove(child.studentId));
+    if (showApiResult(
+        context, res, 'Consent withdrawn. The centre has been notified.')) {
+      await _loadConsents();
+    }
   }
 
   Future<void> _loadPreferences() async {
@@ -260,6 +348,10 @@ class _ProfilePageState extends State<ProfilePage> {
           ),
           const SizedBox(height: 24),
 
+          // ── Data Consent (DPDP Act 2023) ──
+          _buildConsentCard(cardPadding),
+          const SizedBox(height: 24),
+
           // ── Communication & Notification Preferences ──
           Container(
             padding: cardPadding,
@@ -350,6 +442,182 @@ class _ProfilePageState extends State<ProfilePage> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildConsentCard(EdgeInsets cardPadding) {
+    final consents = _consents;
+    Widget body;
+    if (_consentLoading) {
+      body = const Padding(
+        padding: EdgeInsets.symmetric(vertical: 16),
+        child: Center(
+          child: SizedBox(
+              width: 22,
+              height: 22,
+              child: CircularProgressIndicator(strokeWidth: 2)),
+        ),
+      );
+    } else if (_consentLoadFailed || consents == null) {
+      body = Row(
+        children: [
+          const Expanded(
+            child: Text('Could not load consent status.',
+                style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+          ),
+          TextButton(onPressed: _loadConsents, child: const Text('Retry')),
+        ],
+      );
+    } else if (consents.isEmpty) {
+      body = const Text('No enrolled child is linked to your account yet.',
+          style: TextStyle(fontSize: 13, color: AppColors.textSecondary));
+    } else {
+      body = Column(
+        children: [
+          for (var i = 0; i < consents.length; i++) ...[
+            if (i > 0) const Divider(height: 20, color: AppColors.divider),
+            _buildConsentRow(consents[i]),
+          ],
+        ],
+      );
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: cardPadding,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.divider),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x0A000000),
+            blurRadius: 8,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.verified_user_outlined,
+                  color: AppColors.primary, size: 22),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Data consent',
+                  style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            "Your consent for the centre to process each child's records "
+            '(India DPDP Act 2023).',
+            style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+          ),
+          const Divider(height: 24, color: AppColors.divider),
+          body,
+        ],
+      ),
+    );
+  }
+
+  Widget _buildConsentRow(ChildConsent child) {
+    final fmt = DateFormat('d MMM yyyy');
+    final String status;
+    final Color color;
+    if (child.isGiven) {
+      final outdated = child.version != kDpdpConsentVersion;
+      status = 'Given on ${fmt.format(child.agreedAt!)} · '
+          '${child.version ?? 'unknown version'}'
+          '${outdated ? ' (please review the updated terms)' : ''}';
+      color = outdated ? AppColors.statusPending : AppColors.statusActive;
+    } else if (child.isWithdrawn) {
+      status = 'Withdrawn on ${fmt.format(child.withdrawnAt!)}';
+      color = AppColors.statusDeactivated;
+    } else {
+      status = 'Not given';
+      color = AppColors.statusPending;
+    }
+
+    final busy = _consentBusy.contains(child.studentId);
+    final Widget action;
+    if (busy) {
+      action = const SizedBox(
+          width: 20,
+          height: 20,
+          child: CircularProgressIndicator(strokeWidth: 2));
+    } else if (child.isActive) {
+      action = OutlinedButton(
+        onPressed: () => _withdrawConsent(child),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.statusDeactivated,
+          side: const BorderSide(color: AppColors.statusDeactivated),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        ),
+        child: const Text('Withdraw consent'),
+      );
+    } else {
+      action = ElevatedButton(
+        onPressed: () => _giveConsent(child),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.primary,
+          foregroundColor: Colors.white,
+          elevation: 0,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        ),
+        child: const Text('Give consent'),
+      );
+    }
+
+    // Action wraps below the status on narrow screens.
+    return Wrap(
+      alignment: WrapAlignment.spaceBetween,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      runSpacing: 10,
+      spacing: 12,
+      children: [
+        ConstrainedBox(
+          constraints: const BoxConstraints(minWidth: 200, maxWidth: 520),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(child.studentName,
+                  style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary)),
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration:
+                        BoxDecoration(color: color, shape: BoxShape.circle),
+                  ),
+                  const SizedBox(width: 6),
+                  Flexible(
+                    child: Text(status,
+                        style: TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w500,
+                            color: color)),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        action,
+      ],
     );
   }
 

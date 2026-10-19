@@ -34,7 +34,7 @@ class _ParentShellState extends State<ParentShell> {
   void initState() {
     super.initState();
     _selectedIndex = widget.initialTab;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       final auth = Provider.of<AuthService>(context, listen: false);
       if (!auth.isLoggedIn || auth.currentUser?.role != 'parent') {
         Navigator.of(context).pushNamedAndRemoveUntil(
@@ -43,10 +43,22 @@ class _ParentShellState extends State<ParentShell> {
         );
         return;
       }
-      ForcedPasswordChangeDialog.showIfNeeded(context);
       NotificationService().fetchNotifications();
       SystemNotifications.requestPermission();
-      DpdpConsentDialog.showIfNeeded(context);
+      // Password change first, then data consent for each child that still
+      // needs it (the server is the source of truth).
+      await ForcedPasswordChangeDialog.showIfNeeded(context);
+      if (!mounted) return;
+      final consented = await DpdpConsentDialog.showIfNeeded(context);
+      if (!consented && mounted) {
+        await auth.logout();
+        if (mounted) {
+          Navigator.of(context).pushNamedAndRemoveUntil(
+            AppConstants.routeLogin,
+            (route) => false,
+          );
+        }
+      }
     });
   }
 
