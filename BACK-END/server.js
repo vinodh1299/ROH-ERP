@@ -67,6 +67,27 @@ const pool = mysql.createPool({
   dateStrings: true,
 });
 
+// Adds `column` to `table` when it is missing (schema.sql is CREATE TABLE IF NOT EXISTS only, so
+// new columns on existing tables are added here). Returns true when the column was added.
+// Identifiers come only from the constant list below, never from requests.
+async function ensureColumn(conn, table, column, definition) {
+  const [rows] = await conn.query(
+    `SELECT 1 FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ? LIMIT 1`,
+    [table, column]
+  );
+  if (rows.length) return false;
+  await conn.query(`ALTER TABLE \`${table}\` ADD COLUMN \`${column}\` ${definition}`);
+  return true;
+}
+
+// VB-MAPP full assessments: EESA groups 3–5 (groups 1–2 already exist).
+const VBMAPP_ADDED_COLUMNS = [
+  ['eesa_assessments', 'group3_score', "DECIMAL(5,2) DEFAULT 0.00 AFTER `group2_score`"],
+  ['eesa_assessments', 'group4_score', "DECIMAL(5,2) DEFAULT 0.00 AFTER `group3_score`"],
+  ['eesa_assessments', 'group5_score', "DECIMAL(5,2) DEFAULT 0.00 AFTER `group4_score`"],
+];
+
 // Connect and create any missing tables from schema.sql (CREATE TABLE IF NOT EXISTS — never drops data).
 // Uses a dedicated connection so multipleStatements stays off for the request pool.
 (async () => {
@@ -85,6 +106,12 @@ const pool = mysql.createPool({
     await conn.query(require('fs').readFileSync(require('path').join(__dirname, 'schema.sql'), 'utf8'));
     const [after] = await conn.query('SHOW TABLES');
     console.log(`📦 Schema check: ${after.length - before.length} table(s) created, ${after.length} total`);
+    // Columns added to existing tables after their CREATE TABLE shipped (idempotent).
+    for (const [table, column, definition] of VBMAPP_ADDED_COLUMNS) {
+      if (await ensureColumn(conn, table, column, definition)) {
+        console.log(`📦 Added column ${table}.${column}`);
+      }
+    }
   } catch (err) {
     console.error('❌ MySQL connection / schema setup error:', err.message);
   } finally {
@@ -232,6 +259,166 @@ function jsonColumn(value) {
     try { JSON.parse(value); return value; } catch (_) { return JSON.stringify(value); }
   }
   return JSON.stringify(value);
+}
+
+// ── VB-MAPP assessment range validation ──
+// Each validator returns null when the input is valid, otherwise a message for a 400 response.
+
+// Milestone domains and the levels they appear in (5 milestones per level, scored 0 / 0.5 / 1).
+const MILESTONE_DOMAIN_LEVELS = {
+  manding_score: [1, 2, 3], tacting_score: [1, 2, 3], listener_score: [1, 2, 3],
+  vp_mts_score: [1, 2, 3], play_score: [1, 2, 3], social_score: [1, 2, 3],
+  imitation_score: [1, 2], echoic_score: [1, 2], vocal_score: [1],
+  lrffc_score: [2, 3], intraverbal_score: [2, 3], group_score: [2, 3], linguistic_score: [2, 3],
+  reading_score: [3], writing_score: [3], math_score: [3],
+};
+const MILESTONE_MAX_TOTAL = 170;
+const BARRIER_MAX_ITEMS = 24;
+const TRANSITION_AREAS = 18;
+const EESA_GROUPS = 5;
+const EESA_MAX_TOTAL = 100;
+
+const isHalfStep = v => Number.isFinite(v) && Math.abs(v * 2 - Math.round(v * 2)) < 1e-9;
+
+// Parses a JSON column that may arrive as an object or an encoded string.
+function jsonObject(value) {
+  if (value && typeof value === 'object' && !Array.isArray(value)) return value;
+  if (typeof value === 'string' && value.trim()) {
+    try {
+      const parsed = JSON.parse(value);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed;
+    } catch (_) {}
+  }
+  return {};
+}
+
+function validateTestNumber(input) {
+  if (input.test_number === undefined || input.test_number === null || input.test_number === '') return null;
+  const t = Number(input.test_number);
+  return Number.isInteger(t) && t >= 1 && t <= 4 ? null : 'test_number must be 1, 2, 3 or 4.';
+}
+
+function validateMilestoneInput(input) {
+  for (const [column, levels] of Object.entries(MILESTONE_DOMAIN_LEVELS)) {
+    if (input[column] === undefined || input[column] === null || input[column] === '') continue;
+    const v = Number(input[column]);
+    const max = levels.length * 5;
+    if (!Number.isFinite(v) || v < 0 || v > max || !isHalfStep(v)) {
+      return `${column} must be between 0 and ${max} in steps of 0.5 (got ${input[column]}).`;
+    }
+  }
+  const detail = jsonObject(jsonObject(input.scores_detail || input.milestones_data).milestone_scores);
+  for (const [column, items] of Object.entries(detail)) {
+    const levels = MILESTONE_DOMAIN_LEVELS[column];
+    if (!levels) return `scores_detail.milestone_scores has an unknown domain "${column}".`;
+    for (const [n, raw] of Object.entries(jsonObject(items))) {
+      const milestone = Number(n);
+      const level = Math.floor((milestone - 1) / 5) + 1;
+      if (!Number.isInteger(milestone) || milestone < 1 || milestone > 15 || !levels.includes(level)) {
+        return `${column} has no milestone ${n}.`;
+      }
+      const v = Number(raw);
+      if (![0, 0.5, 1].includes(v)) return `${column} milestone ${n} must be scored 0, 0.5 or 1 (got ${raw}).`;
+    }
+  }
+  const total = Number(input.total_score || input.score || 0);
+  if (!Number.isFinite(total) || total < 0 || total > MILESTONE_MAX_TOTAL) {
+    return `total_score must be between 0 and ${MILESTONE_MAX_TOTAL}.`;
+  }
+  return null;
+}
+
+function validateBarriersInput(input) {
+  const scores = jsonObject(input.barrier_scores);
+  const keys = Object.keys(scores);
+  if (keys.length > BARRIER_MAX_ITEMS) return `barrier_scores has ${keys.length} barriers; the maximum is ${BARRIER_MAX_ITEMS}.`;
+  let sum = 0;
+  for (const key of keys) {
+    const v = Number(scores[key]);
+    if (!Number.isInteger(v) || v < 0 || v > 4) return `Barrier "${key}" must be scored 0 to 4 (got ${scores[key]}).`;
+    sum += v;
+  }
+  const total = Number(input.total_score || 0);
+  if (!Number.isFinite(total) || total < 0 || total > BARRIER_MAX_ITEMS * 4) {
+    return `total_score must be between 0 and ${BARRIER_MAX_ITEMS * 4}.`;
+  }
+  if (keys.length && Math.abs(total - sum) > 1e-9) return `total_score (${total}) does not match the barrier scores (${sum}).`;
+  return null;
+}
+
+function validateTransitionInput(input) {
+  const scores = jsonObject(input.area_scores);
+  let sum = 0;
+  for (const key of Object.keys(scores)) {
+    const area = Number(key);
+    if (!Number.isInteger(area) || area < 1 || area > TRANSITION_AREAS) return `area_scores has an unknown area "${key}" (areas are 1 to ${TRANSITION_AREAS}).`;
+    const v = Number(scores[key]);
+    if (!Number.isInteger(v) || v < 1 || v > 5) return `Transition area ${key} must be scored 1 to 5 (got ${scores[key]}).`;
+    sum += v;
+  }
+  const total = Number(input.total_score || 0);
+  if (!Number.isFinite(total) || total < 0 || total > TRANSITION_AREAS * 5) {
+    return `total_score must be between 0 and ${TRANSITION_AREAS * 5}.`;
+  }
+  if (Object.keys(scores).length && Math.abs(total - sum) > 1e-9) return `total_score (${total}) does not match the area scores (${sum}).`;
+  return null;
+}
+
+// EESA items score 1 (Yes), 0.5 (Half) or 0 (No); unscored items are simply absent.
+// responses.items = { "<group>-<item>": 0 | 0.5 | 1 }; app v1 records used
+// responses.group1/group2 = { word: 'Yes' | 'Half' | 'No' }.
+function validateEesaInput(input) {
+  const responses = jsonObject(input.responses);
+  const groupSums = {};
+  for (const [key, raw] of Object.entries(jsonObject(responses.items))) {
+    const m = /^([1-5])-(\d{1,3})$/.exec(key);
+    if (!m) return `EESA item key "${key}" must look like "<group 1-5>-<item number>".`;
+    const v = Number(raw);
+    if (raw === null || raw === '' || ![0, 0.5, 1].includes(v)) return `EESA item ${key} must be scored 0, 0.5 or 1 (got ${raw}).`;
+    groupSums[m[1]] = (groupSums[m[1]] || 0) + v;
+  }
+  for (let g = 1; g <= EESA_GROUPS; g++) {
+    for (const answer of Object.values(jsonObject(responses[`group${g}`]))) {
+      if (!['Yes', 'Half', 'No'].includes(answer)) return `EESA group ${g} answers must be Yes, Half or No (got ${answer}).`;
+    }
+  }
+  let groupTotal = 0;
+  for (let g = 1; g <= EESA_GROUPS; g++) {
+    const v = Number(input[`group${g}_score`] || 0);
+    if (!Number.isFinite(v) || v < 0 || v > EESA_MAX_TOTAL || !isHalfStep(v)) {
+      return `group${g}_score must be between 0 and ${EESA_MAX_TOTAL} in steps of 0.5.`;
+    }
+    if (groupSums[g] !== undefined && Math.abs(groupSums[g] - v) > 1e-9) {
+      return `group${g}_score (${v}) does not match its item scores (${groupSums[g]}).`;
+    }
+    groupTotal += v;
+  }
+  const total = Number(input.total_score || 0);
+  if (!Number.isFinite(total) || total < 0 || total > EESA_MAX_TOTAL) return `total_score must be between 0 and ${EESA_MAX_TOTAL}.`;
+  if (Math.abs(total - groupTotal) > 1e-9) return `total_score (${total}) does not equal the sum of the group scores (${groupTotal}).`;
+  return null;
+}
+
+// MSWO session: 4–8 items, up to 5 trials, each trial an ordered list of distinct item indexes.
+function validatePreferenceSession(input) {
+  const items = Array.isArray(input.items) ? input.items : [];
+  if (items.length < 4 || items.length > 8) return 'An MSWO session needs 4 to 8 items.';
+  for (const item of items) {
+    if (!item || !(item.name || '').toString().trim()) return 'Every MSWO item needs a name.';
+  }
+  const trials = Array.isArray(input.trials) ? input.trials : [];
+  if (!trials.length || trials.length > 5) return 'An MSWO session has 1 to 5 trials.';
+  if (!trials.some(t => Array.isArray(t) && t.length)) return 'Record at least one selection.';
+  for (const [i, trial] of trials.entries()) {
+    if (!Array.isArray(trial)) return `Trial ${i + 1} must be a list of selections.`;
+    const seen = new Set();
+    for (const idx of trial) {
+      if (!Number.isInteger(idx) || idx < 0 || idx >= items.length) return `Trial ${i + 1} has an invalid item index (${idx}).`;
+      if (seen.has(idx)) return `Trial ${i + 1} selects the same item twice; MSWO items are not replaced.`;
+      seen.add(idx);
+    }
+  }
+  return null;
 }
 
 function requireAuth(allowedRoles = []) {
@@ -1286,6 +1473,8 @@ app.all(['/api.php', '/api', '/api/api.php', '/api/v1'], async (req, res) => {
         if (!auth || !['therapist', 'director', 'admin'].includes(auth.role)) return res.status(403).json({ error: 'Forbidden' });
         const studentId = await writableStudentId(auth, input, res);
         if (!studentId) return;
+        const invalid = validateTestNumber(input) || validateMilestoneInput(input);
+        if (invalid) return res.status(400).json({ error: invalid });
         const testNumber = Math.min(4, Math.max(1, parseInt(input.test_number || 1) || 1));
         const num = key => parseFloat(input[key] || 0);
         const saved = await upsertTestRecord('milestone_assessments', studentId, testNumber, {
@@ -1314,6 +1503,7 @@ app.all(['/api.php', '/api', '/api/api.php', '/api/v1'], async (req, res) => {
           // Keep existing notes on update unless the client sends new ones.
           ...(input.therapist_notes !== undefined ? { therapist_notes: input.therapist_notes || null } : {}),
         });
+        await auditLog(auth.sub, auth.role, saved.updated ? 'UPDATE_MILESTONE_ASSESSMENT' : 'SAVE_MILESTONE_ASSESSMENT', 'milestone_assessments', saved.id, ip, ua, `Milestones test ${testNumber} for student ${studentId}: total ${parseFloat(input.total_score || input.score || 0)}/170`);
         return res.json({ success: true, ...saved });
       }
 
@@ -1344,16 +1534,19 @@ app.all(['/api.php', '/api', '/api/api.php', '/api/v1'], async (req, res) => {
         if (!auth || !['therapist', 'director', 'admin'].includes(auth.role)) return res.status(403).json({ error: 'Forbidden' });
         const studentId = await writableStudentId(auth, input, res);
         if (!studentId) return;
+        const invalid = validateTestNumber(input) || validateBarriersInput(input);
+        if (invalid) return res.status(400).json({ error: invalid });
         const testNumber = Math.min(4, Math.max(1, parseInt(input.test_number || 1) || 1));
         const saved = await upsertTestRecord('barriers_assessments', studentId, testNumber, {
           therapist_id: auth.sub,
           assessment_date: input.assessment_date || new Date().toISOString().slice(0, 10),
           total_score: parseFloat(input.total_score || 0),
-          max_score: parseFloat(input.max_score || 96),
+          max_score: BARRIER_MAX_ITEMS * 4,
           barrier_scores: jsonColumn(input.barrier_scores || {}),
           // Keep existing notes on update unless the client sends new ones.
           ...(input.therapist_notes !== undefined ? { therapist_notes: input.therapist_notes || null } : {}),
         });
+        await auditLog(auth.sub, auth.role, saved.updated ? 'UPDATE_BARRIERS_ASSESSMENT' : 'SAVE_BARRIERS_ASSESSMENT', 'barriers_assessments', saved.id, ip, ua, `Barriers test ${testNumber} for student ${studentId}: total ${parseFloat(input.total_score || 0)}/96`);
         return res.json({ success: true, ...saved });
       }
 
@@ -1384,16 +1577,19 @@ app.all(['/api.php', '/api', '/api/api.php', '/api/v1'], async (req, res) => {
         if (!auth || !['therapist', 'director', 'admin'].includes(auth.role)) return res.status(403).json({ error: 'Forbidden' });
         const studentId = await writableStudentId(auth, input, res);
         if (!studentId) return;
+        const invalid = validateTestNumber(input) || validateTransitionInput(input);
+        if (invalid) return res.status(400).json({ error: invalid });
         const testNumber = Math.min(4, Math.max(1, parseInt(input.test_number || 1) || 1));
         const saved = await upsertTestRecord('transition_assessments', studentId, testNumber, {
           therapist_id: auth.sub,
           assessment_date: input.assessment_date || new Date().toISOString().slice(0, 10),
           total_score: parseFloat(input.total_score || 0),
-          max_score: parseFloat(input.max_score || 90),
+          max_score: TRANSITION_AREAS * 5,
           area_scores: jsonColumn(input.area_scores || {}),
           // Keep existing notes on update unless the client sends new ones.
           ...(input.therapist_notes !== undefined ? { therapist_notes: input.therapist_notes || null } : {}),
         });
+        await auditLog(auth.sub, auth.role, saved.updated ? 'UPDATE_TRANSITION_ASSESSMENT' : 'SAVE_TRANSITION_ASSESSMENT', 'transition_assessments', saved.id, ip, ua, `Transition test ${testNumber} for student ${studentId}: total ${parseFloat(input.total_score || 0)}/90`);
         return res.json({ success: true, ...saved });
       }
 
@@ -1424,17 +1620,23 @@ app.all(['/api.php', '/api', '/api/api.php', '/api/v1'], async (req, res) => {
         if (!auth || !['therapist', 'director', 'admin'].includes(auth.role)) return res.status(403).json({ error: 'Forbidden' });
         const studentId = await writableStudentId(auth, input, res);
         if (!studentId) return;
+        const invalid = validateTestNumber(input) || validateEesaInput(input);
+        if (invalid) return res.status(400).json({ error: invalid });
         const testNumber = Math.min(4, Math.max(1, parseInt(input.test_number || 1) || 1));
         const saved = await upsertTestRecord('eesa_assessments', studentId, testNumber, {
           therapist_id: auth.sub,
           assessment_date: input.assessment_date || new Date().toISOString().slice(0, 10),
           group1_score: parseFloat(input.group1_score || 0),
           group2_score: parseFloat(input.group2_score || 0),
+          group3_score: parseFloat(input.group3_score || 0),
+          group4_score: parseFloat(input.group4_score || 0),
+          group5_score: parseFloat(input.group5_score || 0),
           total_score: parseFloat(input.total_score || 0),
           responses: jsonColumn(input.responses || {}),
           // Keep existing notes on update unless the client sends new ones.
           ...(input.therapist_notes !== undefined ? { therapist_notes: input.therapist_notes || null } : {}),
         });
+        await auditLog(auth.sub, auth.role, saved.updated ? 'UPDATE_EESA_ASSESSMENT' : 'SAVE_EESA_ASSESSMENT', 'eesa_assessments', saved.id, ip, ua, `EESA test ${testNumber} for student ${studentId}: total ${parseFloat(input.total_score || 0)}/100`);
         return res.json({ success: true, ...saved });
       }
 
@@ -1479,16 +1681,24 @@ app.all(['/api.php', '/api', '/api/api.php', '/api/v1'], async (req, res) => {
           await conn.query('DELETE FROM preference_assessments WHERE student_id = ? AND assessment_date = ?', [studentId, assessmentDate]);
           for (const item of items) {
             const rating = Math.min(5, Math.max(1, parseInt(item.rating || 5) || 5));
+            const category = categories.includes(item.category) ? item.category : 'Other';
+            // Only edibles are primary (unconditioned) reinforcers; everything else is a preferred item.
+            let rank = (item.hierarchy_rank || '').toString();
+            if (!rank || (category !== 'Edible' && /primary/i.test(rank))) {
+              rank = rating >= 4
+                ? (category === 'Edible' ? 'High-Preference Primary Reinforcer' : 'High-Preference Item')
+                : rating === 3 ? 'Moderate Preference' : 'Low Preference';
+            }
             const [result] = await conn.query(
               `INSERT INTO preference_assessments (student_id, therapist_id, category, item_name, rating, hierarchy_rank, notes, assessment_date)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
               [
                 studentId,
                 auth.sub,
-                categories.includes(item.category) ? item.category : 'Other',
+                category,
                 item.item_name.toString().trim().slice(0, 150),
                 rating,
-                (item.hierarchy_rank || 'High-Preference Primary Reinforcer').toString().slice(0, 50),
+                rank.slice(0, 50),
                 item.notes || null,
                 assessmentDate,
               ]
@@ -1504,6 +1714,80 @@ app.all(['/api.php', '/api', '/api/api.php', '/api/v1'], async (req, res) => {
         }
         await auditLog(auth.sub, auth.role, 'SAVE_PREFERENCE_ASSESSMENT', 'preference_assessments', ids[0], ip, ua, `Saved ${ids.length} preference item(s) for student ${studentId}`);
         return res.json({ success: true, id: ids[0], ids });
+      }
+
+      // 6F. PREFERENCE SESSIONS (MSWO — multiple-stimulus without replacement)
+      case 'get_preference_sessions': {
+        const auth = await verifyAuth(req);
+        if (!auth) return res.status(401).json({ error: 'Unauthorized' });
+        const scope = studentScopeSql('ps.student_id', await accessibleStudentIds(auth));
+
+        const studentId = req.query.student_id ? parseInt(req.query.student_id) : null;
+        let query = `SELECT ps.*, CONCAT(s.first_name, ' ', s.last_name) AS student_name, u.name AS therapist_name
+                     FROM preference_sessions ps
+                     LEFT JOIN students s ON ps.student_id = s.id
+                     LEFT JOIN users u ON ps.therapist_id = u.id
+                     WHERE ${scope.sql}`;
+        const params = [...scope.params];
+        if (studentId) {
+          query += ` AND ps.student_id = ?`;
+          params.push(studentId);
+        }
+        query += ` ORDER BY ps.session_date DESC, ps.id DESC`;
+        const [rows] = await pool.query(query, params);
+        return res.json(rows);
+      }
+
+      case 'save_preference_session': {
+        const auth = await verifyAuth(req);
+        if (!auth || !['therapist', 'director', 'admin'].includes(auth.role)) return res.status(403).json({ error: 'Forbidden' });
+        const studentId = await writableStudentId(auth, input, res);
+        if (!studentId) return;
+        const invalid = validatePreferenceSession(input);
+        if (invalid) return res.status(400).json({ error: invalid });
+
+        const categories = ['Edible', 'Toys/Materials', 'Social', 'Sensory', 'Other'];
+        const items = input.items.map(i => ({
+          name: i.name.toString().trim().slice(0, 150),
+          category: categories.includes(i.category) ? i.category : 'Other',
+        }));
+        const trials = input.trials.filter(t => t.length);
+        // Selection percentage per item: times selected / times it was available. In each trial an
+        // item selected at position p was available for p + 1 selections; an item never selected
+        // was available for every selection made in that trial.
+        const results = items.map((item, idx) => {
+          let selections = 0, opportunities = 0, positionSum = 0;
+          for (const trial of trials) {
+            const pos = trial.indexOf(idx);
+            if (pos >= 0) { selections++; opportunities += pos + 1; positionSum += pos + 1; }
+            else opportunities += trial.length;
+          }
+          const percentage = opportunities ? Math.round((selections / opportunities) * 1000) / 10 : 0;
+          return { ...item, selections, opportunities, percentage, mean_position: selections ? positionSum / selections : null };
+        });
+        const ordered = [...results].sort((a, b) =>
+          b.percentage - a.percentage || (a.mean_position ?? 99) - (b.mean_position ?? 99));
+        ordered.forEach((r, i) => {
+          r.rank = i > 0 && r.percentage === ordered[i - 1].percentage && r.mean_position === ordered[i - 1].mean_position
+            ? ordered[i - 1].rank : i + 1;
+        });
+
+        const [result] = await pool.query(
+          `INSERT INTO preference_sessions (student_id, therapist_id, session_date, method, items, trials, results, notes)
+           VALUES (?, ?, ?, 'MSWO', ?, ?, ?, ?)`,
+          [
+            studentId,
+            auth.sub,
+            input.session_date || new Date().toISOString().slice(0, 10),
+            JSON.stringify(items),
+            JSON.stringify(trials),
+            JSON.stringify(results),
+            input.notes ? input.notes.toString().slice(0, 2000) : null,
+          ]
+        );
+        const top = ordered[0];
+        await auditLog(auth.sub, auth.role, 'SAVE_PREFERENCE_SESSION', 'preference_sessions', result.insertId, ip, ua, `MSWO session (${items.length} items, ${trials.length} trials) for student ${studentId}; top: ${top.name} ${top.percentage}%`);
+        return res.json({ success: true, id: result.insertId, results });
       }
 
       // Backward-compatibility bridge for generic get_vb_assessments

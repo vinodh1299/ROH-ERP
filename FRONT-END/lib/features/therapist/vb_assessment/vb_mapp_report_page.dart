@@ -4,8 +4,10 @@ import '../../../core/layout/responsive.dart';
 import '../../../core/services/db_queries.dart';
 import '../widgets/student_card_grid.dart';
 import '../widgets/student_assessment_banner.dart';
+import '../../../core/services/vbmapp_protocol_content.dart';
 import 'assessment_records.dart';
 import 'milestone_matrix.dart';
+import 'vbmapp_charts.dart';
 
 class VbMappReportPage extends StatefulWidget {
   const VbMappReportPage({super.key});
@@ -21,6 +23,8 @@ class _VbMappReportPageState extends State<VbMappReportPage> {
   int? _selectedStudentId;
   List<Map<String, dynamic>> _milestoneRecords = [];
   List<Map<String, dynamic>> _barrierRecords = [];
+  List<Map<String, dynamic>> _transitionRecords = [];
+  List<Map<String, dynamic>> _eesaRecords = [];
 
   Future<void> _loadMilestoneData() async {
     final studentId = _selectedStudentId;
@@ -28,34 +32,43 @@ class _VbMappReportPageState extends State<VbMappReportPage> {
     final results = await Future.wait([
       MilestoneAssessmentQueries.fetchForStudent('$studentId'),
       BarriersAssessmentQueries.fetchForStudent('$studentId'),
+      TransitionAssessmentQueries.fetchForStudent('$studentId'),
+      EesaAssessmentQueries.fetchForStudent('$studentId'),
     ]);
     if (!mounted) return;
     setState(() {
       _milestoneRecords = results[0];
       _barrierRecords = results[1];
+      _transitionRecords = results[2];
+      _eesaRecords = results[3];
     });
   }
 
-  final List<String> _barrierChartTitles = [
-    'Behaviour Problems',
-    'Instructional Control',
-    'Impaired Mand',
-    'Impaired Tact',
-    'Impaired Imitation',
-    'Impaired Echoic',
-    'Impaired VP-MTS',
-    'Impaired Listener Responding',
-    'Impaired Intraverbal',
-    'Impaired Social Skills',
-    'Prompt Dependent',
-    'Scrolling',
-    'Impaired Scanning',
-    'Impaired Conditional Discrimination',
-    'Failure to Generalize',
-    'Weak Motivators',
-    'Response Requirement weakens MO',
-    'Reinforcer Dependent',
-  ];
+  /// Sum of the item scores of each test (null = test not saved).
+  Map<int, double?> _itemTotals(
+      List<Map<String, dynamic>> records, String column) {
+    final perTest = scoresPerTest(records, column);
+    return {
+      for (int t = 1; t <= 4; t++)
+        t: (perTest[t]?.isNotEmpty ?? false)
+            ? perTest[t]!.values.fold<int>(0, (a, b) => a + b).toDouble()
+            : null,
+    };
+  }
+
+  /// A saved numeric column of each test's newest record (null = not saved).
+  Map<int, double?> _columnPerTest(
+      List<Map<String, dynamic>> records, String column) {
+    return {
+      for (int t = 1; t <= 4; t++)
+        t: () {
+          final r = newestRecordForTest(records, t);
+          return r == null
+              ? null
+              : double.tryParse(r[column]?.toString() ?? '');
+        }(),
+    };
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -95,6 +108,8 @@ class _VbMappReportPageState extends State<VbMappReportPage> {
             _selectedStudentId = studentId;
             _milestoneRecords = [];
             _barrierRecords = [];
+            _transitionRecords = [];
+            _eesaRecords = [];
           });
           _loadMilestoneData();
         },
@@ -190,10 +205,20 @@ class _VbMappReportPageState extends State<VbMappReportPage> {
           const SizedBox(height: 24),
 
           // Render Either Barriers Master Scoring Grid OR Milestones Master Scoring Chart
-          if (_isBarrierMode)
-            _buildBarriersMasterForm()
-          else
+          if (_isBarrierMode) ...[
+            TestTotalsChart(
+              title: 'Barriers total score per test',
+              subtitle: 'Sum of the scored barriers (24 barriers, max 96; '
+                  'lower is better).',
+              totals: _itemTotals(_barrierRecords, 'barrier_scores'),
+              maxScore: vbBarriersMaxScore.toDouble(),
+            ),
+            const SizedBox(height: 20),
+            _buildBarriersMasterForm(),
+          ] else
             _buildMilestonesMasterForm(),
+          const SizedBox(height: 24),
+          _buildSummary(),
           const SizedBox(height: 40),
         ],
       ),
@@ -370,42 +395,20 @@ class _VbMappReportPageState extends State<VbMappReportPage> {
         return GridView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
-          itemCount: _barrierChartTitles.length,
+          itemCount: vbBarriers.length,
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: crossAxisCount,
             crossAxisSpacing: 16,
             mainAxisSpacing: 16,
-            childAspectRatio: 0.8,
+            childAspectRatio: 0.75,
           ),
           itemBuilder: (context, index) {
-            return Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppColors.textPrimary, width: 1.5),
-              ),
-              padding: const EdgeInsets.all(10),
-              child: Column(
-                children: [
-                  Text(
-                    _barrierChartTitles[index],
-                    textAlign: TextAlign.center,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontFamily: 'Poppins',
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Expanded(
-                    child: _buildBarrierMasterGrid(
-                        _barrierChartTitles[index], barrierScores),
-                  ),
-                ],
-              ),
+            final b = vbBarriers[index];
+            // Same chart as the Barriers graph (shared widget).
+            return BarrierMiniChart(
+              title: '${b.number}. ${b.label}',
+              barrierKey: b.key,
+              scoresPerTest: barrierScores,
             );
           },
         );
@@ -413,40 +416,101 @@ class _VbMappReportPageState extends State<VbMappReportPage> {
     );
   }
 
-  /// Same chart as the Barriers graph: rows are ratings 4 (top) to 0, one
-  /// column per test, filled up to that test's score for [title].
-  Widget _buildBarrierMasterGrid(
-      String title, Map<int, Map<String, int>> scoresPerTest) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final cellWidth = constraints.maxWidth / 4;
-        final cellHeight = constraints.maxHeight / 5;
+  // ── SUMMARY: totals of every assessment per test ──
+  Widget _buildSummary() {
+    final milestones = _columnPerTest(_milestoneRecords, 'total_score');
+    final barriers = _itemTotals(_barrierRecords, 'barrier_scores');
+    final transition = _itemTotals(_transitionRecords, 'area_scores');
+    final eesa = _columnPerTest(_eesaRecords, 'total_score');
+    final transitionPerTest = scoresPerTest(_transitionRecords, 'area_scores');
 
-        return Column(
-          children: List.generate(5, (rowIndex) {
-            final rating = 4 - rowIndex;
-            return Row(
-              children: List.generate(4, (colIndex) {
-                final test = colIndex + 1;
-                final score = scoresPerTest[test]?[title] ?? 0;
-                final cellColor = rating > 0 && score >= rating
-                    ? milestoneTestColors[test]!
-                    : Colors.transparent;
-
-                return Container(
-                  width: cellWidth,
-                  height: cellHeight,
-                  decoration: BoxDecoration(
-                    color: cellColor,
-                    border:
-                        Border.all(color: const Color(0xFFE5D5F5), width: 0.8),
-                  ),
-                );
-              }),
-            );
-          }),
+    String v(double? x) => x == null ? '–' : formatVbScore(x);
+    const headStyle = TextStyle(
+        fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.primary);
+    const cellStyle = TextStyle(
+        fontSize: 12,
+        fontWeight: FontWeight.w600,
+        color: AppColors.textPrimary);
+    Widget pad(String text, {TextStyle style = cellStyle}) => Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
+          child: Text(text, style: style),
         );
-      },
+    TableRow row(String label, List<String> cells,
+            {TextStyle style = cellStyle, Color? color}) =>
+        TableRow(
+          decoration: BoxDecoration(color: color),
+          children: [
+            pad(label, style: headStyle),
+            for (final c in cells) pad(c, style: style),
+          ],
+        );
+
+    String transitionCategory(int test, int c) {
+      final scores = transitionPerTest[test];
+      if (scores == null || scores.isEmpty) return '–';
+      final areas = vbTransitionAreas.where((a) => a.category == c).toList();
+      final sum =
+          areas.fold<int>(0, (s, a) => s + (scores['${a.number}'] ?? 0));
+      return '$sum/${areas.length * 5}';
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(Breakpoints.isCompact(context) ? 12 : 20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.divider),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('VB-MAPP Summary',
+              style: TextStyle(
+                  fontFamily: 'Poppins',
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary)),
+          const SizedBox(height: 4),
+          const Text(
+            'Totals of each assessment per test. Barriers: lower is better.',
+            style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+          ),
+          const SizedBox(height: 12),
+          ScrollableMinWidth(
+            minWidth: 560,
+            child: Table(
+              border: TableBorder.all(color: AppColors.divider),
+              columnWidths: const {0: FixedColumnWidth(200)},
+              children: [
+                row(
+                    'Assessment',
+                    [
+                      for (final l in vbTestLabels) '$l test',
+                    ],
+                    style: headStyle,
+                    color: const Color(0xFFEDE9FE)),
+                row('Milestones (/170)',
+                    [for (int t = 1; t <= 4; t++) v(milestones[t])]),
+                row('Barriers (/96)',
+                    [for (int t = 1; t <= 4; t++) v(barriers[t])]),
+                row('Transition (/90)',
+                    [for (int t = 1; t <= 4; t++) v(transition[t])]),
+                for (int c = 0; c < vbTransitionCategories.length; c++)
+                  row('  · ${vbTransitionCategories[c]}', [
+                    for (int t = 1; t <= 4; t++) transitionCategory(t, c),
+                  ]),
+                row('EESA (/100)', [for (int t = 1; t <= 4; t++) v(eesa[t])]),
+                for (int g = 1; g <= eesaGroupCount; g++)
+                  row('  · EESA group $g', [
+                    for (int t = 1; t <= 4; t++)
+                      v(_columnPerTest(_eesaRecords, 'group${g}_score')[t]),
+                  ]),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

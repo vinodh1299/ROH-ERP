@@ -4,7 +4,9 @@ import '../../../core/layout/responsive.dart';
 import '../../../core/services/db_queries.dart';
 import '../widgets/student_card_grid.dart';
 import '../widgets/student_assessment_banner.dart';
+import '../../../core/services/vbmapp_protocol_content.dart';
 import 'assessment_records.dart';
+import 'ees_assessment_page.dart' show eesaTotalOf;
 import 'milestone_matrix.dart';
 
 class MilestoneAssessmentPage extends StatefulWidget {
@@ -33,6 +35,52 @@ class _MilestoneAssessmentPageState extends State<MilestoneAssessmentPage> {
 
   int get _testNumber => int.tryParse(_selectedAssessment.split(' ').last) ?? 1;
 
+  // ── Echoic from EESA ──
+  // When the centre has entered the EESA → Echoic mapping in the protocol
+  // content file and an EESA test with the same number is saved, the Echoic
+  // domain is computed from the EESA total and is read-only here.
+  VbMappProtocolContent _protocol = VbMappProtocolContent.current;
+  List<Map<String, dynamic>> _eesaRecords = [];
+  static const _echoicColumn = 'echoic_score';
+
+  /// EESA total of the selected test, or null when not saved.
+  double? get _eesaTotal =>
+      eesaTotalOf(newestRecordForTest(_eesaRecords, _testNumber));
+
+  /// Echoic milestone score derived from EESA for the selected test, or null
+  /// (no mapping entered / no EESA saved) — Echoic is then scored by hand.
+  double? get _echoicFromEesa {
+    final total = _eesaTotal;
+    return total == null ? null : _protocol.echoicScoreForEesaTotal(total);
+  }
+
+  /// Replaces the Echoic milestones with the EESA-derived score, filled in
+  /// milestone order (e.g. 2.5 = milestones 1–2 in full + half of 3).
+  void _applyEchoicFromEesa() {
+    final value = _echoicFromEesa;
+    if (value == null) return;
+    _scores.removeWhere((k, _) => k.startsWith('$_echoicColumn|'));
+    var remaining = value;
+    for (int n = 1; n <= 10 && remaining > 0; n++) {
+      final score = (remaining.clamp(0, 1) * 2).floor() / 2;
+      if (score <= 0) break;
+      _scores[_scoreKey(_echoicColumn, n)] = score;
+      remaining -= score;
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    VbMappProtocolContent.load().then((c) {
+      if (!mounted) return;
+      setState(() {
+        _protocol = c;
+        _applyEchoicFromEesa();
+      });
+    });
+  }
+
   String _scoreKey(String column, int milestone) => '$column|$milestone';
 
   double _scoreOf(String column, int milestone) =>
@@ -49,9 +97,15 @@ class _MilestoneAssessmentPageState extends State<MilestoneAssessmentPage> {
       items.forEach((n, v) => _scores[_scoreKey(column, n)] = v);
     });
     final level = int.tryParse(
-            (record['level'] ?? '').toString().replaceAll(RegExp(r'[^0-9]'), ''));
+        (record['level'] ?? '').toString().replaceAll(RegExp(r'[^0-9]'), ''));
     _selectedLevel = (level ?? 1).clamp(1, 3);
     _derivedFromTotals = !hasMilestoneDetail(record) && _scores.isNotEmpty;
+  }
+
+  /// [_prefillForTest] plus the EESA-derived Echoic score.
+  void _prefillWithEchoic() {
+    _prefillForTest();
+    _applyEchoicFromEesa();
   }
 
   /// Domain score = sum of that domain's milestone scores (max 5 per level).
@@ -92,7 +146,8 @@ class _MilestoneAssessmentPageState extends State<MilestoneAssessmentPage> {
       final parts = key.split('|');
       (milestoneScores[parts[0]] ??= {})[parts[1]] = v;
     });
-    final ok = await MilestoneAssessmentQueries.save({
+    final echoicFromEesa = _echoicFromEesa;
+    final error = await MilestoneAssessmentQueries.trySave({
       'student_id': studentId,
       'test_number': _testNumber,
       'level': 'Level $_highestScoredLevel',
@@ -101,15 +156,18 @@ class _MilestoneAssessmentPageState extends State<MilestoneAssessmentPage> {
       'total_score': _totalScore,
       'max_score': 170,
       ..._domainScores(),
-      'scores_detail': {'milestone_scores': milestoneScores},
+      'scores_detail': {
+        'milestone_scores': milestoneScores,
+        if (echoicFromEesa != null)
+          'echoic_source': {'eesa_total': _eesaTotal, 'echoic': echoicFromEesa},
+      },
     });
     if (!mounted) return;
     setState(() => _saving = false);
-    if (!ok) {
+    if (error != null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-              'Could not save the milestone assessment. Please try again.'),
+        SnackBar(
+          content: Text('Could not save the milestone assessment: $error'),
           backgroundColor: Colors.red,
         ),
       );
@@ -142,12 +200,16 @@ class _MilestoneAssessmentPageState extends State<MilestoneAssessmentPage> {
   Future<void> _loadMilestoneData() async {
     if (_selectedStudentId == null) return;
     try {
-      final res = await MilestoneAssessmentQueries.fetchForStudent(
-          _selectedStudentId.toString());
+      final results = await Future.wait([
+        MilestoneAssessmentQueries.fetchForStudent(
+            _selectedStudentId.toString()),
+        EesaAssessmentQueries.fetchForStudent(_selectedStudentId.toString()),
+      ]);
       if (mounted) {
         setState(() {
-          _milestoneRecords = res;
-          _prefillForTest();
+          _milestoneRecords = results[0];
+          _eesaRecords = results[1];
+          _prefillWithEchoic();
         });
       }
     } catch (_) {}
@@ -166,6 +228,7 @@ class _MilestoneAssessmentPageState extends State<MilestoneAssessmentPage> {
             _activeTab = 0;
             _scores.clear();
             _milestoneRecords = [];
+            _eesaRecords = [];
             _selectedAssessment = 'Assessment 1';
             _selectedLevel = 1;
             _activeMilestoneGraphLevel = 1;
@@ -346,7 +409,8 @@ class _MilestoneAssessmentPageState extends State<MilestoneAssessmentPage> {
                   'This test was saved as domain totals only, so its milestones '
                   'are shown filled in order from those totals. Check them '
                   'before saving again.',
-                  style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                  style:
+                      TextStyle(fontSize: 12, color: AppColors.textSecondary),
                 ),
                 const SizedBox(height: 16),
               ],
@@ -425,7 +489,7 @@ class _MilestoneAssessmentPageState extends State<MilestoneAssessmentPage> {
             if (val == null) return;
             setState(() {
               _selectedAssessment = val;
-              _prefillForTest();
+              _prefillWithEchoic();
             });
           },
         ),
@@ -449,7 +513,7 @@ class _MilestoneAssessmentPageState extends State<MilestoneAssessmentPage> {
         }
         setState(() {
           _selectedAssessment = 'Assessment $next';
-          _prefillForTest();
+          _prefillWithEchoic();
         });
       },
       borderRadius: BorderRadius.circular(8),
@@ -584,6 +648,7 @@ class _MilestoneAssessmentPageState extends State<MilestoneAssessmentPage> {
     final column = milestoneScoreColumn(domain)!;
     final subtotal = milestoneNumbers(level)
         .fold(0.0, (sum, n) => sum + _scoreOf(column, n));
+    final fromEesa = column == _echoicColumn ? _echoicFromEesa : null;
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -613,6 +678,17 @@ class _MilestoneAssessmentPageState extends State<MilestoneAssessmentPage> {
                       color: AppColors.textSecondary)),
             ],
           ),
+          if (fromEesa != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              'Echoic ${_formatScore(fromEesa)} / 10 from EESA '
+              '(EESA total ${_formatScore(_eesaTotal ?? 0)}) · read-only',
+              style: const TextStyle(
+                  fontSize: 11,
+                  fontStyle: FontStyle.italic,
+                  color: AppColors.textSecondary),
+            ),
+          ],
           const SizedBox(height: 8),
           for (final n in milestoneNumbers(level))
             Padding(
@@ -624,7 +700,13 @@ class _MilestoneAssessmentPageState extends State<MilestoneAssessmentPage> {
                         style: const TextStyle(
                             fontSize: 13, color: AppColors.textPrimary)),
                   ),
-                  _buildScoreSelector(column, n),
+                  IgnorePointer(
+                    ignoring: fromEesa != null,
+                    child: Opacity(
+                      opacity: fromEesa != null ? 0.6 : 1,
+                      child: _buildScoreSelector(column, n),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -661,7 +743,9 @@ class _MilestoneAssessmentPageState extends State<MilestoneAssessmentPage> {
                 padding: EdgeInsets.symmetric(vertical: compact ? 8 : 4),
                 decoration: BoxDecoration(
                   color: current == option
-                      ? (option == 0 ? AppColors.textSecondary : AppColors.primary)
+                      ? (option == 0
+                          ? AppColors.textSecondary
+                          : AppColors.primary)
                       : Colors.transparent,
                   borderRadius: BorderRadius.horizontal(
                     left: Radius.circular(option == 0 ? 15 : 0),

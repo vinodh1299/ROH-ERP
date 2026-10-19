@@ -1,0 +1,726 @@
+{
+  "_readme": [
+    "VB-MAPP protocol content for the ROH ERP app. VB-MAPP (Sundberg, AVB Press) is copyrighted: the app ships only category names and placeholders. The centre fills this file in from its LICENSED manual.",
+    "Any string that is empty or contains 'enter from licensed protocol' is treated as NOT filled in: the app shows a placeholder label instead. Numbers left as null are also treated as not filled in; where a number is needed (bands, mapping) the app then falls back to manual entry.",
+    "Entries without the placeholder marker that already existed in app v1 (barrier 1 criteria, transition areas 1-7 criteria, EESA group 1-2 words and the group 1 heading) were carried over unchanged. Verify them against the licensed manual and replace as needed.",
+    "barriers.<key>: <key> is the stored barrier_scores key; never rename it. 'label' is the display name; 'criteria' '0'..'4' is the scoring guidance shown next to each score.",
+    "transition.areas.<1..18>: 'criteria' '1'..'5' is the scoring guidance. Areas 1-7 learner skills, 8-13 learning patterns, 14-18 self-help/spontaneity.",
+    "transition.milestones_score_bands / barriers_score_bands: one row per transition score 1..5 with the inclusive min/max Milestones total (0-170) or Barriers total (0-96) that earns it. When all five rows of a table have numbers, transition area 1 (or 2) is computed automatically from the saved Milestones (or Barriers) total of the same test number.",
+    "eesa.groups[]: 'items' is the item text in administration order; a group's item count is the length of its array. The default 25/25/20/15/15 = 100 split is a placeholder layout: adjust it to the manual BEFORE scores are saved, because saved responses are keyed by group and item position.",
+    "eesa.echoic_milestone_mapping: rows {min_total, echoic_score}. The Echoic milestone score for a test is the echoic_score of the row with the highest min_total that is <= the EESA total (0-100). echoic_score must be 0-10 in steps of 0.5. When every row has numbers, the Milestones page shows Echoic as read-only 'from EESA'. Remove unused rows rather than leaving them null.",
+    "eesa.legacy_v1_words: only used to read EESA records saved by app v1 (keyed by word). Do not edit."
+  ],
+  "version": 1,
+  "barriers": {
+    "Behaviour Problems": {
+      "number": 1,
+      "label": "Negative behaviors",
+      "criteria": {
+        "0": "Does not demonstrate any significant negative behaviors",
+        "1": "Engages in some minor negative behaviors weekly, but recovery is quick",
+        "2": "Emits a variety of minor negative behaviors daily (e.g., crying, verbal refusal)",
+        "3": "Emits more severe negative behavior daily (e.g., tantrums, throwing things)",
+        "4": "Often emits severe negative behavior that is a danger to himself or others"
+      }
+    },
+    "Instructional Control": {
+      "number": 2,
+      "label": "Poor instructional control",
+      "criteria": {
+        "0": "Barrier 2 · Score 0 — enter from licensed protocol",
+        "1": "Barrier 2 · Score 1 — enter from licensed protocol",
+        "2": "Barrier 2 · Score 2 — enter from licensed protocol",
+        "3": "Barrier 2 · Score 3 — enter from licensed protocol",
+        "4": "Barrier 2 · Score 4 — enter from licensed protocol"
+      }
+    },
+    "Impaired Mand": {
+      "number": 3,
+      "label": "Mand: absent, weak or impaired",
+      "criteria": {
+        "0": "Barrier 3 · Score 0 — enter from licensed protocol",
+        "1": "Barrier 3 · Score 1 — enter from licensed protocol",
+        "2": "Barrier 3 · Score 2 — enter from licensed protocol",
+        "3": "Barrier 3 · Score 3 — enter from licensed protocol",
+        "4": "Barrier 3 · Score 4 — enter from licensed protocol"
+      }
+    },
+    "Impaired Tact": {
+      "number": 4,
+      "label": "Tact: absent, weak or impaired",
+      "criteria": {
+        "0": "Barrier 4 · Score 0 — enter from licensed protocol",
+        "1": "Barrier 4 · Score 1 — enter from licensed protocol",
+        "2": "Barrier 4 · Score 2 — enter from licensed protocol",
+        "3": "Barrier 4 · Score 3 — enter from licensed protocol",
+        "4": "Barrier 4 · Score 4 — enter from licensed protocol"
+      }
+    },
+    "Impaired Imitation": {
+      "number": 5,
+      "label": "Motor imitation: absent, weak or impaired",
+      "criteria": {
+        "0": "Barrier 5 · Score 0 — enter from licensed protocol",
+        "1": "Barrier 5 · Score 1 — enter from licensed protocol",
+        "2": "Barrier 5 · Score 2 — enter from licensed protocol",
+        "3": "Barrier 5 · Score 3 — enter from licensed protocol",
+        "4": "Barrier 5 · Score 4 — enter from licensed protocol"
+      }
+    },
+    "Impaired Echoic": {
+      "number": 6,
+      "label": "Echoic: absent, weak or impaired",
+      "criteria": {
+        "0": "Barrier 6 · Score 0 — enter from licensed protocol",
+        "1": "Barrier 6 · Score 1 — enter from licensed protocol",
+        "2": "Barrier 6 · Score 2 — enter from licensed protocol",
+        "3": "Barrier 6 · Score 3 — enter from licensed protocol",
+        "4": "Barrier 6 · Score 4 — enter from licensed protocol"
+      }
+    },
+    "Impaired VP-MTS": {
+      "number": 7,
+      "label": "Visual perception & MTS: absent, weak or impaired",
+      "criteria": {
+        "0": "Barrier 7 · Score 0 — enter from licensed protocol",
+        "1": "Barrier 7 · Score 1 — enter from licensed protocol",
+        "2": "Barrier 7 · Score 2 — enter from licensed protocol",
+        "3": "Barrier 7 · Score 3 — enter from licensed protocol",
+        "4": "Barrier 7 · Score 4 — enter from licensed protocol"
+      }
+    },
+    "Impaired Listener Responding": {
+      "number": 8,
+      "label": "Listener skills: absent, weak or impaired",
+      "criteria": {
+        "0": "Barrier 8 · Score 0 — enter from licensed protocol",
+        "1": "Barrier 8 · Score 1 — enter from licensed protocol",
+        "2": "Barrier 8 · Score 2 — enter from licensed protocol",
+        "3": "Barrier 8 · Score 3 — enter from licensed protocol",
+        "4": "Barrier 8 · Score 4 — enter from licensed protocol"
+      }
+    },
+    "Impaired Intraverbal": {
+      "number": 9,
+      "label": "Intraverbal: absent, weak or impaired",
+      "criteria": {
+        "0": "Barrier 9 · Score 0 — enter from licensed protocol",
+        "1": "Barrier 9 · Score 1 — enter from licensed protocol",
+        "2": "Barrier 9 · Score 2 — enter from licensed protocol",
+        "3": "Barrier 9 · Score 3 — enter from licensed protocol",
+        "4": "Barrier 9 · Score 4 — enter from licensed protocol"
+      }
+    },
+    "Impaired Social Skills": {
+      "number": 10,
+      "label": "Social skills: absent, weak or impaired",
+      "criteria": {
+        "0": "Barrier 10 · Score 0 — enter from licensed protocol",
+        "1": "Barrier 10 · Score 1 — enter from licensed protocol",
+        "2": "Barrier 10 · Score 2 — enter from licensed protocol",
+        "3": "Barrier 10 · Score 3 — enter from licensed protocol",
+        "4": "Barrier 10 · Score 4 — enter from licensed protocol"
+      }
+    },
+    "Prompt Dependent": {
+      "number": 11,
+      "label": "Prompt dependent",
+      "criteria": {
+        "0": "Barrier 11 · Score 0 — enter from licensed protocol",
+        "1": "Barrier 11 · Score 1 — enter from licensed protocol",
+        "2": "Barrier 11 · Score 2 — enter from licensed protocol",
+        "3": "Barrier 11 · Score 3 — enter from licensed protocol",
+        "4": "Barrier 11 · Score 4 — enter from licensed protocol"
+      }
+    },
+    "Scrolling": {
+      "number": 12,
+      "label": "Scrolling responses",
+      "criteria": {
+        "0": "Barrier 12 · Score 0 — enter from licensed protocol",
+        "1": "Barrier 12 · Score 1 — enter from licensed protocol",
+        "2": "Barrier 12 · Score 2 — enter from licensed protocol",
+        "3": "Barrier 12 · Score 3 — enter from licensed protocol",
+        "4": "Barrier 12 · Score 4 — enter from licensed protocol"
+      }
+    },
+    "Impaired Scanning": {
+      "number": 13,
+      "label": "Impaired scanning skills",
+      "criteria": {
+        "0": "Barrier 13 · Score 0 — enter from licensed protocol",
+        "1": "Barrier 13 · Score 1 — enter from licensed protocol",
+        "2": "Barrier 13 · Score 2 — enter from licensed protocol",
+        "3": "Barrier 13 · Score 3 — enter from licensed protocol",
+        "4": "Barrier 13 · Score 4 — enter from licensed protocol"
+      }
+    },
+    "Impaired Conditional Discrimination": {
+      "number": 14,
+      "label": "Failure to make conditional discriminations",
+      "criteria": {
+        "0": "Barrier 14 · Score 0 — enter from licensed protocol",
+        "1": "Barrier 14 · Score 1 — enter from licensed protocol",
+        "2": "Barrier 14 · Score 2 — enter from licensed protocol",
+        "3": "Barrier 14 · Score 3 — enter from licensed protocol",
+        "4": "Barrier 14 · Score 4 — enter from licensed protocol"
+      }
+    },
+    "Failure to Generalize": {
+      "number": 15,
+      "label": "Failure to generalize",
+      "criteria": {
+        "0": "Barrier 15 · Score 0 — enter from licensed protocol",
+        "1": "Barrier 15 · Score 1 — enter from licensed protocol",
+        "2": "Barrier 15 · Score 2 — enter from licensed protocol",
+        "3": "Barrier 15 · Score 3 — enter from licensed protocol",
+        "4": "Barrier 15 · Score 4 — enter from licensed protocol"
+      }
+    },
+    "Weak Motivators": {
+      "number": 16,
+      "label": "Weak or atypical motivating operations",
+      "criteria": {
+        "0": "Barrier 16 · Score 0 — enter from licensed protocol",
+        "1": "Barrier 16 · Score 1 — enter from licensed protocol",
+        "2": "Barrier 16 · Score 2 — enter from licensed protocol",
+        "3": "Barrier 16 · Score 3 — enter from licensed protocol",
+        "4": "Barrier 16 · Score 4 — enter from licensed protocol"
+      }
+    },
+    "Response Requirement weakens MO": {
+      "number": 17,
+      "label": "Response requirement weakens the MO",
+      "criteria": {
+        "0": "Barrier 17 · Score 0 — enter from licensed protocol",
+        "1": "Barrier 17 · Score 1 — enter from licensed protocol",
+        "2": "Barrier 17 · Score 2 — enter from licensed protocol",
+        "3": "Barrier 17 · Score 3 — enter from licensed protocol",
+        "4": "Barrier 17 · Score 4 — enter from licensed protocol"
+      }
+    },
+    "Reinforcer Dependent": {
+      "number": 18,
+      "label": "Reinforcement dependent",
+      "criteria": {
+        "0": "Barrier 18 · Score 0 — enter from licensed protocol",
+        "1": "Barrier 18 · Score 1 — enter from licensed protocol",
+        "2": "Barrier 18 · Score 2 — enter from licensed protocol",
+        "3": "Barrier 18 · Score 3 — enter from licensed protocol",
+        "4": "Barrier 18 · Score 4 — enter from licensed protocol"
+      }
+    },
+    "Self-Stimulation": {
+      "number": 19,
+      "label": "Self-stimulation",
+      "criteria": {
+        "0": "Barrier 19 · Score 0 — enter from licensed protocol",
+        "1": "Barrier 19 · Score 1 — enter from licensed protocol",
+        "2": "Barrier 19 · Score 2 — enter from licensed protocol",
+        "3": "Barrier 19 · Score 3 — enter from licensed protocol",
+        "4": "Barrier 19 · Score 4 — enter from licensed protocol"
+      }
+    },
+    "Articulation Problems": {
+      "number": 20,
+      "label": "Articulation problems",
+      "criteria": {
+        "0": "Barrier 20 · Score 0 — enter from licensed protocol",
+        "1": "Barrier 20 · Score 1 — enter from licensed protocol",
+        "2": "Barrier 20 · Score 2 — enter from licensed protocol",
+        "3": "Barrier 20 · Score 3 — enter from licensed protocol",
+        "4": "Barrier 20 · Score 4 — enter from licensed protocol"
+      }
+    },
+    "Obsessive-Compulsive Behavior": {
+      "number": 21,
+      "label": "Obsessive-compulsive behavior",
+      "criteria": {
+        "0": "Barrier 21 · Score 0 — enter from licensed protocol",
+        "1": "Barrier 21 · Score 1 — enter from licensed protocol",
+        "2": "Barrier 21 · Score 2 — enter from licensed protocol",
+        "3": "Barrier 21 · Score 3 — enter from licensed protocol",
+        "4": "Barrier 21 · Score 4 — enter from licensed protocol"
+      }
+    },
+    "Hyperactive Behavior": {
+      "number": 22,
+      "label": "Hyperactive behavior",
+      "criteria": {
+        "0": "Barrier 22 · Score 0 — enter from licensed protocol",
+        "1": "Barrier 22 · Score 1 — enter from licensed protocol",
+        "2": "Barrier 22 · Score 2 — enter from licensed protocol",
+        "3": "Barrier 22 · Score 3 — enter from licensed protocol",
+        "4": "Barrier 22 · Score 4 — enter from licensed protocol"
+      }
+    },
+    "Failure to Make Eye Contact": {
+      "number": 23,
+      "label": "Failure to make eye contact",
+      "criteria": {
+        "0": "Barrier 23 · Score 0 — enter from licensed protocol",
+        "1": "Barrier 23 · Score 1 — enter from licensed protocol",
+        "2": "Barrier 23 · Score 2 — enter from licensed protocol",
+        "3": "Barrier 23 · Score 3 — enter from licensed protocol",
+        "4": "Barrier 23 · Score 4 — enter from licensed protocol"
+      }
+    },
+    "Sensory Defensiveness": {
+      "number": 24,
+      "label": "Sensory defensiveness",
+      "criteria": {
+        "0": "Barrier 24 · Score 0 — enter from licensed protocol",
+        "1": "Barrier 24 · Score 1 — enter from licensed protocol",
+        "2": "Barrier 24 · Score 2 — enter from licensed protocol",
+        "3": "Barrier 24 · Score 3 — enter from licensed protocol",
+        "4": "Barrier 24 · Score 4 — enter from licensed protocol"
+      }
+    }
+  },
+  "transition": {
+    "areas": {
+      "1": {
+        "label": "Milestones Assessment score",
+        "criteria": {
+          "1": "Scores 0 to 25 on the Milestone Assessment",
+          "2": "Scores 26 to 50 on the Milestones Assessment",
+          "3": "Scores 51 to 100 on the Milestones Assessment",
+          "4": "Scores 101 to 135 on the Milestones Assessment",
+          "5": "Scores 136 to 170 on the Milestones Assessment"
+        }
+      },
+      "2": {
+        "label": "Barriers Assessment score",
+        "criteria": {
+          "1": "Scores 56 to 96 on the Barriers Assessment (Severe barriers)",
+          "2": "Scores 30 to 55 on the Barriers Assessment (Moderate barriers)",
+          "3": "Scores 20 to 29 on the Barriers Assessment (Mild barriers)",
+          "4": "Scores 10 to 19 on the Barriers Assessment (Very few barriers)",
+          "5": "Scores 0 to 9 on the Barriers Assessment (No significant barriers)"
+        }
+      },
+      "3": {
+        "label": "Negative behaviors & instructional control",
+        "criteria": {
+          "1": "Severe behavior problems, requires 1:1 supervision at all times",
+          "2": "Moderate behavior problems, requires frequent intervention",
+          "3": "Occasional minor behaviors, easily redirected by staff",
+          "4": "Rare minor behaviors, responds promptly to typical instructions",
+          "5": "No significant behavior problems, follows classroom routines independently"
+        }
+      },
+      "4": {
+        "label": "Classroom routines & group skills",
+        "criteria": {
+          "1": "Does not participate in any group activities or follow routines",
+          "2": "Participates in 1-2 small group activities with intensive prompts",
+          "3": "Follows 3-4 daily routines with gestural or verbal prompts",
+          "4": "Participates in small groups (2-3 peers) for 10 minutes with minimal prompts",
+          "5": "Participates in whole group activities (5+ peers) for 15+ minutes independently"
+        }
+      },
+      "5": {
+        "label": "Social skills & social play",
+        "criteria": {
+          "1": "Does not interact with peers, engages only in solitary or self-stimulatory play",
+          "2": "Parallel play near peers without disruption for 5 minutes",
+          "3": "Initiates 2-3 interactions or shares items with peers with prompts",
+          "4": "Spontaneously plays interactive games with peers for 10 minutes",
+          "5": "Has reciprocal friendships, engages in cooperative pretend play and conversation"
+        }
+      },
+      "6": {
+        "label": "Independent academic work",
+        "criteria": {
+          "1": "Cannot work independently for any duration on structured tasks",
+          "2": "Completes 1 simple previously mastered task with 1:1 adult nearby",
+          "3": "Works independently for 2 minutes completing 2 mastered tasks",
+          "4": "Works independently for 5 minutes completing a work-task bin system",
+          "5": "Works independently for 15 minutes completing new instructional tasks"
+        }
+      },
+      "7": {
+        "label": "Generalization",
+        "criteria": {
+          "1": "Skills do not generalize beyond specific therapist and training setting",
+          "2": "Generalizes to 1 other person or setting with high reinforcement",
+          "3": "Generalizes skills to 2-3 novel persons and novel stimulus materials",
+          "4": "Consistently generalizes across multiple settings, instructors, and materials",
+          "5": "Rapidly generalizes newly acquired skills across natural environmental contexts"
+        }
+      },
+      "8": {
+        "label": "Range of reinforcers",
+        "criteria": {
+          "1": "Transition area 8 · Score 1 — enter from licensed protocol",
+          "2": "Transition area 8 · Score 2 — enter from licensed protocol",
+          "3": "Transition area 8 · Score 3 — enter from licensed protocol",
+          "4": "Transition area 8 · Score 4 — enter from licensed protocol",
+          "5": "Transition area 8 · Score 5 — enter from licensed protocol"
+        }
+      },
+      "9": {
+        "label": "Rate of acquisition of new skills",
+        "criteria": {
+          "1": "Transition area 9 · Score 1 — enter from licensed protocol",
+          "2": "Transition area 9 · Score 2 — enter from licensed protocol",
+          "3": "Transition area 9 · Score 3 — enter from licensed protocol",
+          "4": "Transition area 9 · Score 4 — enter from licensed protocol",
+          "5": "Transition area 9 · Score 5 — enter from licensed protocol"
+        }
+      },
+      "10": {
+        "label": "Retention of new skills",
+        "criteria": {
+          "1": "Transition area 10 · Score 1 — enter from licensed protocol",
+          "2": "Transition area 10 · Score 2 — enter from licensed protocol",
+          "3": "Transition area 10 · Score 3 — enter from licensed protocol",
+          "4": "Transition area 10 · Score 4 — enter from licensed protocol",
+          "5": "Transition area 10 · Score 5 — enter from licensed protocol"
+        }
+      },
+      "11": {
+        "label": "Learning from the natural environment",
+        "criteria": {
+          "1": "Transition area 11 · Score 1 — enter from licensed protocol",
+          "2": "Transition area 11 · Score 2 — enter from licensed protocol",
+          "3": "Transition area 11 · Score 3 — enter from licensed protocol",
+          "4": "Transition area 11 · Score 4 — enter from licensed protocol",
+          "5": "Transition area 11 · Score 5 — enter from licensed protocol"
+        }
+      },
+      "12": {
+        "label": "Transfer of skills without training",
+        "criteria": {
+          "1": "Transition area 12 · Score 1 — enter from licensed protocol",
+          "2": "Transition area 12 · Score 2 — enter from licensed protocol",
+          "3": "Transition area 12 · Score 3 — enter from licensed protocol",
+          "4": "Transition area 12 · Score 4 — enter from licensed protocol",
+          "5": "Transition area 12 · Score 5 — enter from licensed protocol"
+        }
+      },
+      "13": {
+        "label": "Adaptability to change",
+        "criteria": {
+          "1": "Transition area 13 · Score 1 — enter from licensed protocol",
+          "2": "Transition area 13 · Score 2 — enter from licensed protocol",
+          "3": "Transition area 13 · Score 3 — enter from licensed protocol",
+          "4": "Transition area 13 · Score 4 — enter from licensed protocol",
+          "5": "Transition area 13 · Score 5 — enter from licensed protocol"
+        }
+      },
+      "14": {
+        "label": "Spontaneous behaviors",
+        "criteria": {
+          "1": "Transition area 14 · Score 1 — enter from licensed protocol",
+          "2": "Transition area 14 · Score 2 — enter from licensed protocol",
+          "3": "Transition area 14 · Score 3 — enter from licensed protocol",
+          "4": "Transition area 14 · Score 4 — enter from licensed protocol",
+          "5": "Transition area 14 · Score 5 — enter from licensed protocol"
+        }
+      },
+      "15": {
+        "label": "Independent play & leisure skills",
+        "criteria": {
+          "1": "Transition area 15 · Score 1 — enter from licensed protocol",
+          "2": "Transition area 15 · Score 2 — enter from licensed protocol",
+          "3": "Transition area 15 · Score 3 — enter from licensed protocol",
+          "4": "Transition area 15 · Score 4 — enter from licensed protocol",
+          "5": "Transition area 15 · Score 5 — enter from licensed protocol"
+        }
+      },
+      "16": {
+        "label": "General self-help skills",
+        "criteria": {
+          "1": "Transition area 16 · Score 1 — enter from licensed protocol",
+          "2": "Transition area 16 · Score 2 — enter from licensed protocol",
+          "3": "Transition area 16 · Score 3 — enter from licensed protocol",
+          "4": "Transition area 16 · Score 4 — enter from licensed protocol",
+          "5": "Transition area 16 · Score 5 — enter from licensed protocol"
+        }
+      },
+      "17": {
+        "label": "Toileting skills",
+        "criteria": {
+          "1": "Transition area 17 · Score 1 — enter from licensed protocol",
+          "2": "Transition area 17 · Score 2 — enter from licensed protocol",
+          "3": "Transition area 17 · Score 3 — enter from licensed protocol",
+          "4": "Transition area 17 · Score 4 — enter from licensed protocol",
+          "5": "Transition area 17 · Score 5 — enter from licensed protocol"
+        }
+      },
+      "18": {
+        "label": "Eating skills",
+        "criteria": {
+          "1": "Transition area 18 · Score 1 — enter from licensed protocol",
+          "2": "Transition area 18 · Score 2 — enter from licensed protocol",
+          "3": "Transition area 18 · Score 3 — enter from licensed protocol",
+          "4": "Transition area 18 · Score 4 — enter from licensed protocol",
+          "5": "Transition area 18 · Score 5 — enter from licensed protocol"
+        }
+      }
+    },
+    "milestones_score_bands": [
+      {
+        "transition_score": 1,
+        "min": null,
+        "max": null
+      },
+      {
+        "transition_score": 2,
+        "min": null,
+        "max": null
+      },
+      {
+        "transition_score": 3,
+        "min": null,
+        "max": null
+      },
+      {
+        "transition_score": 4,
+        "min": null,
+        "max": null
+      },
+      {
+        "transition_score": 5,
+        "min": null,
+        "max": null
+      }
+    ],
+    "barriers_score_bands": [
+      {
+        "transition_score": 1,
+        "min": null,
+        "max": null
+      },
+      {
+        "transition_score": 2,
+        "min": null,
+        "max": null
+      },
+      {
+        "transition_score": 3,
+        "min": null,
+        "max": null
+      },
+      {
+        "transition_score": 4,
+        "min": null,
+        "max": null
+      },
+      {
+        "transition_score": 5,
+        "min": null,
+        "max": null
+      }
+    ]
+  },
+  "eesa": {
+    "groups": [
+      {
+        "group": 1,
+        "title": "Simple and reduplicated syllables",
+        "description": "Targets: vowels, diphthongs, consonants p, b, m, n, h, w",
+        "items": [
+          "ah",
+          "ee",
+          "oo",
+          "oh",
+          "ay",
+          "m",
+          "b",
+          "p",
+          "w",
+          "h",
+          "mama",
+          "bye",
+          "uh-oh",
+          "baby",
+          "pup",
+          "moo",
+          "neigh",
+          "night",
+          "hi",
+          "me",
+          "cookie",
+          "bubble",
+          "open",
+          "bottle",
+          "happy"
+        ]
+      },
+      {
+        "group": 2,
+        "title": "EESA Group 2 title — enter from licensed protocol",
+        "description": "EESA Group 2 targets — enter from licensed protocol",
+        "items": [
+          "no-no",
+          "dada",
+          "kitty",
+          "ball",
+          "go",
+          "eat",
+          "shoe",
+          "car",
+          "up",
+          "hot",
+          "two",
+          "key",
+          "see",
+          "light",
+          "cup",
+          "boat",
+          "EESA Group 2 · Item 17 — enter from licensed protocol",
+          "EESA Group 2 · Item 18 — enter from licensed protocol",
+          "EESA Group 2 · Item 19 — enter from licensed protocol",
+          "EESA Group 2 · Item 20 — enter from licensed protocol",
+          "EESA Group 2 · Item 21 — enter from licensed protocol",
+          "EESA Group 2 · Item 22 — enter from licensed protocol",
+          "EESA Group 2 · Item 23 — enter from licensed protocol",
+          "EESA Group 2 · Item 24 — enter from licensed protocol",
+          "EESA Group 2 · Item 25 — enter from licensed protocol"
+        ]
+      },
+      {
+        "group": 3,
+        "title": "EESA Group 3 title — enter from licensed protocol",
+        "description": "EESA Group 3 targets — enter from licensed protocol",
+        "items": [
+          "EESA Group 3 · Item 1 — enter from licensed protocol",
+          "EESA Group 3 · Item 2 — enter from licensed protocol",
+          "EESA Group 3 · Item 3 — enter from licensed protocol",
+          "EESA Group 3 · Item 4 — enter from licensed protocol",
+          "EESA Group 3 · Item 5 — enter from licensed protocol",
+          "EESA Group 3 · Item 6 — enter from licensed protocol",
+          "EESA Group 3 · Item 7 — enter from licensed protocol",
+          "EESA Group 3 · Item 8 — enter from licensed protocol",
+          "EESA Group 3 · Item 9 — enter from licensed protocol",
+          "EESA Group 3 · Item 10 — enter from licensed protocol",
+          "EESA Group 3 · Item 11 — enter from licensed protocol",
+          "EESA Group 3 · Item 12 — enter from licensed protocol",
+          "EESA Group 3 · Item 13 — enter from licensed protocol",
+          "EESA Group 3 · Item 14 — enter from licensed protocol",
+          "EESA Group 3 · Item 15 — enter from licensed protocol",
+          "EESA Group 3 · Item 16 — enter from licensed protocol",
+          "EESA Group 3 · Item 17 — enter from licensed protocol",
+          "EESA Group 3 · Item 18 — enter from licensed protocol",
+          "EESA Group 3 · Item 19 — enter from licensed protocol",
+          "EESA Group 3 · Item 20 — enter from licensed protocol"
+        ]
+      },
+      {
+        "group": 4,
+        "title": "EESA Group 4 title — enter from licensed protocol",
+        "description": "EESA Group 4 targets — enter from licensed protocol",
+        "items": [
+          "EESA Group 4 · Item 1 — enter from licensed protocol",
+          "EESA Group 4 · Item 2 — enter from licensed protocol",
+          "EESA Group 4 · Item 3 — enter from licensed protocol",
+          "EESA Group 4 · Item 4 — enter from licensed protocol",
+          "EESA Group 4 · Item 5 — enter from licensed protocol",
+          "EESA Group 4 · Item 6 — enter from licensed protocol",
+          "EESA Group 4 · Item 7 — enter from licensed protocol",
+          "EESA Group 4 · Item 8 — enter from licensed protocol",
+          "EESA Group 4 · Item 9 — enter from licensed protocol",
+          "EESA Group 4 · Item 10 — enter from licensed protocol",
+          "EESA Group 4 · Item 11 — enter from licensed protocol",
+          "EESA Group 4 · Item 12 — enter from licensed protocol",
+          "EESA Group 4 · Item 13 — enter from licensed protocol",
+          "EESA Group 4 · Item 14 — enter from licensed protocol",
+          "EESA Group 4 · Item 15 — enter from licensed protocol"
+        ]
+      },
+      {
+        "group": 5,
+        "title": "EESA Group 5 title — enter from licensed protocol",
+        "description": "EESA Group 5 targets — enter from licensed protocol",
+        "items": [
+          "EESA Group 5 · Item 1 — enter from licensed protocol",
+          "EESA Group 5 · Item 2 — enter from licensed protocol",
+          "EESA Group 5 · Item 3 — enter from licensed protocol",
+          "EESA Group 5 · Item 4 — enter from licensed protocol",
+          "EESA Group 5 · Item 5 — enter from licensed protocol",
+          "EESA Group 5 · Item 6 — enter from licensed protocol",
+          "EESA Group 5 · Item 7 — enter from licensed protocol",
+          "EESA Group 5 · Item 8 — enter from licensed protocol",
+          "EESA Group 5 · Item 9 — enter from licensed protocol",
+          "EESA Group 5 · Item 10 — enter from licensed protocol",
+          "EESA Group 5 · Item 11 — enter from licensed protocol",
+          "EESA Group 5 · Item 12 — enter from licensed protocol",
+          "EESA Group 5 · Item 13 — enter from licensed protocol",
+          "EESA Group 5 · Item 14 — enter from licensed protocol",
+          "EESA Group 5 · Item 15 — enter from licensed protocol"
+        ]
+      }
+    ],
+    "echoic_milestone_mapping": [
+      {
+        "min_total": null,
+        "echoic_score": null
+      },
+      {
+        "min_total": null,
+        "echoic_score": null
+      },
+      {
+        "min_total": null,
+        "echoic_score": null
+      },
+      {
+        "min_total": null,
+        "echoic_score": null
+      },
+      {
+        "min_total": null,
+        "echoic_score": null
+      }
+    ],
+    "legacy_v1_words": {
+      "group1": [
+        "ah",
+        "ee",
+        "oo",
+        "oh",
+        "ay",
+        "m",
+        "b",
+        "p",
+        "w",
+        "h",
+        "mama",
+        "bye",
+        "uh-oh",
+        "baby",
+        "pup",
+        "moo",
+        "neigh",
+        "night",
+        "hi",
+        "me",
+        "cookie",
+        "bubble",
+        "open",
+        "bottle",
+        "happy"
+      ],
+      "group2": [
+        "no-no",
+        "dada",
+        "kitty",
+        "ball",
+        "go",
+        "eat",
+        "shoe",
+        "car",
+        "up",
+        "hot",
+        "two",
+        "key",
+        "see",
+        "light",
+        "cup",
+        "boat"
+      ]
+    }
+  }
+}

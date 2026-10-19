@@ -3,9 +3,12 @@ import 'package:flutter/services.dart';
 import 'package:roh_erp/core/constants/app_colors.dart';
 import '../../../core/layout/responsive.dart';
 import '../../../core/services/db_queries.dart';
+import '../../../core/services/vbmapp_protocol_content.dart';
 import '../widgets/student_card_grid.dart';
 import '../widgets/student_assessment_banner.dart';
 import 'assessment_records.dart';
+import 'milestone_matrix.dart';
+import 'vbmapp_charts.dart';
 
 class TransitionAssessmentPage extends StatefulWidget {
   const TransitionAssessmentPage({super.key});
@@ -15,18 +18,39 @@ class TransitionAssessmentPage extends StatefulWidget {
       _TransitionAssessmentPageState();
 }
 
+/// The 18 transition areas in 3 categories, scored 1–5 (max 90). Areas 1
+/// and 2 are computed from the saved Milestones / Barriers totals of the same
+/// test once the centre has entered the score bands in the protocol content
+/// file; until then they are scored by hand.
 class _TransitionAssessmentPageState extends State<TransitionAssessmentPage> {
   String? _selectedStudent;
   int? _selectedStudentId;
   int _activeTab = 0; // 0: Assessment, 1: Graph
   List<Map<String, dynamic>> _transitionRecords = [];
+  List<Map<String, dynamic>> _milestoneRecords = [];
+  List<Map<String, dynamic>> _barrierRecords = [];
   bool _saving = false;
-  static const _testLabels = ['1ST', '2ND', '3RD', '4TH'];
+  static const _testLabels = vbTestLabels;
 
-  /// Score boxes keyed '<area number 1..7>|<test number>'.
+  VbMappProtocolContent _protocol = VbMappProtocolContent.current;
+
+  @override
+  void initState() {
+    super.initState();
+    VbMappProtocolContent.load().then((c) {
+      if (!mounted) return;
+      setState(() {
+        _protocol = c;
+        _applyAutoAreas();
+      });
+    });
+  }
+
+  /// Score boxes keyed '<area number 1..18>|<test number>'.
   final Map<String, TextEditingController> _scoreControllers = {};
 
-  /// Area scores per test number, keyed "1".."7". Records are applied
+  /// Area scores per test number, keyed "1".."18" (records from the 7-area
+  /// version use "1".."7", which are the same areas). Records are applied
   /// oldest first, so a newer save overrides the areas it scored.
   Map<int, Map<String, int>> get _scoresPerTest =>
       scoresPerTest(_transitionRecords, 'area_scores');
@@ -36,10 +60,64 @@ class _TransitionAssessmentPageState extends State<TransitionAssessmentPage> {
 
   void _prefillScores() {
     _loadedScores = _scoresPerTest;
-    for (int area = 1; area <= _transitionAreas.length; area++) {
+    for (final area in vbTransitionAreas) {
       for (int t = 1; t <= 4; t++) {
-        final v = _loadedScores[t]?['$area'];
-        _scoreController(area, t).text = v == null ? '' : '$v';
+        final v = _loadedScores[t]?['${area.number}'];
+        _scoreController(area.number, t).text = v == null ? '' : '$v';
+      }
+    }
+    _applyAutoAreas();
+  }
+
+  // ── Areas 1 and 2: computed from Milestones / Barriers totals ──
+
+  /// Milestones total saved for [test], or null.
+  double? _milestonesTotal(int test) {
+    final r = newestRecordForTest(_milestoneRecords, test);
+    if (r == null) return null;
+    return double.tryParse(r['total_score']?.toString() ?? '');
+  }
+
+  /// Barriers total saved for [test] (sum of its scored barriers), or null.
+  double? _barriersTotal(int test) {
+    final scores = scoresPerTest(_barrierRecords, 'barrier_scores')[test];
+    if (scores == null || scores.isEmpty) return null;
+    return scores.values.fold<int>(0, (a, b) => a + b).toDouble();
+  }
+
+  /// Source total and bands for an automatic area (1 or 2), else null.
+  ({double? total, List<ScoreBand> bands, String source})? _autoSource(
+      int area, int test) {
+    if (area == 1 && _protocol.milestonesScoreBands != null) {
+      return (
+        total: _milestonesTotal(test),
+        bands: _protocol.milestonesScoreBands!,
+        source: 'Milestones',
+      );
+    }
+    if (area == 2 && _protocol.barriersScoreBands != null) {
+      return (
+        total: _barriersTotal(test),
+        bands: _protocol.barriersScoreBands!,
+        source: 'Barriers',
+      );
+    }
+    return null;
+  }
+
+  /// Whether the box for [area]/[test] is filled automatically (read-only).
+  bool _isAuto(int area, int test) => _autoSource(area, test) != null;
+
+  /// Writes the computed scores of areas 1 and 2 into their boxes.
+  void _applyAutoAreas() {
+    for (final area in const [1, 2]) {
+      for (int t = 1; t <= 4; t++) {
+        final src = _autoSource(area, t);
+        if (src == null) continue;
+        final score = src.total == null
+            ? null
+            : transitionScoreFromBands(src.bands, src.total!);
+        _scoreController(area, t).text = score == null ? '' : '$score';
       }
     }
   }
@@ -63,19 +141,19 @@ class _TransitionAssessmentPageState extends State<TransitionAssessmentPage> {
     final studentId = _selectedStudentId;
     if (studentId == null || _saving) return;
 
-    // area_scores is keyed "1".."7"; each filled value must be 1–5.
+    // area_scores is keyed "1".."18"; each filled value must be 1–5.
     final byTest = <int, Map<String, int>>{};
-    for (int area = 1; area <= _transitionAreas.length; area++) {
+    for (final area in vbTransitionAreas) {
       for (int t = 1; t <= 4; t++) {
-        final text = _scoreController(area, t).text.trim();
+        final text = _scoreController(area.number, t).text.trim();
         if (text.isEmpty) continue;
         final v = int.tryParse(text);
         if (v == null || v < 1 || v > 5) {
-          _showError(
-              '"${_transitionAreas[area - 1]['title']}" ${_testLabels[t - 1]} score must be 1 to 5.');
+          _showError('"${area.label}" ${_testLabels[t - 1]} score must be '
+              '1 to 5.');
           return;
         }
-        (byTest[t] ??= {})['$area'] = v;
+        (byTest[t] ??= {})['${area.number}'] = v;
       }
     }
     if (byTest.isEmpty) {
@@ -93,27 +171,28 @@ class _TransitionAssessmentPageState extends State<TransitionAssessmentPage> {
     }
 
     setState(() => _saving = true);
-    var ok = true;
+    String? error;
     for (final entry in byTest.entries) {
-      ok = await TransitionAssessmentQueries.save({
+      error = await TransitionAssessmentQueries.trySave({
         'student_id': studentId,
         'test_number': entry.key,
         'assessment_date': assessmentDateFor(
             newestRecordForTest(_transitionRecords, entry.key)),
         'area_scores': entry.value,
         'total_score': entry.value.values.fold<int>(0, (a, b) => a + b),
-        'max_score': _transitionAreas.length * 5,
+        'max_score': vbTransitionMaxScore,
       });
-      if (!ok) break;
+      if (error != null) break;
     }
     if (!mounted) return;
     setState(() => _saving = false);
-    if (!ok) {
-      _showError('Could not save the transition assessment. Please try again.');
+    if (error != null) {
+      _showError('Could not save the transition assessment: $error');
       return;
     }
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Transition Assessment Saved Successfully!')),
+      const SnackBar(
+          content: Text('Transition Assessment Saved Successfully!')),
     );
     await _loadTransitionData();
     if (mounted) setState(() => _activeTab = 1);
@@ -124,20 +203,6 @@ class _TransitionAssessmentPageState extends State<TransitionAssessmentPage> {
       SnackBar(content: Text(message), backgroundColor: Colors.red),
     );
   }
-
-  /// The latest assessment: the highest test number with saved scores.
-  int? get _latestTest {
-    final tests = _scoresPerTest.entries
-        .where((e) => e.value.isNotEmpty)
-        .map((e) => e.key)
-        .toList()
-      ..sort();
-    return tests.isEmpty ? null : tests.last;
-  }
-
-  /// Area scores ("1".."7") of the latest test.
-  Map<String, int> get _latestAreaScores =>
-      _latestTest == null ? {} : _scoresPerTest[_latestTest]!;
 
   int _resolveStudentId(String name) {
     final lower = name.toLowerCase();
@@ -151,91 +216,24 @@ class _TransitionAssessmentPageState extends State<TransitionAssessmentPage> {
   }
 
   Future<void> _loadTransitionData() async {
-    if (_selectedStudentId == null) return;
+    final studentId = _selectedStudentId;
+    if (studentId == null) return;
     try {
-      final res = await TransitionAssessmentQueries.fetchForStudent(
-          _selectedStudentId.toString());
+      final results = await Future.wait([
+        TransitionAssessmentQueries.fetchForStudent('$studentId'),
+        MilestoneAssessmentQueries.fetchForStudent('$studentId'),
+        BarriersAssessmentQueries.fetchForStudent('$studentId'),
+      ]);
       if (mounted) {
         setState(() {
-          _transitionRecords = res;
+          _transitionRecords = results[0];
+          _milestoneRecords = results[1];
+          _barrierRecords = results[2];
           _prefillScores();
         });
       }
     } catch (_) {}
   }
-
-  final List<Map<String, dynamic>> _transitionAreas = [
-    {
-      'title': 'VB-MAPP Milestones Assessment Score',
-      'options': [
-        'Scores 0 to 25 on the Milestone Assessment',
-        'Scores 26 to 50 on the Milestones Assessment',
-        'Scores 51 to 100 on the Milestones Assessment',
-        'Scores 101 to 135 on the Milestones Assessment',
-        'Scores 136 to 170 on the Milestones Assessment',
-      ],
-    },
-    {
-      'title': 'VB-MAPP Barriers Assessment Score',
-      'options': [
-        'Scores 56 to 96 on the Barriers Assessment (Severe barriers)',
-        'Scores 30 to 55 on the Barriers Assessment (Moderate barriers)',
-        'Scores 20 to 29 on the Barriers Assessment (Mild barriers)',
-        'Scores 10 to 19 on the Barriers Assessment (Very few barriers)',
-        'Scores 0 to 9 on the Barriers Assessment (No significant barriers)',
-      ],
-    },
-    {
-      'title': 'Negative Behaviors and Instructional Control',
-      'options': [
-        'Severe behavior problems, requires 1:1 supervision at all times',
-        'Moderate behavior problems, requires frequent intervention',
-        'Occasional minor behaviors, easily redirected by staff',
-        'Rare minor behaviors, responds promptly to typical instructions',
-        'No significant behavior problems, follows classroom routines independently',
-      ],
-    },
-    {
-      'title': 'Classroom Routines and Group Skills',
-      'options': [
-        'Does not participate in any group activities or follow routines',
-        'Participates in 1-2 small group activities with intensive prompts',
-        'Follows 3-4 daily routines with gestural or verbal prompts',
-        'Participates in small groups (2-3 peers) for 10 minutes with minimal prompts',
-        'Participates in whole group activities (5+ peers) for 15+ minutes independently',
-      ],
-    },
-    {
-      'title': 'Social Behavior and Social Play',
-      'options': [
-        'Does not interact with peers, engages only in solitary or self-stimulatory play',
-        'Parallel play near peers without disruption for 5 minutes',
-        'Initiates 2-3 interactions or shares items with peers with prompts',
-        'Spontaneously plays interactive games with peers for 10 minutes',
-        'Has reciprocal friendships, engages in cooperative pretend play and conversation',
-      ],
-    },
-    {
-      'title': 'Independent Work on Academic Tasks',
-      'options': [
-        'Cannot work independently for any duration on structured tasks',
-        'Completes 1 simple previously mastered task with 1:1 adult nearby',
-        'Works independently for 2 minutes completing 2 mastered tasks',
-        'Works independently for 5 minutes completing a work-task bin system',
-        'Works independently for 15 minutes completing new instructional tasks',
-      ],
-    },
-    {
-      'title': 'Generalization Across Time, Settings, Behaviors, and People',
-      'options': [
-        'Skills do not generalize beyond specific therapist and training setting',
-        'Generalizes to 1 other person or setting with high reinforcement',
-        'Generalizes skills to 2-3 novel persons and novel stimulus materials',
-        'Consistently generalizes across multiple settings, instructors, and materials',
-        'Rapidly generalizes newly acquired skills across natural environmental contexts',
-      ],
-    },
-  ];
 
   @override
   Widget build(BuildContext context) {
@@ -249,6 +247,8 @@ class _TransitionAssessmentPageState extends State<TransitionAssessmentPage> {
             _selectedStudentId = studentId ?? _resolveStudentId(student);
             _activeTab = 0;
             _transitionRecords = [];
+            _milestoneRecords = [];
+            _barrierRecords = [];
             _loadedScores = {};
             for (final c in _scoreControllers.values) {
               c.clear();
@@ -316,7 +316,7 @@ class _TransitionAssessmentPageState extends State<TransitionAssessmentPage> {
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: const Text(
-                  'Rate the Child on a Scale of 1 to 5 for Each Area',
+                  'Rate the Child 1 to 5 in Each of the 18 Areas (max 90)',
                   style: TextStyle(
                     fontFamily: 'Poppins',
                     fontSize: 12,
@@ -361,15 +361,18 @@ class _TransitionAssessmentPageState extends State<TransitionAssessmentPage> {
             ),
             const SizedBox(height: 20),
 
-            // Transition assessment cards
-            for (int i = 0; i < _transitionAreas.length; i++) ...[
-              _buildTransitionCard(
-                  i + 1,
-                  _transitionAreas[i]['title'] as String,
-                  _transitionAreas[i]['options'] as List<String>),
-              const SizedBox(height: 16),
+            // Transition assessment cards, grouped by category
+            for (int c = 0; c < vbTransitionCategories.length; c++) ...[
+              _buildCategoryHeader(c),
+              const SizedBox(height: 12),
+              for (final area
+                  in vbTransitionAreas.where((a) => a.category == c)) ...[
+                _buildTransitionCard(area),
+                const SizedBox(height: 16),
+              ],
+              const SizedBox(height: 8),
             ],
-            const SizedBox(height: 16),
+            const SizedBox(height: 8),
 
             // Cancel & Save Buttons
             Row(
@@ -417,6 +420,28 @@ class _TransitionAssessmentPageState extends State<TransitionAssessmentPage> {
     );
   }
 
+  Widget _buildCategoryHeader(int category) {
+    final areas = vbTransitionAreas.where((a) => a.category == category);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF3E8FF),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Text(
+        '${vbTransitionCategories[category]} · areas '
+        '${areas.first.number}–${areas.last.number}',
+        style: const TextStyle(
+          fontFamily: 'Poppins',
+          fontSize: 14,
+          fontWeight: FontWeight.bold,
+          color: AppColors.primary,
+        ),
+      ),
+    );
+  }
+
   Widget _buildTopTab(String label, int index) {
     final isSelected = _activeTab == index;
     return GestureDetector(
@@ -441,14 +466,33 @@ class _TransitionAssessmentPageState extends State<TransitionAssessmentPage> {
     );
   }
 
+  /// Total of the saved area scores of each test (null = test not saved).
+  Map<int, double?> get _testTotals {
+    final perTest = _scoresPerTest;
+    return {
+      for (int t = 1; t <= 4; t++)
+        t: (perTest[t]?.isNotEmpty ?? false)
+            ? perTest[t]!.values.fold<int>(0, (a, b) => a + b).toDouble()
+            : null,
+    };
+  }
+
+  /// Graph: total per test, then every area with one bar per test (1–5).
   Widget _buildGraphView() {
-    final latestAreaScores = _latestAreaScores;
+    final perTest = _scoresPerTest;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         StudentAssessmentBanner(
           studentName: _selectedStudent ?? 'Student',
           records: _transitionRecords,
+        ),
+        const SizedBox(height: 24),
+        TestTotalsChart(
+          title: 'Transition total score per test',
+          subtitle: 'Sum of the scored areas (higher is better).',
+          totals: _testTotals,
+          maxScore: vbTransitionMaxScore.toDouble(),
         ),
         const SizedBox(height: 24),
         Container(
@@ -463,7 +507,7 @@ class _TransitionAssessmentPageState extends State<TransitionAssessmentPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                'Transition Assessment Scoring Summary',
+                'Transition Assessment: all tests by area',
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
@@ -471,84 +515,23 @@ class _TransitionAssessmentPageState extends State<TransitionAssessmentPage> {
                   fontFamily: 'Poppins',
                 ),
               ),
-              const SizedBox(height: 6),
-              Text(
-                _latestTest == null
-                    ? 'No transition assessment saved yet.'
-                    : 'Showing the latest test: '
-                        '${_testLabels[_latestTest! - 1]} '
-                        '(${assessmentDateFor(newestRecordForTest(_transitionRecords, _latestTest!))})',
-                style: const TextStyle(
-                    fontSize: 12, color: AppColors.textSecondary),
-              ),
+              const SizedBox(height: 8),
+              const TestColorKey(),
               const SizedBox(height: 20),
-              for (int i = 0; i < _transitionAreas.length; i++) ...[
-                Builder(
-                  builder: (context) {
-                    final activeScore = latestAreaScores['${i + 1}'] ?? 0;
-
-                    final label = Text(
-                      _transitionAreas[i]['title'] as String,
-                      style: const TextStyle(
-                          fontSize: 12, fontWeight: FontWeight.w600),
-                    );
-                    final bar = Row(
-                      children: List.generate(5, (scoreIdx) {
-                        final score = scoreIdx + 1;
-                        final isAchieved = activeScore >= score;
-                        return Expanded(
-                          child: Container(
-                            height: 28,
-                            margin: const EdgeInsets.symmetric(horizontal: 2),
-                            decoration: BoxDecoration(
-                              color: isAchieved
-                                  ? AppColors.primary
-                                  : const Color(0xFFF3F4F6),
-                              borderRadius: BorderRadius.circular(4),
-                              border: Border.all(
-                                color: isAchieved
-                                    ? AppColors.primary
-                                    : AppColors.divider,
-                              ),
-                            ),
-                            alignment: Alignment.center,
-                            child: Text(
-                              '$score',
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                                color: isAchieved
-                                    ? Colors.white
-                                    : AppColors.textSecondary,
-                              ),
-                            ),
-                          ),
-                        );
-                      }),
-                    );
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 12.0),
-                      child: LayoutBuilder(
-                        builder: (context, rowConstraints) {
-                          // Narrow: label above the full-width 1–5 score bar.
-                          if (rowConstraints.maxWidth < 520) {
-                            return Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [label, const SizedBox(height: 6), bar],
-                            );
-                          }
-                          return Row(
-                            children: [
-                              SizedBox(width: 280, child: label),
-                              const SizedBox(width: 16),
-                              Expanded(child: bar),
-                            ],
-                          );
-                        },
-                      ),
-                    );
-                  },
+              for (int c = 0; c < vbTransitionCategories.length; c++) ...[
+                Text(
+                  '${vbTransitionCategories[c]} · '
+                  '${_categorySubtotalText(perTest, c)}',
+                  style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.primary),
                 ),
+                const SizedBox(height: 10),
+                for (final area
+                    in vbTransitionAreas.where((a) => a.category == c))
+                  _buildAreaComparisonRow(area, perTest),
+                const SizedBox(height: 12),
               ],
             ],
           ),
@@ -557,8 +540,83 @@ class _TransitionAssessmentPageState extends State<TransitionAssessmentPage> {
     );
   }
 
-  Widget _buildTransitionCard(
-      int areaNumber, String title, List<String> options) {
+  /// "1ST 12/35 · 2ND 15/35" for the tests that scored this category.
+  String _categorySubtotalText(Map<int, Map<String, int>> perTest, int c) {
+    final areas = vbTransitionAreas.where((a) => a.category == c).toList();
+    final parts = <String>[];
+    for (int t = 1; t <= 4; t++) {
+      final scores = perTest[t];
+      if (scores == null || scores.isEmpty) continue;
+      final sum =
+          areas.fold<int>(0, (s, a) => s + (scores['${a.number}'] ?? 0));
+      parts.add('${_testLabels[t - 1]} $sum/${areas.length * 5}');
+    }
+    return parts.isEmpty ? 'not scored yet' : parts.join(' · ');
+  }
+
+  Widget _buildAreaComparisonRow(
+      VbTransitionArea area, Map<int, Map<String, int>> perTest) {
+    final label = Text(
+      '${area.number}. ${area.label}',
+      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+    );
+    final bars = Column(
+      children: [
+        for (int t = 1; t <= 4; t++)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 1.5),
+            child: LayoutBuilder(builder: (context, c) {
+              final score = perTest[t]?['${area.number}'];
+              return Row(
+                children: [
+                  Container(
+                    height: 10,
+                    width: score == null ? 0 : c.maxWidth * 0.85 * score / 5,
+                    decoration: BoxDecoration(
+                      color: milestoneTestColors[t],
+                      borderRadius: BorderRadius.circular(3),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    score == null ? '–' : '$score',
+                    style: const TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textSecondary),
+                  ),
+                ],
+              );
+            }),
+          ),
+      ],
+    );
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12.0),
+      child: LayoutBuilder(
+        builder: (context, rowConstraints) {
+          if (rowConstraints.maxWidth < 520) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [label, const SizedBox(height: 6), bars],
+            );
+          }
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(width: 280, child: label),
+              const SizedBox(width: 16),
+              Expanded(child: bars),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildTransitionCard(VbTransitionArea area) {
+    final areaNumber = area.number;
+    final autoNote = _autoNote(areaNumber);
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
@@ -573,7 +631,7 @@ class _TransitionAssessmentPageState extends State<TransitionAssessmentPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                title,
+                '$areaNumber. ${area.label}',
                 style: const TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
@@ -581,8 +639,18 @@ class _TransitionAssessmentPageState extends State<TransitionAssessmentPage> {
                   color: AppColors.textPrimary,
                 ),
               ),
+              if (autoNote != null) ...[
+                const SizedBox(height: 4),
+                Text(
+                  autoNote,
+                  style: const TextStyle(
+                      fontSize: 11,
+                      fontStyle: FontStyle.italic,
+                      color: AppColors.textSecondary),
+                ),
+              ],
               const SizedBox(height: 12),
-              for (int i = 0; i < options.length; i++) ...[
+              for (int score = 1; score <= 5; score++) ...[
                 Padding(
                   padding: const EdgeInsets.only(bottom: 6.0),
                   child: Row(
@@ -596,9 +664,9 @@ class _TransitionAssessmentPageState extends State<TransitionAssessmentPage> {
                           borderRadius: BorderRadius.circular(4),
                         ),
                         alignment: Alignment.center,
-                        child: const Text(
-                          '',
-                          style: TextStyle(
+                        child: Text(
+                          '$score',
+                          style: const TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.bold,
                               fontSize: 12),
@@ -615,7 +683,7 @@ class _TransitionAssessmentPageState extends State<TransitionAssessmentPage> {
                             border: Border.all(color: AppColors.divider),
                           ),
                           child: Text(
-                            options[i],
+                            _protocol.transitionCriterion(area, score),
                             style: const TextStyle(
                                 fontSize: 12, color: AppColors.textPrimary),
                           ),
@@ -648,8 +716,9 @@ class _TransitionAssessmentPageState extends State<TransitionAssessmentPage> {
                   runSpacing: 8,
                   children: [
                     for (int t = 1; t <= 4; t++)
-                      _buildScoreInputRow(_testLabels[t - 1],
-                          _scoreController(areaNumber, t)),
+                      _buildScoreInputRow(
+                          _testLabels[t - 1], _scoreController(areaNumber, t),
+                          readOnly: _isAuto(areaNumber, t)),
                   ],
                 ),
               ],
@@ -671,8 +740,9 @@ class _TransitionAssessmentPageState extends State<TransitionAssessmentPage> {
                     const SizedBox(height: 12),
                     for (int t = 1; t <= 4; t++) ...[
                       if (t > 1) const SizedBox(height: 8),
-                      _buildScoreInputRow(_testLabels[t - 1],
-                          _scoreController(areaNumber, t)),
+                      _buildScoreInputRow(
+                          _testLabels[t - 1], _scoreController(areaNumber, t),
+                          readOnly: _isAuto(areaNumber, t)),
                     ],
                   ],
                 ),
@@ -684,7 +754,26 @@ class _TransitionAssessmentPageState extends State<TransitionAssessmentPage> {
     );
   }
 
-  Widget _buildScoreInputRow(String label, TextEditingController controller) {
+  /// Explains how areas 1 and 2 are scored (auto from totals, or by hand).
+  String? _autoNote(int area) {
+    if (area != 1 && area != 2) return null;
+    final source = area == 1 ? 'Milestones' : 'Barriers';
+    if (!_isAuto(area, 1)) {
+      return 'Score by hand: the $source score bands have not been entered '
+          'in the protocol content file yet.';
+    }
+    final parts = <String>[];
+    for (int t = 1; t <= 4; t++) {
+      final total = _autoSource(area, t)!.total;
+      parts.add('${_testLabels[t - 1]} '
+          '${total == null ? 'not saved' : formatVbScore(total)}');
+    }
+    return 'Computed from the saved $source total of the same test '
+        '(${parts.join(' · ')}).';
+  }
+
+  Widget _buildScoreInputRow(String label, TextEditingController controller,
+      {bool readOnly = false}) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       mainAxisAlignment: MainAxisAlignment.center,
@@ -708,13 +797,14 @@ class _TransitionAssessmentPageState extends State<TransitionAssessmentPage> {
           width: 50,
           height: 30,
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: readOnly ? const Color(0xFFF3F4F6) : Colors.white,
             borderRadius: BorderRadius.circular(6),
             border: Border.all(color: AppColors.divider),
           ),
           alignment: Alignment.center,
           child: TextField(
             controller: controller,
+            readOnly: readOnly,
             textAlign: TextAlign.center,
             keyboardType: TextInputType.number,
             inputFormatters: [
