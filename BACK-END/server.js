@@ -1702,6 +1702,17 @@ app.all(['/api.php', '/api', '/api/api.php', '/api/v1'], async (req, res) => {
           if (own[0].therapist_id !== auth.sub) return res.status(403).json({ error: 'Forbidden: not your session' });
         }
 
+        const [before] = await pool.query(
+          `SELECT ts.status, ts.student_id, ts.session_date, ts.start_time, ts.end_time,
+                  u.name AS therapist_name, CONCAT(st.first_name, ' ', st.last_name) AS student_name
+           FROM therapy_sessions ts
+           LEFT JOIN users u ON u.id = ts.therapist_id
+           LEFT JOIN students st ON st.id = ts.student_id
+           WHERE ts.id = ? LIMIT 1`,
+          [sessionId]
+        );
+        if (!before.length) return res.status(404).json({ error: 'Session not found' });
+
         const allowedStatus = ['upcoming', 'inProgress', 'completed', 'cancelled'];
         if (input.status && !allowedStatus.includes(input.status)) return res.status(400).json({ error: 'Invalid session status' });
         const status = input.status || null;
@@ -1724,6 +1735,14 @@ app.all(['/api.php', '/api', '/api/api.php', '/api/v1'], async (req, res) => {
         );
 
         await auditLog(auth.sub, auth.role, 'UPDATE_SESSION', 'therapy_sessions', sessionId, ip, ua, `Updated therapy session ${sessionId}`);
+
+        // A therapist finishing a session lets the Clinical Director know.
+        if (status === 'completed' && before.length && before[0].status !== 'completed') {
+          const b = before[0];
+          await notifyRole('director', 'SESSION_COMPLETED', 'Session Completed',
+            `${b.therapist_name || 'A therapist'} completed the session with ${b.student_name || 'a student'} (${b.session_date} ${b.start_time}–${b.end_time}).`,
+            { session_id: sessionId, student_id: b.student_id });
+        }
         return res.json({ success: true, id: sessionId });
       }
 

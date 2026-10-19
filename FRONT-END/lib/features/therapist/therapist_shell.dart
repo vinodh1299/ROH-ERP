@@ -10,6 +10,8 @@ import '../../core/widgets/two_step_logout_dialog.dart';
 import '../../core/widgets/notification_center_drawer.dart';
 import '../../core/services/notification_service.dart';
 import '../../core/services/system_notifications.dart';
+import '../../core/services/schedule_service.dart';
+import '../../core/services/session_reminders.dart';
 import '../auth/auth_service.dart';
 import '../auth/widgets/forced_password_change_dialog.dart';
 import 'dashboard/therapist_dashboard_page.dart';
@@ -55,7 +57,25 @@ class _TherapistShellState extends State<TherapistShell> {
       ForcedPasswordChangeDialog.showIfNeeded(context);
       NotificationService().fetchNotifications();
       SystemNotifications.requestPermission();
+      ScheduleService().addListener(_syncSessionReminders);
+      _syncSessionReminders();
     });
+  }
+
+  @override
+  void dispose() {
+    ScheduleService().removeListener(_syncSessionReminders);
+    super.dispose();
+  }
+
+  /// Keeps the 5-minute-before alerts in step with this therapist's sessions.
+  void _syncSessionReminders() {
+    final me = context.read<AuthService>().currentUser?.id.toString();
+    if (me == null) return;
+    SessionReminders.sync(ScheduleService()
+        .allSessions
+        .where((s) => s.therapistId == me)
+        .toList());
   }
 
   late final List<Widget> _pages = [

@@ -26,6 +26,7 @@ class DailyDataSheetPage extends StatefulWidget {
 
 class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
   String? _selectedStudent;
+  bool _loadingStudent = false; // records for the selected student loading
   int? _selectedStudentId;
   int _activeTab =
       0; // 0: Manding, 1: Manding Graph, 2: Daily Data Sheet, 3: Skill Tracking Sheet, 4: Acquisition Graph, 5: ABC Data, 6: BRP, 7: PB Graph, 8: IEP Report
@@ -208,6 +209,7 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
       _brpMeasurementController.clear();
       _records.clear();
       _abcIncidents.clear();
+      _loadingStudent = true;
       _loadStudentData(resetFilters: true);
     });
   }
@@ -225,6 +227,7 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
       final records = results[0];
       if (mounted) {
         setState(() {
+          _loadingStudent = false;
           _records
             ..clear()
             ..addAll(records);
@@ -319,7 +322,9 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
           _applyMandingDate();
         });
       }
-    } catch (_) {}
+    } catch (_) {
+      if (mounted) setState(() => _loadingStudent = false);
+    }
   }
 
   // ── Data helpers ──────────────────────────────────────────────────────────
@@ -971,6 +976,7 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (_loadingStudent) const LinearProgressIndicator(minHeight: 2),
           // Header Row with Back Button & Student Title
           Row(
             children: [
@@ -998,7 +1004,7 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
                                 ? 'BRP'
                                 : (_activeTab == 7
                                     ? 'PBH Graph'
-                                    : 'Daily Data Analysis')),
+                                    : 'Daily Data Sheet')),
                         style: const TextStyle(
                             fontWeight: FontWeight.bold,
                             color: AppColors.textPrimary),
