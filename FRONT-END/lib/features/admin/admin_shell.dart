@@ -16,8 +16,6 @@ import 'dashboard/admin_dashboard_page.dart';
 import 'director_calendar/admin_director_calendar_page.dart';
 import 'therapists/admin_therapists_page.dart';
 import 'students/admin_students_page.dart';
-import 'stud_progress/admin_stud_progress_page.dart';
-import 'iep_reports/admin_iep_reports_page.dart';
 import 'settings/admin_settings_page.dart';
 
 class AdminShell extends StatefulWidget {
@@ -54,13 +52,10 @@ class _AdminShellState extends State<AdminShell> {
     AdminDashboardPage(
       onNavigateCalendar: () => setState(() => _selectedIndex = 1),
       onNavigateStudents: () => setState(() => _selectedIndex = 3),
-      onNavigateIepReports: () => setState(() => _selectedIndex = 5),
     ),
     const AdminDirectorCalendarPage(),
     const AdminTherapistsPage(),
     const AdminStudentsPage(),
-    const AdminStudProgressPage(),
-    const AdminIepReportsPage(),
     const AdminSettingsPage(),
   ];
 
@@ -103,11 +98,7 @@ class _AdminShellState extends State<AdminShell> {
               isDrawer: isMobile, rail: isRail),
           _buildNavItem(3, 'Students', Icons.person_outline,
               isDrawer: isMobile, rail: isRail),
-          _buildNavItem(4, 'Stud Progress', Icons.bar_chart,
-              isDrawer: isMobile, rail: isRail),
-          _buildNavItem(5, 'IEP Reports', Icons.credit_card_outlined,
-              isDrawer: isMobile, rail: isRail),
-          _buildNavItem(6, 'Settings', Icons.settings_outlined,
+          _buildNavItem(4, 'Settings', Icons.settings_outlined,
               isDrawer: isMobile, rail: isRail),
         ],
       ),
@@ -178,7 +169,7 @@ class _AdminShellState extends State<AdminShell> {
           ),
           SizedBox(width: isMobile ? 8 : 16),
           PopupMenuButton<String>(
-            tooltip: 'Profile & Portal Switcher',
+            tooltip: 'Profile',
             offset: const Offset(0, 48),
             onSelected: (value) async {
               if (value == 'logout') {
@@ -190,51 +181,9 @@ class _AdminShellState extends State<AdminShell> {
                         .pushReplacementNamed(AppConstants.routeLogin);
                   }
                 }
-              } else {
-                Navigator.of(context).pushReplacementNamed(value);
               }
             },
             itemBuilder: (context) => [
-              const PopupMenuItem(
-                enabled: false,
-                child: Text('Switch Portal',
-                    style:
-                        TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-              ),
-              const PopupMenuItem(
-                value: AppConstants.routeAdmin,
-                child: Row(
-                  children: [
-                    Icon(Icons.admin_panel_settings,
-                        size: 18, color: AppColors.primary),
-                    SizedBox(width: 8),
-                    Text('Admin Panel'),
-                  ],
-                ),
-              ),
-              const PopupMenuItem(
-                value: AppConstants.routeTherapist,
-                child: Row(
-                  children: [
-                    Icon(Icons.medical_services,
-                        size: 18, color: AppColors.primary),
-                    SizedBox(width: 8),
-                    Text('Therapist Panel'),
-                  ],
-                ),
-              ),
-              const PopupMenuItem(
-                value: AppConstants.routeParent,
-                child: Row(
-                  children: [
-                    Icon(Icons.family_restroom,
-                        size: 18, color: AppColors.primary),
-                    SizedBox(width: 8),
-                    Text('Parent Panel'),
-                  ],
-                ),
-              ),
-              const PopupMenuDivider(),
               const PopupMenuItem(
                 value: 'logout',
                 child: Row(
@@ -272,14 +221,14 @@ class _AdminShellState extends State<AdminShell> {
         bottomNavigationBar: CustomMobileBottomBar(
           currentIndex: () {
             if (_selectedIndex == 0) return 0; // Dashboard
-            if (_selectedIndex == 2) return 1; // Therapist
-            if (_selectedIndex == 3) return 2; // Students
-            if (_selectedIndex == 4) return 3; // Stud Progress
-            if (_selectedIndex == 5) return 4; // IEP Reports
+            if (_selectedIndex == 1) return 1; // Calendar
+            if (_selectedIndex == 2) return 2; // Therapist
+            if (_selectedIndex == 3) return 3; // Students
+            if (_selectedIndex == 4) return 4; // Settings
             return -1;
           }(),
           onTap: (index) {
-            const mapping = [0, 2, 3, 4, 5];
+            const mapping = [0, 1, 2, 3, 4];
             setState(() => _selectedIndex = mapping[index]);
           },
           items: const [
@@ -287,6 +236,11 @@ class _AdminShellState extends State<AdminShell> {
               icon: Icons.dashboard_outlined,
               activeIcon: Icons.dashboard,
               label: 'Dashboard',
+            ),
+            CustomMobileBottomBarItem(
+              icon: Icons.event_available_outlined,
+              activeIcon: Icons.event_available,
+              label: 'Calendar',
             ),
             CustomMobileBottomBarItem(
               icon: Icons.volunteer_activism_outlined,
@@ -299,14 +253,9 @@ class _AdminShellState extends State<AdminShell> {
               label: 'Students',
             ),
             CustomMobileBottomBarItem(
-              icon: Icons.trending_up,
-              activeIcon: Icons.bar_chart,
-              label: 'Stud Progress',
-            ),
-            CustomMobileBottomBarItem(
-              icon: Icons.assignment_outlined,
-              activeIcon: Icons.credit_card,
-              label: 'IEP Reports',
+              icon: Icons.settings_outlined,
+              activeIcon: Icons.settings,
+              label: 'Settings',
             ),
           ],
         ),

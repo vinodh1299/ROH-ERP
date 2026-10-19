@@ -413,7 +413,7 @@ CREATE TABLE IF NOT EXISTS `clinical_governance_settings` (
   `stagnation_alert_days` INT UNSIGNED NOT NULL DEFAULT 21,
   `supervision_ratio_target` DECIMAL(4,2) NOT NULL DEFAULT 5.00, -- BACB 5% rule
   `dual_signoff_crisis` TINYINT(1) NOT NULL DEFAULT 1,
-  `director_signature_name` VARCHAR(120) NOT NULL DEFAULT 'Dr. Vincent Sterling',
+  `director_signature_name` VARCHAR(120) NOT NULL DEFAULT 'Clinical Director',
   `director_title` VARCHAR(120) NOT NULL DEFAULT 'BCBA-D, Clinical Director',
   `director_bacb_cert` VARCHAR(80) NOT NULL DEFAULT 'BACB # 1-19-38291',
   `updated_by` INT UNSIGNED DEFAULT NULL,

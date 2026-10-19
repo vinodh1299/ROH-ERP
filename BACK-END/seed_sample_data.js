@@ -18,7 +18,7 @@ const mysql = require('mysql2/promise');
 const bcrypt = require('bcryptjs');
 
 const SAMPLE_USERS = {
-  director: { name: 'Dr. Meera Iyer (Sample)', email: 'sample.director@example.com', phone: '+91 98400 00001' },
+  director: { name: 'Dr. Priya Raghavan (Sample)', email: 'sample.director@example.com', phone: '+91 98400 00001' },
   therapist: { name: 'Anjali Rao (Sample)', email: 'sample.therapist@example.com', phone: '+91 98400 00002' },
   parent: { name: 'Ravi Sharma (Sample)', email: 'sample.parent@example.com', phone: '+91 98400 00003' },
 };

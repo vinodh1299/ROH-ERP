@@ -249,7 +249,7 @@ class _TherapistShellState extends State<TherapistShell> {
           ),
           SizedBox(width: isMobile ? 8 : 16),
           PopupMenuButton<String>(
-            tooltip: 'Profile & Portal Switcher',
+            tooltip: 'Profile',
             offset: const Offset(0, 48),
             onSelected: (value) async {
               if (value == 'logout') {
@@ -261,51 +261,9 @@ class _TherapistShellState extends State<TherapistShell> {
                         .pushReplacementNamed(AppConstants.routeLogin);
                   }
                 }
-              } else {
-                Navigator.of(context).pushReplacementNamed(value);
               }
             },
             itemBuilder: (context) => [
-              const PopupMenuItem(
-                enabled: false,
-                child: Text('Switch Portal',
-                    style:
-                        TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-              ),
-              const PopupMenuItem(
-                value: AppConstants.routeAdmin,
-                child: Row(
-                  children: [
-                    Icon(Icons.admin_panel_settings,
-                        size: 18, color: AppColors.primary),
-                    SizedBox(width: 8),
-                    Text('Admin Panel'),
-                  ],
-                ),
-              ),
-              const PopupMenuItem(
-                value: AppConstants.routeTherapist,
-                child: Row(
-                  children: [
-                    Icon(Icons.medical_services,
-                        size: 18, color: AppColors.primary),
-                    SizedBox(width: 8),
-                    Text('Therapist Panel'),
-                  ],
-                ),
-              ),
-              const PopupMenuItem(
-                value: AppConstants.routeParent,
-                child: Row(
-                  children: [
-                    Icon(Icons.family_restroom,
-                        size: 18, color: AppColors.primary),
-                    SizedBox(width: 8),
-                    Text('Parent Panel'),
-                  ],
-                ),
-              ),
-              const PopupMenuDivider(),
               const PopupMenuItem(
                 value: 'logout',
                 child: Row(

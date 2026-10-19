@@ -419,7 +419,7 @@ class _AdminDirectorCalendarPageState extends State<AdminDirectorCalendarPage> {
                     ),
                     const SizedBox(height: 6),
                     const Text(
-                      'Scheduled for Dr. Vincent Sterling • Clinical Director',
+                      'Scheduled for the Clinical Director',
                       style: TextStyle(
                           fontSize: 12, color: AppColors.textSecondary),
                     ),

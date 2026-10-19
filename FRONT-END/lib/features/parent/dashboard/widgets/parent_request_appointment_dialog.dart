@@ -232,7 +232,7 @@ class _ParentRequestAppointmentDialogState
                         ),
                         SizedBox(height: 2),
                         Text(
-                          'Dr. Vincent Sterling, BCBA-D • Clinical Director',
+                          'Clinical Director',
                           style: TextStyle(
                             color: Colors.white70,
                             fontSize: 12,
