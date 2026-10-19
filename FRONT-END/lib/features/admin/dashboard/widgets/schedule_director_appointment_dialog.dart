@@ -9,7 +9,12 @@ import 'package:roh_erp/core/services/schedule_service.dart';
 class ScheduleDirectorAppointmentDialog extends StatefulWidget {
   final DateTime? initialDate;
 
-  const ScheduleDirectorAppointmentDialog({super.key, this.initialDate});
+  /// Time slot (e.g. "09:00 AM - 10:00 AM") to preselect, typically the slot
+  /// the user tapped. Ignored when it is not open on [initialDate].
+  final String? initialSlot;
+
+  const ScheduleDirectorAppointmentDialog(
+      {super.key, this.initialDate, this.initialSlot});
 
   @override
   State<ScheduleDirectorAppointmentDialog> createState() =>
@@ -36,6 +41,7 @@ class _ScheduleDirectorAppointmentDialogState
   void initState() {
     super.initState();
     _selectedDate = widget.initialDate ?? DateTime.now();
+    _selectedSlot = widget.initialSlot;
     _titleController.text = _selectedType.label;
   }
 
@@ -100,7 +106,8 @@ class _ScheduleDirectorAppointmentDialogState
     if (_selectedSlot == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please select an available time slot for the Director.'),
+          content:
+              Text('Please select an available time slot for the Director.'),
           backgroundColor: Colors.redAccent,
         ),
       );
@@ -116,7 +123,8 @@ class _ScheduleDirectorAppointmentDialogState
       id: 'DA-${DateTime.now().millisecondsSinceEpoch % 100000}',
       title: _titleController.text.trim(),
       type: _selectedType,
-      date: DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day),
+      date:
+          DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day),
       startTime: startTime,
       endTime: endTime,
       attendeeName: _attendeeNameController.text.trim(),
@@ -129,7 +137,8 @@ class _ScheduleDirectorAppointmentDialogState
       notes: _notesController.text.trim(),
     );
 
-    final success = await scheduleService.scheduleDirectorAppointment(newAppointment);
+    final success =
+        await scheduleService.scheduleDirectorAppointment(newAppointment);
 
     if (!mounted) return;
     if (success) {
@@ -154,7 +163,8 @@ class _ScheduleDirectorAppointmentDialogState
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Time conflict: Director already has an appointment at that time.'),
+          content: Text(
+              'Time conflict: Director already has an appointment at that time.'),
           backgroundColor: Colors.redAccent,
         ),
       );
@@ -164,7 +174,8 @@ class _ScheduleDirectorAppointmentDialogState
   @override
   Widget build(BuildContext context) {
     final scheduleService = context.watch<ScheduleService>();
-    final availableSlots = scheduleService.getAvailableDirectorSlots(_selectedDate);
+    final availableSlots =
+        scheduleService.getAvailableDirectorSlots(_selectedDate);
 
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -199,7 +210,8 @@ class _ScheduleDirectorAppointmentDialogState
                       color: Colors.white.withValues(alpha: 0.2),
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(Icons.calendar_today, color: Colors.white, size: 20),
+                    child: const Icon(Icons.calendar_today,
+                        color: Colors.white, size: 20),
                   ),
                   const SizedBox(width: 14),
                   const Expanded(
@@ -256,11 +268,13 @@ class _ScheduleDirectorAppointmentDialogState
                       const SizedBox(height: 6),
                       DropdownButtonFormField<AppointmentType>(
                         value: _selectedType,
-                        decoration: _inputDecoration(prefixIcon: Icons.category_outlined),
+                        decoration: _inputDecoration(
+                            prefixIcon: Icons.category_outlined),
                         items: AppointmentType.values.map((type) {
                           return DropdownMenuItem(
                             value: type,
-                            child: Text(type.label, style: const TextStyle(fontSize: 13)),
+                            child: Text(type.label,
+                                style: const TextStyle(fontSize: 13)),
                           );
                         }).toList(),
                         onChanged: _onTypeChanged,
@@ -283,7 +297,8 @@ class _ScheduleDirectorAppointmentDialogState
                           hintText: 'e.g. Diagnostic Intake Evaluation',
                           prefixIcon: Icons.title,
                         ),
-                        validator: (v) => v == null || v.isEmpty ? 'Title is required' : null,
+                        validator: (v) =>
+                            v == null || v.isEmpty ? 'Title is required' : null,
                       ),
                       const SizedBox(height: 16),
 
@@ -308,18 +323,22 @@ class _ScheduleDirectorAppointmentDialogState
                                 onTap: _pickDate,
                                 borderRadius: BorderRadius.circular(8),
                                 child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 14, vertical: 12),
                                   decoration: BoxDecoration(
-                                    border: Border.all(color: AppColors.divider),
+                                    border:
+                                        Border.all(color: AppColors.divider),
                                     borderRadius: BorderRadius.circular(8),
                                     color: const Color(0xFFFAFAFA),
                                   ),
                                   child: Row(
                                     children: [
-                                      const Icon(Icons.calendar_month, color: AppColors.primary, size: 18),
+                                      const Icon(Icons.calendar_month,
+                                          color: AppColors.primary, size: 18),
                                       const SizedBox(width: 8),
                                       Text(
-                                        DateFormat('dd MMM yyyy (EEE)').format(_selectedDate),
+                                        DateFormat('dd MMM yyyy (EEE)')
+                                            .format(_selectedDate),
                                         style: const TextStyle(
                                           fontSize: 13,
                                           fontWeight: FontWeight.w600,
@@ -348,7 +367,8 @@ class _ScheduleDirectorAppointmentDialogState
                                   ),
                                   const SizedBox(width: 6),
                                   Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 6, vertical: 2),
                                     decoration: BoxDecoration(
                                       color: availableSlots.isNotEmpty
                                           ? const Color(0xFFE8F5E9)
@@ -375,24 +395,34 @@ class _ScheduleDirectorAppointmentDialogState
                                       decoration: BoxDecoration(
                                         color: const Color(0xFFFFEBEE),
                                         borderRadius: BorderRadius.circular(8),
-                                        border: Border.all(color: Colors.red.shade200),
+                                        border: Border.all(
+                                            color: Colors.red.shade200),
                                       ),
                                       child: const Text(
                                         'No open slots on this date',
-                                        style: TextStyle(color: Colors.red, fontSize: 12),
+                                        style: TextStyle(
+                                            color: Colors.red, fontSize: 12),
                                       ),
                                     )
                                   : DropdownButtonFormField<String>(
-                                      value: _selectedSlot,
-                                      hint: const Text('Select time slot', style: TextStyle(fontSize: 13)),
-                                      decoration: _inputDecoration(prefixIcon: Icons.access_time),
+                                      value:
+                                          availableSlots.contains(_selectedSlot)
+                                              ? _selectedSlot
+                                              : null,
+                                      hint: const Text('Select time slot',
+                                          style: TextStyle(fontSize: 13)),
+                                      decoration: _inputDecoration(
+                                          prefixIcon: Icons.access_time),
                                       items: availableSlots.map((slot) {
                                         return DropdownMenuItem(
                                           value: slot,
-                                          child: Text(slot, style: const TextStyle(fontSize: 13)),
+                                          child: Text(slot,
+                                              style: const TextStyle(
+                                                  fontSize: 13)),
                                         );
                                       }).toList(),
-                                      onChanged: (slot) => setState(() => _selectedSlot = slot),
+                                      onChanged: (slot) =>
+                                          setState(() => _selectedSlot = slot),
                                     ),
                             ],
                           );
@@ -443,7 +473,9 @@ class _ScheduleDirectorAppointmentDialogState
                                   hintText: 'e.g. Mr. John Wilson',
                                   prefixIcon: Icons.person_outline,
                                 ),
-                                validator: (v) => v == null || v.isEmpty ? 'Attendee name required' : null,
+                                validator: (v) => v == null || v.isEmpty
+                                    ? 'Attendee name required'
+                                    : null,
                               ),
                             ],
                           );
@@ -598,7 +630,8 @@ class _ScheduleDirectorAppointmentDialogState
                         controller: _notesController,
                         maxLines: 3,
                         decoration: _inputDecoration(
-                          hintText: 'Notes for Director: student background, assessment priorities, or required reports...',
+                          hintText:
+                              'Notes for Director: student background, assessment priorities, or required reports...',
                         ),
                       ),
                     ],
@@ -620,16 +653,20 @@ class _ScheduleDirectorAppointmentDialogState
                   final cancelBtn = OutlinedButton(
                     onPressed: () => Navigator.of(context).pop(),
                     style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 20, vertical: 14),
                       side: const BorderSide(color: AppColors.divider),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8)),
                     ),
-                    child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
+                    child: const Text('Cancel',
+                        style: TextStyle(color: AppColors.textSecondary)),
                   );
 
                   final submitBtn = ElevatedButton.icon(
                     onPressed: _saveAppointment,
-                    icon: const Icon(Icons.check, size: 18, color: Colors.white),
+                    icon:
+                        const Icon(Icons.check, size: 18, color: Colors.white),
                     label: const Text(
                       'Schedule Appointment',
                       style: TextStyle(
@@ -639,8 +676,10 @@ class _ScheduleDirectorAppointmentDialogState
                     ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primary,
-                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 24, vertical: 14),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8)),
                       elevation: 0,
                     ),
                   );
@@ -676,7 +715,9 @@ class _ScheduleDirectorAppointmentDialogState
     return InputDecoration(
       hintText: hintText,
       hintStyle: const TextStyle(fontSize: 13, color: AppColors.textHint),
-      prefixIcon: prefixIcon != null ? Icon(prefixIcon, color: AppColors.primary, size: 18) : null,
+      prefixIcon: prefixIcon != null
+          ? Icon(prefixIcon, color: AppColors.primary, size: 18)
+          : null,
       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       filled: true,
       fillColor: const Color(0xFFFAFAFA),

@@ -24,6 +24,7 @@ class _AdminDirectorCalendarPageState extends State<AdminDirectorCalendarPage> {
       context: context,
       builder: (ctx) => ScheduleDirectorAppointmentDialog(
         initialDate: _selectedDate,
+        initialSlot: prefilledSlot,
       ),
     );
   }
@@ -170,8 +171,9 @@ class _AdminDirectorCalendarPageState extends State<AdminDirectorCalendarPage> {
                           lastDate:
                               DateTime.now().add(const Duration(days: 90)),
                         );
-                        if (picked != null)
+                        if (picked != null) {
                           setState(() => _selectedDate = picked);
+                        }
                       },
                       icon: const Icon(Icons.calendar_month,
                           size: 16, color: AppColors.primary),

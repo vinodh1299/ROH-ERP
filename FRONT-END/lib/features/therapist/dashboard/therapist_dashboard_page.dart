@@ -7,6 +7,8 @@ import 'package:roh_erp/core/services/schedule_service.dart';
 import 'package:roh_erp/core/services/api_service.dart';
 import 'package:roh_erp/core/services/web_storage/web_storage.dart';
 import 'package:roh_erp/features/auth/auth_service.dart';
+import 'package:roh_erp/features/therapist/daily_data_sheet/daily_data_sheet_page.dart';
+import 'package:roh_erp/features/therapist/iep/iep_page.dart';
 
 class TherapistDashboardPage extends StatefulWidget {
   final Function(int)? onNavigateTab;
@@ -21,6 +23,10 @@ class _TherapistDashboardPageState extends State<TherapistDashboardPage> {
   List<Map<String, dynamic>> _students = [];
   List<Map<String, dynamic>> _iepReports = [];
   bool _isLoading = true;
+  bool _showReturned = false; // Recent Activities tab
+  int _page = 0;
+  static const _pageSize = 5;
+  static const _iepTabIndex = 8; // IepPage in TherapistShell._pages
 
   @override
   void initState() {
@@ -207,8 +213,10 @@ class _TherapistDashboardPageState extends State<TherapistDashboardPage> {
                         spacing: 12,
                         runSpacing: 8,
                         children: [
-                          _buildTabButton('Recent IEP Requested', true),
-                          _buildTabButton('Returned IEP', false),
+                          _buildTabButton('Recent IEP Requested',
+                              !_showReturned, () => _selectTab(false)),
+                          _buildTabButton('Returned IEP', _showReturned,
+                              () => _selectTab(true)),
                         ],
                       ),
                     ],
@@ -219,14 +227,18 @@ class _TherapistDashboardPageState extends State<TherapistDashboardPage> {
                   // readable 700px minimum and scrolls sideways when narrower.
                   LayoutBuilder(
                     builder: (context, tableConstraints) {
-                      final rows =
-                          _students.take(5).map(_activityRowData).toList();
+                      final rows = _pageRows;
                       if (rows.isEmpty) {
-                        return const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 20.0),
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 20.0),
                           child: Center(
-                              child: Text('No students currently assigned',
-                                  style: TextStyle(
+                              child: Text(
+                                  _isLoading
+                                      ? 'Loading…'
+                                      : _showReturned
+                                          ? 'No IEPs returned for revision'
+                                          : 'No IEPs awaiting approval',
+                                  style: const TextStyle(
                                       color: AppColors.textSecondary))),
                         );
                       }
@@ -283,6 +295,7 @@ class _TherapistDashboardPageState extends State<TherapistDashboardPage> {
                             ...rows.map((r) => Column(
                                   children: [
                                     _buildTableRow(
+                                      row: r,
                                       name: r.name,
                                       email: r.email,
                                       phone: r.phone,
@@ -299,22 +312,36 @@ class _TherapistDashboardPageState extends State<TherapistDashboardPage> {
                     },
                   ),
 
-                  // Pagination
-                  const SizedBox(height: 16),
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        _buildPaginationBtn('Previous', false),
-                        _buildPaginationBtn('1', true),
-                        _buildPaginationBtn('2', false),
-                        _buildPaginationBtn('3', false),
-                        _buildPaginationBtn('4', false),
-                        _buildPaginationBtn('Next', false),
-                      ],
+                  // Pagination (only when there is more than one page)
+                  if (_pageCount > 1) ...[
+                    const SizedBox(height: 16),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            _buildPaginationBtn(
+                                'Previous',
+                                false,
+                                _page > 0
+                                    ? () => setState(() => _page--)
+                                    : null),
+                            for (int i = 0; i < _pageCount; i++)
+                              _buildPaginationBtn('${i + 1}', i == _page,
+                                  () => setState(() => _page = i)),
+                            _buildPaginationBtn(
+                                'Next',
+                                false,
+                                _page < _pageCount - 1
+                                    ? () => setState(() => _page++)
+                                    : null),
+                          ],
+                        ),
+                      ),
                     ),
-                  ),
+                  ],
                 ],
               ),
             ),
@@ -654,10 +681,13 @@ class _TherapistDashboardPageState extends State<TherapistDashboardPage> {
                                       duration: const Duration(seconds: 2),
                                     ),
                                   );
-                                  if (widget.onNavigateTab != null) {
-                                    widget
-                                        .onNavigateTab!(9); // Daily Data Sheet
+                                  final id = int.tryParse(session.studentId);
+                                  if (id != null) {
+                                    DailyDataSheetPage.openStudent.value =
+                                        (id: id, name: session.studentName);
                                   }
+                                  widget.onNavigateTab
+                                      ?.call(9); // Daily Data Sheet
                                 },
                                 child: Container(
                                   padding: const EdgeInsets.symmetric(
@@ -719,34 +749,80 @@ class _TherapistDashboardPageState extends State<TherapistDashboardPage> {
     );
   }
 
-  _ActivityRow _activityRowData(Map<String, dynamic> s) {
-    final name =
-        (s['name'] ?? '${s['first_name']} ${s['last_name']}').toString();
-    final email = s['email']?.toString().isNotEmpty == true
-        ? s['email'].toString()
-        : 'Not provided';
-    final phone = s['phone']?.toString().isNotEmpty == true
-        ? s['phone'].toString()
-        : 'Not provided';
-    final age = _ageFromDob(s['dob'])?.toString() ?? '';
-    final createdDate = s['created_at'] != null
-        ? s['created_at'].toString().split('T')[0]
+  void _selectTab(bool returned) {
+    if (_showReturned == returned) return;
+    setState(() {
+      _showReturned = returned;
+      _page = 0;
+    });
+  }
+
+  /// IEPs for the selected tab: awaiting the director's approval, or sent
+  /// back for revision. Newest first (the API orders by id DESC).
+  List<_ActivityRow> get _tabRows {
+    final wanted = _showReturned ? 'Returned for Revision' : 'Pending Approval';
+    return _iepReports
+        .where((r) => r['status']?.toString() == wanted)
+        .map(_activityRowData)
+        .toList();
+  }
+
+  int get _pageCount => (_tabRows.length / _pageSize).ceil();
+
+  List<_ActivityRow> get _pageRows {
+    final rows = _tabRows;
+    final page = _page.clamp(0, _pageCount == 0 ? 0 : _pageCount - 1);
+    return rows.skip(page * _pageSize).take(_pageSize).toList();
+  }
+
+  Map<String, dynamic>? _studentById(String id) {
+    for (final s in _students) {
+      if (s['id']?.toString() == id) return s;
+    }
+    return null;
+  }
+
+  _ActivityRow _activityRowData(Map<String, dynamic> iep) {
+    final studentId = iep['student_id']?.toString() ?? '';
+    final student = _studentById(studentId);
+    String field(String key) {
+      final v = student?[key]?.toString() ?? '';
+      return v.isNotEmpty ? v : 'Not provided';
+    }
+
+    final name = (iep['student_name'] ??
+            (student == null
+                ? 'Student'
+                : '${student['first_name']} ${student['last_name']}'))
+        .toString();
+    final age =
+        _ageFromDob(iep['student_dob'] ?? student?['dob'])?.toString() ?? '';
+    final createdDate = iep['created_at'] != null
+        ? iep['created_at'].toString().split('T')[0]
         : '—';
-    final status = (s['status'] ?? 'Active').toString();
     return _ActivityRow(
+        studentId: int.tryParse(studentId),
         name: name,
-        email: email,
-        phone: phone,
+        email: field('email'),
+        phone: field('phone'),
         age: age,
         date: createdDate,
-        status: status);
+        status: (iep['status'] ?? 'Pending Approval').toString());
+  }
+
+  /// Opens the student's IEP on the IEP tab.
+  void _openIep(_ActivityRow r) {
+    final id = r.studentId;
+    if (id == null) return;
+    IepPage.openStudent.value = (id: id, name: r.name);
+    widget.onNavigateTab?.call(_iepTabIndex);
   }
 
   (Color, Color) _statusColors(String status) {
-    if (status == 'Pending') {
+    if (status == 'Pending' || status == 'Pending Approval') {
       return (AppColors.statusPending, AppColors.statusPendingBg);
     }
-    if (status == 'Approved') {
+    if (status == 'Approved' || status == 'Active' || status == 'Completed') {
       return (AppColors.statusActive, AppColors.statusActiveBg);
     }
     return (AppColors.statusDeactivated, AppColors.statusDeactivatedBg);
@@ -811,21 +887,9 @@ class _TherapistDashboardPageState extends State<TherapistDashboardPage> {
           const SizedBox(height: 10),
           Align(
             alignment: Alignment.centerRight,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-              decoration: BoxDecoration(
-                color: AppColors.primary,
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: const Text(
-                'View',
-                style: TextStyle(
-                    fontFamily: 'Poppins',
-                    fontSize: 12,
-                    color: Colors.white,
-                    fontWeight: FontWeight.w600),
-              ),
-            ),
+            child: _viewButton(r,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 8)),
           ),
         ],
       ),
@@ -880,27 +944,55 @@ class _TherapistDashboardPageState extends State<TherapistDashboardPage> {
     );
   }
 
-  Widget _buildTabButton(String label, bool isSelected) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        color: isSelected ? AppColors.primary : Colors.transparent,
-        borderRadius: BorderRadius.circular(20),
-        border: isSelected ? null : Border.all(color: AppColors.divider),
+  Widget _viewButton(_ActivityRow r, {required EdgeInsets padding}) {
+    return Material(
+      color: AppColors.primary,
+      borderRadius: BorderRadius.circular(6),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(6),
+        onTap: () => _openIep(r),
+        child: Padding(
+          padding: padding,
+          child: const Text(
+            'View',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+                fontFamily: 'Poppins',
+                fontSize: 12,
+                color: Colors.white,
+                fontWeight: FontWeight.w600),
+          ),
+        ),
       ),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontFamily: 'Poppins',
-          fontSize: 13,
-          fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-          color: isSelected ? Colors.white : AppColors.textSecondary,
+    );
+  }
+
+  Widget _buildTabButton(String label, bool isSelected, VoidCallback onTap) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(20),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? AppColors.primary : Colors.transparent,
+          borderRadius: BorderRadius.circular(20),
+          border: isSelected ? null : Border.all(color: AppColors.divider),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontFamily: 'Poppins',
+            fontSize: 13,
+            fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+            color: isSelected ? Colors.white : AppColors.textSecondary,
+          ),
         ),
       ),
     );
   }
 
   Widget _buildTableRow({
+    required _ActivityRow row,
     required String name,
     required String email,
     required String phone,
@@ -944,23 +1036,9 @@ class _TherapistDashboardPageState extends State<TherapistDashboardPage> {
           ),
           Expanded(
             flex: 1,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: AppColors.primary,
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: const Text(
-                'View',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontFamily: 'Poppins',
-                  fontSize: 12,
-                  color: Colors.white,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
+            child: _viewButton(row,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6)),
           ),
         ],
       ),
@@ -975,22 +1053,32 @@ class _TherapistDashboardPageState extends State<TherapistDashboardPage> {
     );
   }
 
-  Widget _buildPaginationBtn(String text, bool isSelected) {
-    return Container(
-      margin: const EdgeInsets.only(left: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: isSelected ? AppColors.primary : Colors.white,
-        border: Border.all(
-            color: isSelected ? AppColors.primary : AppColors.divider),
+  Widget _buildPaginationBtn(
+      String text, bool isSelected, VoidCallback? onTap) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 8),
+      child: InkWell(
         borderRadius: BorderRadius.circular(6),
-      ),
-      child: Text(
-        text,
-        style: TextStyle(
-          fontFamily: 'Poppins',
-          fontSize: 12,
-          color: isSelected ? Colors.white : AppColors.textSecondary,
+        onTap: onTap,
+        child: Opacity(
+          opacity: onTap == null && !isSelected ? 0.4 : 1,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: isSelected ? AppColors.primary : Colors.white,
+              border: Border.all(
+                  color: isSelected ? AppColors.primary : AppColors.divider),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text(
+              text,
+              style: TextStyle(
+                fontFamily: 'Poppins',
+                fontSize: 12,
+                color: isSelected ? Colors.white : AppColors.textSecondary,
+              ),
+            ),
+          ),
         ),
       ),
     );
@@ -998,6 +1086,7 @@ class _TherapistDashboardPageState extends State<TherapistDashboardPage> {
 }
 
 class _ActivityRow {
+  final int? studentId;
   final String name;
   final String email;
   final String phone;
@@ -1005,6 +1094,7 @@ class _ActivityRow {
   final String date;
   final String status;
   const _ActivityRow({
+    required this.studentId,
     required this.name,
     required this.email,
     required this.phone,

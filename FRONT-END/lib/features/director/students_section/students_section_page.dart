@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:roh_erp/core/constants/app_colors.dart';
 import 'package:roh_erp/core/layout/responsive.dart';
+import 'package:roh_erp/core/widgets/edit_record_dialogs.dart';
 import '../../../core/services/db_queries.dart';
 import 'widgets/add_student_dialog.dart';
 
@@ -244,13 +245,11 @@ class _StudentsSectionPageState extends State<StudentsSectionPage> {
                                   itemCount: _students.length,
                                   itemBuilder: (ctx, i) => _StudentCard(
                                     student: _students[i],
-                                    onEdit: () {
-                                      ScaffoldMessenger.of(context)
-                                          .showSnackBar(
-                                        const SnackBar(
-                                            content:
-                                                Text('Edit student details.')),
-                                      );
+                                    onEdit: () async {
+                                      final saved =
+                                          await EditStudentDialog.show(
+                                              context, _students[i]);
+                                      if (saved && mounted) _loadStudents();
                                     },
                                     onDelete: () =>
                                         _confirmDelete(_students[i]),

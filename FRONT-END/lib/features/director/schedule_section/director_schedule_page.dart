@@ -7,6 +7,7 @@ import 'package:roh_erp/core/layout/responsive.dart';
 import 'package:roh_erp/core/models/schedule_model.dart';
 import 'package:roh_erp/core/services/schedule_service.dart';
 import '../dashboard/widgets/schedule_therapist_session_dialog.dart';
+import '../widgets/schedule_item_menus.dart';
 
 class DirectorSchedulePage extends StatefulWidget {
   const DirectorSchedulePage({super.key});
@@ -649,8 +650,16 @@ class _DirectorSchedulePageState extends State<DirectorSchedulePage>
                                   ? Colors.green.shade800
                                   : isDone
                                       ? Colors.grey
-                                      : AppColors.primary,
+                                      : session.status ==
+                                              SessionStatus.cancelled
+                                          ? AppColors.statusDeactivated
+                                          : AppColors.primary,
                             ),
+                          ),
+                          SizedBox(
+                            width: 28,
+                            height: 24,
+                            child: TherapySessionMenu(session: session),
                           ),
                         ],
                       ),
@@ -814,46 +823,77 @@ class _DirectorSchedulePageState extends State<DirectorSchedulePage>
           ),
         );
 
+        final statusColor = appt.status == AppointmentStatus.cancelled
+            ? AppColors.statusDeactivated
+            : appt.status == AppointmentStatus.completed
+                ? AppColors.statusActive
+                : AppColors.statusPending;
         final detailsSection = Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Wrap(
-              spacing: 8,
-              runSpacing: 6,
-              crossAxisAlignment: WrapCrossAlignment.center,
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  appt.title,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFE0F2FE),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
+                Expanded(
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 6,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
-                      const Icon(Icons.verified,
-                          size: 12, color: Color(0xFF0369A1)),
-                      const SizedBox(width: 4),
                       Text(
-                        'Scheduled by ${appt.scheduledBy}',
+                        appt.title,
                         style: const TextStyle(
-                          color: Color(0xFF0369A1),
+                          fontSize: 16,
                           fontWeight: FontWeight.bold,
-                          fontSize: 11,
+                          color: AppColors.textPrimary,
                         ),
                       ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFE0F2FE),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.verified,
+                                size: 12, color: Color(0xFF0369A1)),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Scheduled by ${appt.scheduledBy}',
+                              style: const TextStyle(
+                                color: Color(0xFF0369A1),
+                                fontWeight: FontWeight.bold,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (appt.status != AppointmentStatus.confirmed)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: statusColor.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            appt.status.name[0].toUpperCase() +
+                                appt.status.name.substring(1),
+                            style: TextStyle(
+                              color: statusColor,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ),
                     ],
                   ),
                 ),
+                DirectorAppointmentMenu(appointment: appt),
               ],
             ),
             const SizedBox(height: 8),

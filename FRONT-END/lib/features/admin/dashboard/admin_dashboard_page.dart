@@ -6,12 +6,20 @@ import 'package:roh_erp/core/constants/app_images.dart';
 import 'package:roh_erp/core/models/schedule_model.dart';
 import 'package:roh_erp/core/services/schedule_service.dart';
 import 'package:roh_erp/core/services/api_service.dart';
+import 'package:roh_erp/core/widgets/edit_record_dialogs.dart';
 import 'widgets/schedule_director_appointment_dialog.dart';
 
 class AdminDashboardPage extends StatefulWidget {
   final VoidCallback? onNavigateCalendar;
+  final VoidCallback? onNavigateStudents;
+  final VoidCallback? onNavigateIepReports;
 
-  const AdminDashboardPage({super.key, this.onNavigateCalendar});
+  const AdminDashboardPage({
+    super.key,
+    this.onNavigateCalendar,
+    this.onNavigateStudents,
+    this.onNavigateIepReports,
+  });
 
   @override
   State<AdminDashboardPage> createState() => _AdminDashboardPageState();
@@ -22,6 +30,30 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
   List<Map<String, dynamic>> _therapists = [];
   List<Map<String, dynamic>> _iepReports = [];
   bool _isLoading = true;
+
+  static const int _studentsPerPage = 5;
+  int _studentPage = 0;
+
+  int get _studentPageCount =>
+      (_students.length / _studentsPerPage).ceil().clamp(1, 1 << 30);
+
+  List<Map<String, dynamic>> get _pagedStudents {
+    final page = _studentPage.clamp(0, _studentPageCount - 1);
+    return _students
+        .skip(page * _studentsPerPage)
+        .take(_studentsPerPage)
+        .toList();
+  }
+
+  /// Opens the edit dialog for [s]; falls back to the Students tab when the
+  /// row has no id.
+  Future<void> _viewStudent(Map<String, dynamic> s) async {
+    if (int.tryParse(s['id']?.toString() ?? '') == null) {
+      widget.onNavigateStudents?.call();
+      return;
+    }
+    if (await EditStudentDialog.show(context, s)) _loadDashboardData();
+  }
 
   @override
   void initState() {
@@ -37,7 +69,12 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
 
       if (mounted) {
         setState(() {
-          if (sRes is List) _students = List<Map<String, dynamic>>.from(sRes);
+          if (sRes is List) {
+            _students = List<Map<String, dynamic>>.from(sRes);
+            if (_studentPage >= _studentPageCount) {
+              _studentPage = _studentPageCount - 1;
+            }
+          }
           if (tRes is List) _therapists = List<Map<String, dynamic>>.from(tRes);
           if (iRes is List) _iepReports = List<Map<String, dynamic>>.from(iRes);
           _isLoading = false;
@@ -230,40 +267,44 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                           : '—';
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 12.0),
-                        child: Row(
-                          children: [
-                            AppImages.therapistAvatar(radius: 20),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(sName,
-                                      style: const TextStyle(
-                                          color: AppColors.textPrimary,
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w600)),
-                                  Text(createdDate,
-                                      style: const TextStyle(
-                                          color: AppColors.primary,
-                                          fontSize: 12)),
-                                ],
+                        child: InkWell(
+                          onTap: widget.onNavigateIepReports,
+                          borderRadius: BorderRadius.circular(8),
+                          child: Row(
+                            children: [
+                              AppImages.therapistAvatar(radius: 20),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(sName,
+                                        style: const TextStyle(
+                                            color: AppColors.textPrimary,
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w600)),
+                                    Text(createdDate,
+                                        style: const TextStyle(
+                                            color: AppColors.primary,
+                                            fontSize: 12)),
+                                  ],
+                                ),
                               ),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 12, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: AppColors.statusPendingBg,
-                                borderRadius: BorderRadius.circular(16),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 12, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: AppColors.statusPendingBg,
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: const Text('Pending',
+                                    style: TextStyle(
+                                        color: AppColors.statusPending,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600)),
                               ),
-                              child: const Text('Pending',
-                                  style: TextStyle(
-                                      color: AppColors.statusPending,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600)),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       );
                     }),
@@ -444,11 +485,11 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                         child: Text('No student records found in database',
                             style: TextStyle(color: AppColors.textSecondary)))
                     : ListView.separated(
-                        itemCount: _students.length,
+                        itemCount: _pagedStudents.length,
                         separatorBuilder: (context, index) =>
                             const Divider(height: 1, color: AppColors.divider),
                         itemBuilder: (context, index) {
-                          final s = _students[index];
+                          final s = _pagedStudents[index];
                           final name = s['name'] ??
                               '${s['first_name']} ${s['last_name']}';
                           final email =
@@ -526,7 +567,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                                 Expanded(
                                   flex: 1,
                                   child: OutlinedButton(
-                                    onPressed: () {},
+                                    onPressed: () => _viewStudent(s),
                                     style: OutlinedButton.styleFrom(
                                       foregroundColor: AppColors.primary,
                                       side: const BorderSide(
@@ -547,26 +588,13 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                         },
                       ),
               ),
-              const Divider(height: 1, color: AppColors.divider),
-              Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    TextButton(
-                        onPressed: () {},
-                        child: const Text('Previous',
-                            style: TextStyle(color: AppColors.textHint))),
-                    const SizedBox(width: 8),
-                    _buildPageNum(1, true),
-                    const SizedBox(width: 8),
-                    TextButton(
-                        onPressed: () {},
-                        child: const Text('Next',
-                            style: TextStyle(color: AppColors.primary))),
-                  ],
+              if (_studentPageCount > 1) ...[
+                const Divider(height: 1, color: AppColors.divider),
+                Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: _buildStudentPagination(),
                 ),
-              )
+              ],
             ],
           ),
         ),
@@ -753,73 +781,93 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
               child: Text('No student records found in database',
                   textAlign: TextAlign.center,
                   style: TextStyle(color: AppColors.textSecondary)))
-          : ListView.separated(
-              itemCount: _students.length,
-              separatorBuilder: (context, index) =>
-                  const Divider(height: 1, color: AppColors.divider),
-              itemBuilder: (context, index) {
-                final s = _students[index];
-                final name =
-                    s['name'] ?? '${s['first_name']} ${s['last_name']}';
-                final email = s['email']?.toString().isNotEmpty == true
-                    ? s['email'].toString()
-                    : 'Not provided';
-                final phone = s['phone']?.toString().isNotEmpty == true
-                    ? s['phone'].toString()
-                    : 'Not provided';
-                final age = _calculateAge(s['dob']);
-                final createdDate = s['created_at'] != null
-                    ? s['created_at'].toString().split('T')[0]
-                    : '—';
-                final isActive = (s['status'] ?? 'Active') == 'Active';
-                return Padding(
-                  padding: const EdgeInsets.all(14),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                              child: Text(name,
-                                  style: const TextStyle(
-                                      color: AppColors.textPrimary,
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 14))),
-                          const SizedBox(width: 8),
-                          isActive
-                              ? _statusChip('Active', AppColors.statusActive,
-                                  AppColors.statusActiveBg)
-                              : _statusChip(
-                                  'De-Activated',
-                                  AppColors.statusDeactivated,
-                                  AppColors.statusDeactivatedBg),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      _cardLine('Email Id', email),
-                      _cardLine('Phone', phone),
-                      _cardLine('Age', '$age'),
-                      _cardLine('Created Date', createdDate),
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: OutlinedButton(
-                          onPressed: () {},
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: AppColors.primary,
-                            side: const BorderSide(color: AppColors.primary),
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16)),
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 6),
-                          ),
-                          child: const Text('View',
-                              style: TextStyle(fontSize: 12)),
+          : Column(
+              children: [
+                Expanded(
+                  child: ListView.separated(
+                    itemCount: _pagedStudents.length,
+                    separatorBuilder: (context, index) =>
+                        const Divider(height: 1, color: AppColors.divider),
+                    itemBuilder: (context, index) {
+                      final s = _pagedStudents[index];
+                      final name =
+                          s['name'] ?? '${s['first_name']} ${s['last_name']}';
+                      final email = s['email']?.toString().isNotEmpty == true
+                          ? s['email'].toString()
+                          : 'Not provided';
+                      final phone = s['phone']?.toString().isNotEmpty == true
+                          ? s['phone'].toString()
+                          : 'Not provided';
+                      final age = _calculateAge(s['dob']);
+                      final createdDate = s['created_at'] != null
+                          ? s['created_at'].toString().split('T')[0]
+                          : '—';
+                      final isActive = (s['status'] ?? 'Active') == 'Active';
+                      return Padding(
+                        padding: const EdgeInsets.all(14),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Expanded(
+                                    child: Text(name,
+                                        style: const TextStyle(
+                                            color: AppColors.textPrimary,
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: 14))),
+                                const SizedBox(width: 8),
+                                isActive
+                                    ? _statusChip(
+                                        'Active',
+                                        AppColors.statusActive,
+                                        AppColors.statusActiveBg)
+                                    : _statusChip(
+                                        'De-Activated',
+                                        AppColors.statusDeactivated,
+                                        AppColors.statusDeactivatedBg),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            _cardLine('Email Id', email),
+                            _cardLine('Phone', phone),
+                            _cardLine('Age', '$age'),
+                            _cardLine('Created Date', createdDate),
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: OutlinedButton(
+                                onPressed: () => _viewStudent(s),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: AppColors.primary,
+                                  side: const BorderSide(
+                                      color: AppColors.primary),
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(16)),
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 12, vertical: 6),
+                                ),
+                                child: const Text('View',
+                                    style: TextStyle(fontSize: 12)),
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
-                    ],
+                      );
+                    },
                   ),
-                );
-              },
+                ),
+                if (_studentPageCount > 1) ...[
+                  const Divider(height: 1, color: AppColors.divider),
+                  Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      reverse: true,
+                      child: _buildStudentPagination(),
+                    ),
+                  ),
+                ],
+              ],
             ),
     );
   }
@@ -879,19 +927,54 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     );
   }
 
-  Widget _buildPageNum(int num, bool active) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 4),
-      width: 28,
-      height: 28,
-      decoration: BoxDecoration(
-        color: active ? AppColors.primary : Colors.transparent,
-        shape: BoxShape.circle,
-      ),
-      alignment: Alignment.center,
-      child: Text(
-        num.toString(),
-        style: TextStyle(color: active ? Colors.white : AppColors.textPrimary),
+  Widget _buildStudentPagination() {
+    final page = _studentPage.clamp(0, _studentPageCount - 1);
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.end,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _buildPaginationBtn('Previous', false,
+            page > 0 ? () => setState(() => _studentPage = page - 1) : null),
+        for (int i = 0; i < _studentPageCount; i++)
+          _buildPaginationBtn(
+              '${i + 1}', i == page, () => setState(() => _studentPage = i)),
+        _buildPaginationBtn(
+            'Next',
+            false,
+            page < _studentPageCount - 1
+                ? () => setState(() => _studentPage = page + 1)
+                : null),
+      ],
+    );
+  }
+
+  Widget _buildPaginationBtn(
+      String text, bool isSelected, VoidCallback? onTap) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 8),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(6),
+        onTap: onTap,
+        child: Opacity(
+          opacity: onTap == null && !isSelected ? 0.4 : 1,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: isSelected ? AppColors.primary : Colors.white,
+              border: Border.all(
+                  color: isSelected ? AppColors.primary : AppColors.divider),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text(
+              text,
+              style: TextStyle(
+                fontFamily: 'Poppins',
+                fontSize: 12,
+                color: isSelected ? Colors.white : AppColors.textSecondary,
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -908,6 +991,7 @@ class _AdminDirectorSchedulingDashboardWidget extends StatelessWidget {
       context: context,
       builder: (ctx) => ScheduleDirectorAppointmentDialog(
         initialDate: DateTime.now(),
+        initialSlot: slot,
       ),
     );
   }

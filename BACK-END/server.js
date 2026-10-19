@@ -356,7 +356,9 @@ app.all(['/api.php', '/api', '/api/api.php', '/api/v1'], async (req, res) => {
         await auditLog(auth.sub, auth.role, 'CHANGE_PASSWORD', 'users', auth.sub, ip, ua, 'Self-service password update');
         await createNotification(auth.sub, 'PASSWORD_CHANGED', 'Password Updated', 'Your password was updated successfully.');
 
-        return res.json({ success: true, message: 'Password changed successfully' });
+        // Old tokens are revoked by the version bump; hand this device a fresh one.
+        const [fresh] = await pool.query('SELECT id, role, name, email, token_version FROM users WHERE id = ? LIMIT 1', [auth.sub]);
+        return res.json({ success: true, message: 'Password changed successfully', token: generateToken(fresh[0]) });
       }
 
       case 'initiate_password_reset': {
@@ -1093,6 +1095,8 @@ app.all(['/api.php', '/api', '/api/api.php', '/api/v1'], async (req, res) => {
 
         const iepId = parseInt(input.iep_id || 0);
         const notes = input.director_notes || '';
+        const [found] = await pool.query('SELECT id FROM iep_reports WHERE id = ? LIMIT 1', [iepId]);
+        if (!found.length) return res.status(404).json({ error: 'IEP not found' });
 
         await pool.query(
           'UPDATE iep_reports SET status = "Active", director_notes = ?, director_signed_by = ?, director_signed_at = NOW() WHERE id = ?',
@@ -1102,7 +1106,10 @@ app.all(['/api.php', '/api', '/api/api.php', '/api/v1'], async (req, res) => {
         await auditLog(auth.sub, 'director', 'SIGN_OFF_IEP', 'iep_reports', iepId, ip, ua, 'Director signed off IEP');
 
         // Fetch student & parent details to dispatch notification
-        const [iepRow] = await pool.query('SELECT student_id, therapist_id, title FROM iep_reports WHERE id = ? LIMIT 1', [iepId]);
+        const [iepRow] = await pool.query(
+          'SELECT i.student_id, i.therapist_id, i.title, s.parent_user_id FROM iep_reports i LEFT JOIN students s ON s.id = i.student_id WHERE i.id = ? LIMIT 1',
+          [iepId]
+        );
         if (iepRow.length) {
           // Notify Therapist
           await createNotification(
@@ -1112,9 +1119,9 @@ app.all(['/api.php', '/api', '/api/api.php', '/api/v1'], async (req, res) => {
             `Director signed off and activated "${iepRow[0].title}".`,
             { iep_id: iepId }
           );
-          // Notify Parent (ID 4)
-          await createNotification(
-            4,
+          // Notify the student's parent
+          if (iepRow[0].parent_user_id) await createNotification(
+            iepRow[0].parent_user_id,
             'REPORT_READY',
             'Child IEP Plan Published',
             `The new Individualized Education Plan "${iepRow[0].title}" has been signed off and is now active.`,
@@ -1129,11 +1136,29 @@ app.all(['/api.php', '/api', '/api/api.php', '/api/v1'], async (req, res) => {
         const auth = await verifyAuth(req);
         if (!auth || !['admin', 'director', 'therapist'].includes(auth.role)) return res.status(403).json({ error: 'Forbidden' });
         const iepId = parseInt(input.id || 0);
-        const title = input.title || 'Updated IEP';
-        const goalsSummary = input.goals_summary || '';
+        const [existing] = await pool.query('SELECT student_id, title, goals_summary FROM iep_reports WHERE id = ? LIMIT 1', [iepId]);
+        if (!existing.length) return res.status(404).json({ error: 'IEP not found' });
+        if (!(await canAccessStudent(auth, existing[0].student_id))) return res.status(403).json({ error: 'Forbidden' });
+        const title = (input.title || existing[0].title).toString();
+        const goalsSummary = input.goals_summary ?? existing[0].goals_summary ?? '';
         await pool.query('UPDATE iep_reports SET title = ?, goals_summary = ? WHERE id = ?', [title, goalsSummary, iepId]);
         await auditLog(auth.sub, auth.role, 'UPDATE_IEP', 'iep_reports', iepId, ip, ua, `Updated IEP: ${title}`);
         return res.json({ success: true, id: iepId });
+      }
+
+      case 'request_iep_revision': {
+        const auth = await verifyAuth(req);
+        if (!auth || !['admin', 'director'].includes(auth.role)) return res.status(403).json({ error: 'Forbidden' });
+        const iepId = parseInt(input.iep_id || input.id || 0);
+        const notes = (input.director_notes || '').toString().trim();
+        if (!notes) return res.status(400).json({ error: 'Revision notes are required' });
+        const [rows] = await pool.query('SELECT therapist_id, title FROM iep_reports WHERE id = ? LIMIT 1', [iepId]);
+        if (!rows.length) return res.status(404).json({ error: 'IEP not found' });
+        await pool.query('UPDATE iep_reports SET status = "Returned for Revision", director_notes = ? WHERE id = ?', [notes, iepId]);
+        await auditLog(auth.sub, auth.role, 'REQUEST_IEP_REVISION', 'iep_reports', iepId, ip, ua, 'Returned IEP for revision');
+        await createNotification(rows[0].therapist_id, 'IEP_RETURNED', 'IEP Returned for Revision',
+          `"${rows[0].title}" needs changes: ${notes}`, { iep_id: iepId });
+        return res.json({ success: true });
       }
 
       case 'delete_iep_report': {
@@ -1717,9 +1742,16 @@ app.all(['/api.php', '/api', '/api/api.php', '/api/v1'], async (req, res) => {
         const auth = await verifyAuth(req);
         if (!auth) return res.status(401).json({ error: 'Unauthorized' });
         const apptId = parseInt(input.id || 0);
-        const status = input.status || 'confirmed';
-        const notes = input.notes || '';
-        await pool.query('UPDATE director_appointments SET status = ?, notes = ? WHERE id = ?', [status, notes, apptId]);
+        const [appt] = await pool.query('SELECT attendee_email FROM director_appointments WHERE id = ? LIMIT 1', [apptId]);
+        if (!appt.length) return res.status(404).json({ error: 'Appointment not found' });
+        // Others may only cancel their own bookings.
+        const isStaff = ['admin', 'director'].includes(auth.role);
+        if (!isStaff && ((appt[0].attendee_email || '').toLowerCase() !== (auth.email || '').toLowerCase() || input.status !== 'cancelled')) {
+          return res.status(403).json({ error: 'Forbidden' });
+        }
+        const status = ['confirmed', 'tentative', 'completed', 'cancelled'].includes(input.status) ? input.status : 'confirmed';
+        const notes = input.notes === undefined ? null : input.notes.toString();
+        await pool.query('UPDATE director_appointments SET status = ?, notes = COALESCE(?, notes) WHERE id = ?', [status, notes, apptId]);
         await auditLog(auth.sub, auth.role, 'UPDATE_APPOINTMENT', 'director_appointments', apptId, ip, ua, `Updated appt ${apptId} to ${status}`);
         return res.json({ success: true });
       }
@@ -1736,6 +1768,130 @@ app.all(['/api.php', '/api', '/api/api.php', '/api/v1'], async (req, res) => {
       // ──────────────────────────────────────────────────────────────────────
       // 8. AUDIT LOGS & NOTIFICATIONS
       // ──────────────────────────────────────────────────────────────────────
+      case 'get_governance_settings': {
+        const auth = await verifyAuth(req);
+        if (!auth || !['admin', 'director'].includes(auth.role)) return res.status(403).json({ error: 'Forbidden' });
+        const [rows] = await pool.query('SELECT * FROM clinical_governance_settings WHERE setting_key = "default" LIMIT 1');
+        return res.json(rows[0] || null);
+      }
+
+      case 'save_governance_settings': {
+        const auth = await verifyAuth(req);
+        if (!auth || auth.role !== 'director') return res.status(403).json({ error: 'Forbidden: Director only' });
+        const str = (v, max) => (v ?? '').toString().trim().slice(0, max);
+        const values = [
+          str(input.target_mastery_criteria, 120) || '80% across 3 consecutive sessions',
+          input.require_two_therapists ? 1 : 0,
+          str(input.reassessment_frequency, 80) || 'Every 6 Months',
+          Math.max(1, parseInt(input.stagnation_alert_days || 21)),
+          Math.min(99.99, Math.max(0, parseFloat(input.supervision_ratio_target || 5))),
+          input.dual_signoff_crisis ? 1 : 0,
+          str(input.director_signature_name, 120),
+          str(input.director_title, 120),
+          str(input.director_bacb_cert, 80),
+          auth.sub,
+        ];
+        await pool.query(
+          `INSERT INTO clinical_governance_settings
+             (setting_key, target_mastery_criteria, require_two_therapists, reassessment_frequency, stagnation_alert_days,
+              supervision_ratio_target, dual_signoff_crisis, director_signature_name, director_title, director_bacb_cert, updated_by)
+           VALUES ("default", ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           ON DUPLICATE KEY UPDATE
+             target_mastery_criteria = VALUES(target_mastery_criteria), require_two_therapists = VALUES(require_two_therapists),
+             reassessment_frequency = VALUES(reassessment_frequency), stagnation_alert_days = VALUES(stagnation_alert_days),
+             supervision_ratio_target = VALUES(supervision_ratio_target), dual_signoff_crisis = VALUES(dual_signoff_crisis),
+             director_signature_name = VALUES(director_signature_name), director_title = VALUES(director_title),
+             director_bacb_cert = VALUES(director_bacb_cert), updated_by = VALUES(updated_by)`,
+          values
+        );
+        await auditLog(auth.sub, auth.role, 'SAVE_GOVERNANCE_SETTINGS', 'clinical_governance_settings', null, ip, ua, 'Updated clinical governance settings');
+        return res.json({ success: true });
+      }
+
+      case 'get_center_settings': {
+        const auth = await verifyAuth(req);
+        if (!auth) return res.status(401).json({ error: 'Unauthorized' });
+        const [rows] = await pool.query('SELECT setting_key, setting_value FROM center_settings');
+        return res.json(Object.fromEntries(rows.map((r) => [r.setting_key, r.setting_value])));
+      }
+
+      case 'save_center_settings': {
+        const auth = await verifyAuth(req);
+        if (!auth || auth.role !== 'admin') return res.status(403).json({ error: 'Forbidden: Admin only' });
+        const allowed = ['center_name', 'portal_title', 'support_email', 'emergency_hotline'];
+        for (const key of allowed) {
+          if (input[key] === undefined) continue;
+          await pool.query(
+            'INSERT INTO center_settings (setting_key, setting_value, updated_by) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), updated_by = VALUES(updated_by)',
+            [key, input[key].toString().trim().slice(0, 255), auth.sub]
+          );
+        }
+        await auditLog(auth.sub, auth.role, 'SAVE_CENTER_SETTINGS', 'center_settings', null, ip, ua, 'Updated center settings');
+        return res.json({ success: true });
+      }
+
+      case 'save_supervision_log': {
+        const auth = await verifyAuth(req);
+        if (!auth || !['admin', 'director'].includes(auth.role)) return res.status(403).json({ error: 'Forbidden' });
+        const therapistId = parseInt(input.therapist_id || 0);
+        const hours = parseFloat(input.hours);
+        const type = (input.supervision_type || '').toString().trim().slice(0, 120);
+        if (!therapistId || !type || !(hours > 0 && hours <= 24)) {
+          return res.status(400).json({ error: 'Therapist, supervision type and 0–24 hours are required' });
+        }
+        const [t] = await pool.query('SELECT id FROM users WHERE id = ? AND role = "therapist" LIMIT 1', [therapistId]);
+        if (!t.length) return res.status(404).json({ error: 'Therapist not found' });
+        const logDate = /^\d{4}-\d{2}-\d{2}$/.test(input.log_date || '') ? input.log_date : new Date().toISOString().split('T')[0];
+        const [result] = await pool.query(
+          'INSERT INTO supervision_logs (therapist_id, supervisor_id, supervision_type, hours, log_date, notes) VALUES (?, ?, ?, ?, ?, ?)',
+          [therapistId, auth.sub, type, hours, logDate, (input.notes || '').toString()]
+        );
+        await auditLog(auth.sub, auth.role, 'LOG_SUPERVISION', 'supervision_logs', result.insertId, ip, ua, `${hours}h ${type} for therapist ${therapistId}`);
+        return res.json({ success: true, id: result.insertId });
+      }
+
+      case 'get_supervision_logs': {
+        const auth = await verifyAuth(req);
+        if (!auth || !['admin', 'director'].includes(auth.role)) return res.status(403).json({ error: 'Forbidden' });
+        const [rows] = await pool.query(
+          `SELECT l.*, u.name AS supervisor_name FROM supervision_logs l
+           LEFT JOIN users u ON l.supervisor_id = u.id ORDER BY l.log_date DESC, l.id DESC`
+        );
+        return res.json(rows);
+      }
+
+      case 'get_my_profile': {
+        const auth = await verifyAuth(req);
+        if (!auth) return res.status(401).json({ error: 'Unauthorized' });
+        const [rows] = await pool.query(
+          `SELECT u.id, u.name, u.email, u.phone, u.role, u.created_at,
+                  tp.employee_id, tp.designation, tp.qualification, tp.license_number, tp.specialties, tp.about, tp.date_of_joining
+           FROM users u LEFT JOIN therapist_profiles tp ON tp.user_id = u.id WHERE u.id = ? LIMIT 1`,
+          [auth.sub]
+        );
+        return res.json(rows[0] || null);
+      }
+
+      case 'update_my_profile': {
+        const auth = await verifyAuth(req);
+        if (!auth) return res.status(401).json({ error: 'Unauthorized' });
+        const name = (input.name || '').toString().trim().slice(0, 120);
+        if (!name) return res.status(400).json({ error: 'Name is required' });
+        const phone = (input.phone || '').toString().trim().slice(0, 40);
+        await pool.query('UPDATE users SET name = ?, phone = ? WHERE id = ?', [name, phone || null, auth.sub]);
+        if (auth.role === 'therapist') {
+          const str = (v, max) => (v === undefined ? null : v.toString().trim().slice(0, max));
+          await pool.query(
+            `INSERT INTO therapist_profiles (user_id, qualification, specialties, about) VALUES (?, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE qualification = COALESCE(VALUES(qualification), qualification),
+               specialties = COALESCE(VALUES(specialties), specialties), about = COALESCE(VALUES(about), about)`,
+            [auth.sub, str(input.qualification, 150), str(input.specialties, 255), input.about === undefined ? null : input.about.toString()]
+          );
+        }
+        await auditLog(auth.sub, auth.role, 'UPDATE_OWN_PROFILE', 'users', auth.sub, ip, ua, 'Self-service profile update');
+        return res.json({ success: true });
+      }
+
       case 'get_audit_logs': {
         const auth = await verifyAuth(req);
         if (!auth || !['admin', 'director'].includes(auth.role)) return res.status(403).json({ error: 'Forbidden' });

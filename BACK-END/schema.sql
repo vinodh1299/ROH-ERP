@@ -538,4 +538,34 @@ CREATE TABLE IF NOT EXISTS `parental_consents` (
   FOREIGN KEY (`guardian_id`) REFERENCES `guardians`(`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- ----------------------------------------------------------------------------
+-- SUPERVISION LOGS TABLE
+-- BACB supervision hours a director logs against a therapist
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `supervision_logs` (
+  `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `therapist_id` INT UNSIGNED NOT NULL,
+  `supervisor_id` INT UNSIGNED NOT NULL,
+  `supervision_type` VARCHAR(120) NOT NULL,
+  `hours` DECIMAL(5,2) NOT NULL,
+  `log_date` DATE NOT NULL,
+  `notes` TEXT DEFAULT NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX `idx_supervision_therapist` (`therapist_id`),
+  FOREIGN KEY (`therapist_id`) REFERENCES `users`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`supervisor_id`) REFERENCES `users`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ----------------------------------------------------------------------------
+-- CENTER SETTINGS TABLE
+-- Admin-editable center details (name, portal title, support contacts)
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `center_settings` (
+  `setting_key` VARCHAR(80) PRIMARY KEY,
+  `setting_value` VARCHAR(255) NOT NULL DEFAULT '',
+  `updated_by` INT UNSIGNED DEFAULT NULL,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (`updated_by`) REFERENCES `users`(`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 SET FOREIGN_KEY_CHECKS = 1;

@@ -89,15 +89,20 @@ class _DirectorShellState extends State<DirectorShell> {
         label: 'Settings'),
   ];
 
-  final List<Widget> _pages = const [
-    DirectorDashboardPage(),
-    DirectorSchedulePage(),
-    TherapistSectionPage(),
-    StudentsSectionPage(),
-    StudProgressSectionPage(),
-    IepReportsSectionPage(),
-    SettingsSectionPage(),
-  ];
+  static const int _iepReportsTab = 5;
+
+  List<Widget> get _pages => [
+        DirectorDashboardPage(
+          onOpenIepReports: () =>
+              setState(() => _selectedIndex = _iepReportsTab),
+        ),
+        const DirectorSchedulePage(),
+        const TherapistSectionPage(),
+        const StudentsSectionPage(),
+        const StudProgressSectionPage(),
+        const IepReportsSectionPage(),
+        const SettingsSectionPage(),
+      ];
 
   @override
   Widget build(BuildContext context) {
@@ -135,10 +140,7 @@ class _DirectorShellState extends State<DirectorShell> {
           Expanded(
             child: Column(
               children: [
-                _TopBar(
-                  title: _navItems[_selectedIndex].label,
-                  onMenuTap: isMobile ? () {} : null,
-                ),
+                _TopBar(title: _navItems[_selectedIndex].label),
                 Expanded(child: _pages[_selectedIndex]),
               ],
             ),
@@ -504,16 +506,66 @@ class _TopBar extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 12),
-          // User avatar
-          CircleAvatar(
-            radius: 18,
-            backgroundColor: AppColors.primary.withValues(alpha: 0.15),
-            child: Text(
-              user?.name.isNotEmpty == true ? user!.name[0].toUpperCase() : 'A',
-              style: const TextStyle(
-                  color: AppColors.primary,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 14),
+          // User avatar → account menu
+          PopupMenuButton<String>(
+            tooltip: 'Account',
+            offset: const Offset(0, 48),
+            onSelected: (value) async {
+              if (value == 'password') {
+                ForcedPasswordChangeDialog.show(context);
+              } else if (value == 'logout') {
+                final shouldLogout = await TwoStepLogoutDialog.show(context);
+                if (shouldLogout == true && context.mounted) {
+                  await context.read<AuthService>().logout();
+                  if (context.mounted) {
+                    Navigator.of(context)
+                        .pushReplacementNamed(AppConstants.routeLogin);
+                  }
+                }
+              }
+            },
+            itemBuilder: (context) => [
+              PopupMenuItem(
+                enabled: false,
+                child: Text(user?.name ?? 'Clinical Director',
+                    style: const TextStyle(
+                        fontWeight: FontWeight.bold, fontSize: 13)),
+              ),
+              const PopupMenuDivider(),
+              const PopupMenuItem(
+                value: 'password',
+                child: Row(
+                  children: [
+                    Icon(Icons.lock_reset, size: 18, color: AppColors.primary),
+                    SizedBox(width: 8),
+                    Text('Change Password'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'logout',
+                child: Row(
+                  children: [
+                    Icon(Icons.logout,
+                        size: 18, color: AppColors.statusDeactivated),
+                    SizedBox(width: 8),
+                    Text('Logout'),
+                  ],
+                ),
+              ),
+            ],
+            child: CircleAvatar(
+              radius: 18,
+              backgroundColor: AppColors.primary.withValues(alpha: 0.15),
+              child: Text(
+                user?.name.isNotEmpty == true
+                    ? user!.name[0].toUpperCase()
+                    : 'A',
+                style: const TextStyle(
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14),
+              ),
             ),
           ),
         ],

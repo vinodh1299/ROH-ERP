@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:roh_erp/core/constants/app_colors.dart';
 import 'package:roh_erp/core/services/api_service.dart';
 import 'package:roh_erp/core/layout/responsive.dart';
+import 'package:roh_erp/core/services/report_pdf.dart';
+import 'package:roh_erp/core/widgets/edit_record_dialogs.dart';
 
 enum IepStatus {
   pending('Pending Audit', AppColors.statusPending, AppColors.statusPendingBg),
@@ -19,6 +21,11 @@ enum IepStatus {
 
 class IepReportItem {
   final String id;
+
+  /// Numeric `iep_reports.id` used by the sign-off / revision actions.
+  final int dbId;
+  final String title;
+  final String signedBy;
   final String studentName;
   final int age;
   final String therapistName;
@@ -31,6 +38,9 @@ class IepReportItem {
 
   IepReportItem({
     required this.id,
+    required this.dbId,
+    this.title = '',
+    this.signedBy = '',
     required this.studentName,
     required this.age,
     required this.therapistName,
@@ -55,6 +65,12 @@ class _IepReportsSectionPageState extends State<IepReportsSectionPage> {
   String _searchQuery = '';
   List<IepReportItem> _reports = [];
   bool _isLoading = true;
+  int _page = 0;
+  static const int _pageSize = 10;
+
+  // Governance values shown in the audit dialog (get_governance_settings).
+  String _masteryCriteria = '80% across 3 consecutive sessions';
+  String _signatureName = 'Clinical Director, BCBA-D';
 
   @override
   void initState() {
@@ -62,7 +78,22 @@ class _IepReportsSectionPageState extends State<IepReportsSectionPage> {
     _loadIepReports();
   }
 
+  Future<void> _loadGovernance() async {
+    final g = await ApiService().get('get_governance_settings');
+    if (!mounted || g is! Map || g['error'] != null) return;
+    setState(() {
+      final mastery = (g['target_mastery_criteria'] ?? '').toString().trim();
+      if (mastery.isNotEmpty) _masteryCriteria = mastery;
+      final name = (g['director_signature_name'] ?? '').toString().trim();
+      final title = (g['director_title'] ?? '').toString().trim();
+      if (name.isNotEmpty) {
+        _signatureName = title.isNotEmpty ? '$name, $title' : name;
+      }
+    });
+  }
+
   Future<void> _loadIepReports() async {
+    _loadGovernance();
     try {
       final res = await ApiService().get('get_iep_reports');
       if (res is List) {
@@ -91,6 +122,9 @@ class _IepReportsSectionPageState extends State<IepReportsSectionPage> {
 
           return IepReportItem(
             id: id,
+            dbId: int.tryParse('${r['id']}') ?? 0,
+            title: (r['title'] ?? '').toString(),
+            signedBy: (r['director_signer_name'] ?? '').toString(),
             studentName: sName,
             age: _ageFromDob(r['student_dob']),
             therapistName: tName,
@@ -138,9 +172,137 @@ class _IepReportsSectionPageState extends State<IepReportsSectionPage> {
     }).toList();
   }
 
+  int get _pageCount {
+    final n = _filteredReports.length;
+    return n == 0 ? 1 : (n / _pageSize).ceil();
+  }
+
+  /// The slice of [_filteredReports] on the current page.
+  List<IepReportItem> get _pagedReports {
+    final all = _filteredReports;
+    final page = _page.clamp(0, _pageCount - 1);
+    final start = page * _pageSize;
+    final end = (start + _pageSize).clamp(0, all.length);
+    return start >= all.length ? const [] : all.sublist(start, end);
+  }
+
+  String get _showingLabel {
+    final total = _filteredReports.length;
+    if (total == 0) return 'Showing 0 of ${_reports.length} IEP reports';
+    final page = _page.clamp(0, _pageCount - 1);
+    final start = page * _pageSize + 1;
+    final end = (start + _pageSize - 1).clamp(0, total);
+    return 'Showing $start–$end of $total IEP reports';
+  }
+
+  Future<void> _exportAudit() async {
+    final reports = _filteredReports;
+    if (reports.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('No IEP reports match the current filter.')));
+      return;
+    }
+    const filters = [
+      'All Reports',
+      'Pending Audit',
+      'Approved',
+      'Revision Needed'
+    ];
+    final subtitle = [
+      'Filter: ${filters[_selectedFilterIndex]}',
+      if (_searchQuery.trim().isNotEmpty) 'Search: "${_searchQuery.trim()}"',
+      '${reports.length} report(s)',
+    ].join(' • ');
+    await ReportPdf.share(
+      title: 'Clinical IEP Audit',
+      subtitle: subtitle,
+      fileName: 'clinical_iep_audit.pdf',
+      sections: [
+        ReportSection(
+          'IEP Reports',
+          columns: const [
+            'Student',
+            'Therapist',
+            'Title / Cycle',
+            'Status',
+            'Created',
+            'Signed by'
+          ],
+          rows: [
+            for (final r in reports)
+              [
+                r.studentName,
+                r.therapistName,
+                r.title.isNotEmpty ? '${r.title} (${r.cycle})' : r.cycle,
+                r.status.label,
+                r.submittedDate,
+                r.signedBy.isNotEmpty
+                    ? '${r.signedBy}${r.signDate != null ? ' on ${r.signDate}' : ''}'
+                    : '—',
+              ],
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPaginationBtn(
+      String text, bool isSelected, VoidCallback? onTap) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 8),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(6),
+        onTap: onTap,
+        child: Opacity(
+          opacity: onTap == null && !isSelected ? 0.4 : 1,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: isSelected ? AppColors.primary : Colors.white,
+              border: Border.all(
+                  color: isSelected ? AppColors.primary : AppColors.divider),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text(
+              text,
+              style: TextStyle(
+                fontSize: 12,
+                color: isSelected ? Colors.white : AppColors.textSecondary,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Previous / page numbers / Next; hidden when everything fits on one page.
+  Widget _buildPagination() {
+    final count = _pageCount;
+    if (count <= 1) return const SizedBox.shrink();
+    final page = _page.clamp(0, count - 1);
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _buildPaginationBtn('Previous', false,
+              page > 0 ? () => setState(() => _page = page - 1) : null),
+          for (int i = 0; i < count; i++)
+            _buildPaginationBtn(
+                '${i + 1}', i == page, () => setState(() => _page = i)),
+          _buildPaginationBtn('Next', false,
+              page < count - 1 ? () => setState(() => _page = page + 1) : null),
+        ],
+      ),
+    );
+  }
+
   void _openAuditDialog(IepReportItem report) {
     final notesController =
         TextEditingController(text: report.directorNotes ?? '');
+    String? notesError;
+    bool busy = false;
 
     showDialog(
       context: context,
@@ -228,7 +390,7 @@ class _IepReportsSectionPageState extends State<IepReportsSectionPage> {
                                       const SizedBox(height: 8),
                                       _auditSummaryCard(
                                           'Mastery Criteria',
-                                          '80% across 3 days',
+                                          _masteryCriteria,
                                           Icons.track_changes_outlined,
                                           Colors.purple),
                                       const SizedBox(height: 8),
@@ -250,7 +412,7 @@ class _IepReportsSectionPageState extends State<IepReportsSectionPage> {
                                     const SizedBox(width: 12),
                                     _auditSummaryCard(
                                         'Mastery Criteria',
-                                        '80% across 3 days',
+                                        _masteryCriteria,
                                         Icons.track_changes_outlined,
                                         Colors.purple),
                                     const SizedBox(width: 12),
@@ -288,7 +450,13 @@ class _IepReportsSectionPageState extends State<IepReportsSectionPage> {
                             TextField(
                               controller: notesController,
                               maxLines: 3,
+                              onChanged: (_) {
+                                if (notesError != null) {
+                                  setDialogState(() => notesError = null);
+                                }
+                              },
                               decoration: InputDecoration(
+                                errorText: notesError,
                                 hintText:
                                     'Enter clinical observations, prompt hierarchy adjustments, or notes for the therapist...',
                                 border: OutlineInputBorder(
@@ -358,9 +526,8 @@ class _IepReportsSectionPageState extends State<IepReportsSectionPage> {
                                       borderRadius: BorderRadius.circular(8),
                                       color: Colors.white,
                                     ),
-                                    child: const Text(
-                                        'Clinical Director, BCBA-D ✍️',
-                                        style: TextStyle(
+                                    child: Text('$_signatureName ✍️',
+                                        style: const TextStyle(
                                             fontFamily: 'serif',
                                             fontStyle: FontStyle.italic,
                                             fontWeight: FontWeight.bold,
@@ -397,24 +564,31 @@ class _IepReportsSectionPageState extends State<IepReportsSectionPage> {
                               shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(8)),
                             ),
-                            onPressed: () {
-                              setState(() {
-                                report.status = IepStatus.returned;
-                                report.directorNotes = notesController.text
-                                        .trim()
-                                        .isNotEmpty
-                                    ? notesController.text.trim()
-                                    : 'Clinical revisions requested by Director.';
-                              });
-                              Navigator.of(ctx).pop();
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                      'IEP for ${report.studentName} returned to therapist for revisions.'),
-                                  backgroundColor: AppColors.statusDeactivated,
-                                ),
-                              );
-                            },
+                            onPressed: busy
+                                ? null
+                                : () async {
+                                    final notes = notesController.text.trim();
+                                    if (notes.isEmpty) {
+                                      setDialogState(() => notesError =
+                                          'Add notes telling the therapist what to revise.');
+                                      return;
+                                    }
+                                    setDialogState(() => busy = true);
+                                    final res = await ApiService()
+                                        .post('request_iep_revision', {
+                                      'iep_id': report.dbId,
+                                      'director_notes': notes,
+                                    });
+                                    if (!mounted) return;
+                                    final ok = showApiResult(this.context, res,
+                                        'IEP for ${report.studentName} returned to therapist for revisions.');
+                                    if (ok) {
+                                      if (ctx.mounted) Navigator.of(ctx).pop();
+                                      _loadIepReports();
+                                    } else {
+                                      setDialogState(() => busy = false);
+                                    }
+                                  },
                           ),
                           ElevatedButton.icon(
                             icon: const Icon(Icons.verified,
@@ -430,31 +604,26 @@ class _IepReportsSectionPageState extends State<IepReportsSectionPage> {
                               shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(8)),
                             ),
-                            onPressed: () {
-                              final notes = notesController.text.trim();
-                              setState(() {
-                                report.status = IepStatus.approved;
-                                report.signDate = '10-09-2026';
-                                report.directorNotes = notes;
-                              });
-                              // Asynchronously sync digital sign-off with backend
-                              final iepNumericId = int.tryParse(report.id
-                                      .replaceAll(RegExp(r'[^0-9]'), '')) ??
-                                  1;
-                              ApiService().post('sign_off_iep', {
-                                'iep_id': iepNumericId,
-                                'director_notes': notes,
-                              }).catchError((_) => null);
-
-                              Navigator.of(ctx).pop();
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                      'IEP for ${report.studentName} clinically approved & signed!'),
-                                  backgroundColor: AppColors.statusActive,
-                                ),
-                              );
-                            },
+                            onPressed: busy
+                                ? null
+                                : () async {
+                                    final notes = notesController.text.trim();
+                                    setDialogState(() => busy = true);
+                                    final res = await ApiService()
+                                        .post('sign_off_iep', {
+                                      'iep_id': report.dbId,
+                                      'director_notes': notes,
+                                    });
+                                    if (!mounted) return;
+                                    final ok = showApiResult(this.context, res,
+                                        'IEP for ${report.studentName} clinically approved & signed!');
+                                    if (ok) {
+                                      if (ctx.mounted) Navigator.of(ctx).pop();
+                                      _loadIepReports();
+                                    } else {
+                                      setDialogState(() => busy = false);
+                                    }
+                                  },
                           ),
                         ],
                       ),
@@ -628,13 +797,7 @@ class _IepReportsSectionPageState extends State<IepReportsSectionPage> {
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8)),
                 ),
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                        content: Text(
-                            'Generating comprehensive clinical audit report PDF...')),
-                  );
-                },
+                onPressed: _exportAudit,
               );
 
               if (isNarrow) {
@@ -696,7 +859,10 @@ class _IepReportsSectionPageState extends State<IepReportsSectionPage> {
                   children: [
                     Expanded(
                       child: TextField(
-                        onChanged: (val) => setState(() => _searchQuery = val),
+                        onChanged: (val) => setState(() {
+                          _searchQuery = val;
+                          _page = 0;
+                        }),
                         decoration: const InputDecoration(
                           hintText: 'Search student or therapist...',
                           hintStyle: TextStyle(
@@ -748,261 +914,250 @@ class _IepReportsSectionPageState extends State<IepReportsSectionPage> {
                       offset: const Offset(0, 4)),
                 ],
               ),
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  // Phone: one card per report instead of a 7-column table.
-                  if (constraints.maxWidth < Breakpoints.compact) {
-                    return _buildReportCards();
-                  }
-                  return SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: SizedBox(
-                      width: constraints.maxWidth < 750
-                          ? 750
-                          : constraints.maxWidth,
-                      child: Column(
-                        children: [
-                          // Table Header
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 20, vertical: 14),
-                            decoration: const BoxDecoration(
-                              color: Color(0xFFF3E8FF),
-                              borderRadius: BorderRadius.vertical(
-                                  top: Radius.circular(16)),
-                            ),
-                            child: const Row(
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : LayoutBuilder(
+                      builder: (context, constraints) {
+                        // Phone: one card per report instead of a 7-column table.
+                        if (constraints.maxWidth < Breakpoints.compact) {
+                          return _buildReportCards();
+                        }
+                        return SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: SizedBox(
+                            width: constraints.maxWidth < 750
+                                ? 750
+                                : constraints.maxWidth,
+                            child: Column(
                               children: [
-                                SizedBox(
-                                    width: 50,
-                                    child: Text('Photo',
-                                        style: TextStyle(
-                                            color: AppColors.tableHeaderText,
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 13))),
-                                Expanded(
-                                    flex: 2,
-                                    child: Text('Student Name',
-                                        style: TextStyle(
-                                            color: AppColors.tableHeaderText,
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 13))),
-                                Expanded(
-                                    flex: 2,
-                                    child: Text('Assigned Clinician',
-                                        style: TextStyle(
-                                            color: AppColors.tableHeaderText,
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 13))),
-                                Expanded(
-                                    flex: 2,
-                                    child: Text('Program Cycle',
-                                        style: TextStyle(
-                                            color: AppColors.tableHeaderText,
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 13))),
-                                Expanded(
-                                    flex: 3,
-                                    child: Text('Target Objectives',
-                                        style: TextStyle(
-                                            color: AppColors.tableHeaderText,
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 13))),
-                                Expanded(
-                                    flex: 2,
-                                    child: Text('Status',
-                                        style: TextStyle(
-                                            color: AppColors.tableHeaderText,
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 13))),
-                                SizedBox(
-                                    width: 110,
-                                    child: Text('Action',
-                                        style: TextStyle(
-                                            color: AppColors.tableHeaderText,
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 13),
-                                        textAlign: TextAlign.center)),
-                              ],
-                            ),
-                          ),
-
-                          // Table Rows
-                          Expanded(
-                            child: _filteredReports.isEmpty
-                                ? const Center(
-                                    child: Text(
-                                        'No IEP reports match your current filter.',
-                                        style: TextStyle(
-                                            color: AppColors.textSecondary)),
-                                  )
-                                : ListView.separated(
-                                    itemCount: _filteredReports.length,
-                                    separatorBuilder: (_, __) => const Divider(
-                                        height: 1, color: AppColors.divider),
-                                    itemBuilder: (ctx, i) {
-                                      final item = _filteredReports[i];
-                                      return Container(
-                                        padding: const EdgeInsets.symmetric(
-                                            horizontal: 20, vertical: 12),
-                                        color: i % 2 == 0
-                                            ? Colors.white
-                                            : const Color(0xFFFAF7FC),
-                                        child: Row(
-                                          children: [
-                                            SizedBox(
-                                              width: 50,
-                                              child: CircleAvatar(
-                                                radius: 18,
-                                                backgroundColor: AppColors
-                                                    .primary
-                                                    .withValues(alpha: 0.1),
-                                                child: Text(
-                                                  item.studentName
-                                                      .substring(0, 1),
-                                                  style: const TextStyle(
-                                                      color: AppColors.primary,
-                                                      fontWeight:
-                                                          FontWeight.bold,
-                                                      fontSize: 14),
-                                                ),
-                                              ),
-                                            ),
-                                            Expanded(
-                                              flex: 2,
-                                              child: Column(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
-                                                children: [
-                                                  Text(item.studentName,
-                                                      style: const TextStyle(
-                                                          fontWeight:
-                                                              FontWeight.bold,
-                                                          fontSize: 13,
-                                                          color: AppColors
-                                                              .textPrimary)),
-                                                  Text(
-                                                      'Age: ${item.age} yrs • Sub: ${item.submittedDate}',
-                                                      style: const TextStyle(
-                                                          fontSize: 11,
-                                                          color: AppColors
-                                                              .textSecondary)),
-                                                ],
-                                              ),
-                                            ),
-                                            Expanded(
-                                              flex: 2,
-                                              child: Text(item.therapistName,
-                                                  style: const TextStyle(
-                                                      fontSize: 12,
-                                                      color: AppColors
-                                                          .textPrimary)),
-                                            ),
-                                            Expanded(
-                                              flex: 2,
-                                              child: Text(item.cycle,
-                                                  style: const TextStyle(
-                                                      fontSize: 12,
-                                                      color: AppColors
-                                                          .textPrimary)),
-                                            ),
-                                            Expanded(
-                                              flex: 3,
-                                              child: Text(item.targetDomains,
-                                                  maxLines: 2,
-                                                  overflow:
-                                                      TextOverflow.ellipsis,
-                                                  style: const TextStyle(
-                                                      fontSize: 11,
-                                                      color: AppColors
-                                                          .textSecondary)),
-                                            ),
-                                            Expanded(
-                                              flex: 2,
-                                              child: Align(
-                                                alignment: Alignment.centerLeft,
-                                                child: _statusChip(item.status),
-                                              ),
-                                            ),
-                                            SizedBox(
-                                              width: 110,
-                                              child: Row(
-                                                mainAxisAlignment:
-                                                    MainAxisAlignment.center,
-                                                children: [
-                                                  _actionButton(item),
-                                                ],
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      );
-                                    },
+                                // Table Header
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 20, vertical: 14),
+                                  decoration: const BoxDecoration(
+                                    color: Color(0xFFF3E8FF),
+                                    borderRadius: BorderRadius.vertical(
+                                        top: Radius.circular(16)),
                                   ),
-                          ),
-
-                          // Pagination Footer
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 20, vertical: 12),
-                            decoration: const BoxDecoration(
-                              border: Border(
-                                  top: BorderSide(color: AppColors.divider)),
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(
-                                    'Showing ${_filteredReports.length} of ${_reports.length} IEP reports',
-                                    style: const TextStyle(
-                                        fontSize: 12,
-                                        color: AppColors.textSecondary)),
-                                Row(
-                                  children: [
-                                    OutlinedButton(
-                                      onPressed: null,
-                                      style: OutlinedButton.styleFrom(
-                                          padding: const EdgeInsets.symmetric(
-                                              horizontal: 12, vertical: 6)),
-                                      child: const Text('Previous',
-                                          style: TextStyle(fontSize: 11)),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Container(
-                                      width: 28,
-                                      height: 28,
-                                      decoration: BoxDecoration(
-                                          color: AppColors.primary,
-                                          borderRadius:
-                                              BorderRadius.circular(14)),
-                                      child: const Center(
-                                          child: Text('1',
+                                  child: const Row(
+                                    children: [
+                                      SizedBox(
+                                          width: 50,
+                                          child: Text('Photo',
                                               style: TextStyle(
-                                                  color: Colors.white,
-                                                  fontSize: 12,
-                                                  fontWeight:
-                                                      FontWeight.bold))),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    OutlinedButton(
-                                      onPressed: null,
-                                      style: OutlinedButton.styleFrom(
-                                          padding: const EdgeInsets.symmetric(
-                                              horizontal: 12, vertical: 6)),
-                                      child: const Text('Next',
-                                          style: TextStyle(fontSize: 11)),
-                                    ),
-                                  ],
+                                                  color:
+                                                      AppColors.tableHeaderText,
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 13))),
+                                      Expanded(
+                                          flex: 2,
+                                          child: Text('Student Name',
+                                              style: TextStyle(
+                                                  color:
+                                                      AppColors.tableHeaderText,
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 13))),
+                                      Expanded(
+                                          flex: 2,
+                                          child: Text('Assigned Clinician',
+                                              style: TextStyle(
+                                                  color:
+                                                      AppColors.tableHeaderText,
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 13))),
+                                      Expanded(
+                                          flex: 2,
+                                          child: Text('Program Cycle',
+                                              style: TextStyle(
+                                                  color:
+                                                      AppColors.tableHeaderText,
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 13))),
+                                      Expanded(
+                                          flex: 3,
+                                          child: Text('Target Objectives',
+                                              style: TextStyle(
+                                                  color:
+                                                      AppColors.tableHeaderText,
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 13))),
+                                      Expanded(
+                                          flex: 2,
+                                          child: Text('Status',
+                                              style: TextStyle(
+                                                  color:
+                                                      AppColors.tableHeaderText,
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 13))),
+                                      SizedBox(
+                                          width: 110,
+                                          child: Text('Action',
+                                              style: TextStyle(
+                                                  color:
+                                                      AppColors.tableHeaderText,
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 13),
+                                              textAlign: TextAlign.center)),
+                                    ],
+                                  ),
+                                ),
+
+                                // Table Rows
+                                Expanded(
+                                  child: _filteredReports.isEmpty
+                                      ? const Center(
+                                          child: Text(
+                                              'No IEP reports match your current filter.',
+                                              style: TextStyle(
+                                                  color:
+                                                      AppColors.textSecondary)),
+                                        )
+                                      : ListView.separated(
+                                          itemCount: _pagedReports.length,
+                                          separatorBuilder: (_, __) =>
+                                              const Divider(
+                                                  height: 1,
+                                                  color: AppColors.divider),
+                                          itemBuilder: (ctx, i) {
+                                            final item = _pagedReports[i];
+                                            return Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                      horizontal: 20,
+                                                      vertical: 12),
+                                              color: i % 2 == 0
+                                                  ? Colors.white
+                                                  : const Color(0xFFFAF7FC),
+                                              child: Row(
+                                                children: [
+                                                  SizedBox(
+                                                    width: 50,
+                                                    child: CircleAvatar(
+                                                      radius: 18,
+                                                      backgroundColor: AppColors
+                                                          .primary
+                                                          .withValues(
+                                                              alpha: 0.1),
+                                                      child: Text(
+                                                        item.studentName
+                                                            .substring(0, 1),
+                                                        style: const TextStyle(
+                                                            color: AppColors
+                                                                .primary,
+                                                            fontWeight:
+                                                                FontWeight.bold,
+                                                            fontSize: 14),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  Expanded(
+                                                    flex: 2,
+                                                    child: Column(
+                                                      crossAxisAlignment:
+                                                          CrossAxisAlignment
+                                                              .start,
+                                                      children: [
+                                                        Text(item.studentName,
+                                                            style: const TextStyle(
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .bold,
+                                                                fontSize: 13,
+                                                                color: AppColors
+                                                                    .textPrimary)),
+                                                        Text(
+                                                            'Age: ${item.age} yrs • Sub: ${item.submittedDate}',
+                                                            style: const TextStyle(
+                                                                fontSize: 11,
+                                                                color: AppColors
+                                                                    .textSecondary)),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                  Expanded(
+                                                    flex: 2,
+                                                    child: Text(
+                                                        item.therapistName,
+                                                        style: const TextStyle(
+                                                            fontSize: 12,
+                                                            color: AppColors
+                                                                .textPrimary)),
+                                                  ),
+                                                  Expanded(
+                                                    flex: 2,
+                                                    child: Text(item.cycle,
+                                                        style: const TextStyle(
+                                                            fontSize: 12,
+                                                            color: AppColors
+                                                                .textPrimary)),
+                                                  ),
+                                                  Expanded(
+                                                    flex: 3,
+                                                    child: Text(
+                                                        item.targetDomains,
+                                                        maxLines: 2,
+                                                        overflow: TextOverflow
+                                                            .ellipsis,
+                                                        style: const TextStyle(
+                                                            fontSize: 11,
+                                                            color: AppColors
+                                                                .textSecondary)),
+                                                  ),
+                                                  Expanded(
+                                                    flex: 2,
+                                                    child: Align(
+                                                      alignment:
+                                                          Alignment.centerLeft,
+                                                      child: _statusChip(
+                                                          item.status),
+                                                    ),
+                                                  ),
+                                                  SizedBox(
+                                                    width: 110,
+                                                    child: Row(
+                                                      mainAxisAlignment:
+                                                          MainAxisAlignment
+                                                              .center,
+                                                      children: [
+                                                        _actionButton(item),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            );
+                                          },
+                                        ),
+                                ),
+
+                                // Pagination Footer
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 20, vertical: 12),
+                                  decoration: const BoxDecoration(
+                                    border: Border(
+                                        top: BorderSide(
+                                            color: AppColors.divider)),
+                                  ),
+                                  child: Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Text(_showingLabel,
+                                          style: const TextStyle(
+                                              fontSize: 12,
+                                              color: AppColors.textSecondary)),
+                                      const SizedBox(width: 12),
+                                      Flexible(child: _buildPagination()),
+                                    ],
+                                  ),
                                 ),
                               ],
                             ),
                           ),
-                        ],
-                      ),
+                        );
+                      },
                     ),
-                  );
-                },
-              ),
             ),
           ),
         ],
@@ -1065,11 +1220,11 @@ class _IepReportsSectionPageState extends State<IepReportsSectionPage> {
                 )
               : ListView.separated(
                   padding: const EdgeInsets.symmetric(vertical: 4),
-                  itemCount: _filteredReports.length,
+                  itemCount: _pagedReports.length,
                   separatorBuilder: (_, __) =>
                       const Divider(height: 1, color: AppColors.divider),
                   itemBuilder: (ctx, i) {
-                    final item = _filteredReports[i];
+                    final item = _pagedReports[i];
                     return Container(
                       padding: const EdgeInsets.all(14),
                       color:
@@ -1137,10 +1292,18 @@ class _IepReportsSectionPageState extends State<IepReportsSectionPage> {
           decoration: const BoxDecoration(
             border: Border(top: BorderSide(color: AppColors.divider)),
           ),
-          child: Text(
-              'Showing ${_filteredReports.length} of ${_reports.length} IEP reports',
-              style: const TextStyle(
-                  fontSize: 12, color: AppColors.textSecondary)),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(_showingLabel,
+                  style: const TextStyle(
+                      fontSize: 12, color: AppColors.textSecondary)),
+              if (_pageCount > 1) ...[
+                const SizedBox(height: 8),
+                _buildPagination(),
+              ],
+            ],
+          ),
         ),
       ],
     );
@@ -1175,7 +1338,10 @@ class _IepReportsSectionPageState extends State<IepReportsSectionPage> {
   Widget _buildPipelineTab(int index, String label, Color? highlightColor) {
     final isSelected = _selectedFilterIndex == index;
     return InkWell(
-      onTap: () => setState(() => _selectedFilterIndex = index),
+      onTap: () => setState(() {
+        _selectedFilterIndex = index;
+        _page = 0;
+      }),
       borderRadius: BorderRadius.circular(8),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
