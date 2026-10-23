@@ -7,6 +7,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:timezone/data/latest.dart' as tzdata;
+import 'package:timezone/timezone.dart' as tz;
 import 'web_storage/web_storage.dart';
 
 class SystemNotifications {
@@ -169,6 +171,82 @@ class SystemNotifications {
     } catch (e) {
       debugPrint('SystemNotifications show failed: $e');
     }
+  }
+
+  /// Platforms where the OS itself delivers a notification scheduled ahead
+  /// of time, even when the app is closed.
+  static bool get canScheduleNatively =>
+      !kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.iOS ||
+          defaultTargetPlatform == TargetPlatform.android ||
+          defaultTargetPlatform == TargetPlatform.macOS);
+
+  static bool _tzReady = false;
+
+  /// Schedules notification [id] for the instant [at]. Returns false when the
+  /// platform can't schedule (callers then use an in-app timer instead).
+  static Future<bool> schedule({
+    required int id,
+    required String title,
+    required String body,
+    required DateTime at,
+  }) async {
+    if (!canScheduleNatively) return false;
+    await init();
+    if (!_tzReady) {
+      tzdata.initializeTimeZones();
+      _tzReady = true;
+    }
+    const darwin = DarwinNotificationDetails(
+      presentAlert: true,
+      presentBanner: true,
+      presentList: true,
+      presentSound: true,
+    );
+    try {
+      await _plugin.zonedSchedule(
+        id: id,
+        title: title,
+        body: body,
+        // An absolute instant: UTC avoids needing the device's zone name.
+        scheduledDate: tz.TZDateTime.from(at.toUtc(), tz.UTC),
+        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+        notificationDetails: const NotificationDetails(
+          android: AndroidNotificationDetails(
+            _androidChannelId,
+            'ROH ERP alerts',
+            channelDescription: 'Sessions, appointments and other ROH ERP updates',
+            importance: Importance.high,
+            priority: Priority.high,
+          ),
+          iOS: darwin,
+          macOS: darwin,
+        ),
+      );
+      return true;
+    } catch (e) {
+      debugPrint('SystemNotifications schedule failed: $e');
+      return false;
+    }
+  }
+
+  /// Ids of notifications scheduled and not yet delivered.
+  static Future<List<int>> pendingIds() async {
+    if (!canScheduleNatively) return const [];
+    await init();
+    try {
+      return [for (final r in await _plugin.pendingNotificationRequests()) r.id];
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  static Future<void> cancel(int id) async {
+    if (!_nativeSupported) return;
+    await init();
+    try {
+      await _plugin.cancel(id: id);
+    } catch (_) {}
   }
 
   static void _handleTap() {

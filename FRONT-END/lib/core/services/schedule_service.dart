@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../models/schedule_model.dart';
 import 'api_service.dart';
 import 'notification_service.dart';
+import 'session_reminders.dart';
 
 class ScheduleService extends ChangeNotifier {
   /// Whole years since [dob] (e.g. "2019-11-21"); 0 when missing or unreadable.
@@ -220,7 +221,8 @@ class ScheduleService extends ChangeNotifier {
           s.therapistId == therapistId;
       return isSameDate && matchesTherapist;
     }).toList()
-      ..sort((a, b) => a.startTime.compareTo(b.startTime));
+      ..sort((a, b) => (SessionReminders.startOf(a) ?? a.date)
+          .compareTo(SessionReminders.startOf(b) ?? b.date));
   }
 
   List<TherapySession> getAllSessionsForDate(DateTime date) {

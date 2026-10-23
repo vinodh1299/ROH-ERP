@@ -772,7 +772,13 @@ class _MilestoneAssessmentPageState extends State<MilestoneAssessmentPage> {
           // a 56px readable minimum, then the matrix scrolls sideways.
           LayoutBuilder(
             builder: (context, constraints) {
-              final fitsFixed = constraints.maxWidth >= columns.length * 75;
+              // Row numbers live in a borderless label column to the left of
+              // the grid; it is excluded from the width the grid can use.
+              const labelWidth = 28.0;
+              const headerHeight = 40.0;
+              const cellHeight = 38.0;
+              final fitsFixed =
+                  constraints.maxWidth - labelWidth >= columns.length * 75;
               final table = Table(
                 defaultColumnWidth: fitsFixed
                     ? const FixedColumnWidth(75)
@@ -784,16 +790,20 @@ class _MilestoneAssessmentPageState extends State<MilestoneAssessmentPage> {
                   TableRow(
                     decoration: const BoxDecoration(color: Color(0xFFEDE9FE)),
                     children: columns.map((col) {
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(
-                            vertical: 10, horizontal: 4),
-                        child: Text(
-                          col,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 11,
-                              color: AppColors.primary),
+                      return SizedBox(
+                        height: headerHeight,
+                        child: Center(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 4),
+                            child: Text(
+                              col,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 11,
+                                  color: AppColors.primary),
+                            ),
+                          ),
                         ),
                       );
                     }).toList(),
@@ -810,15 +820,60 @@ class _MilestoneAssessmentPageState extends State<MilestoneAssessmentPage> {
                           row: row,
                           bottomTest: tests.bottom,
                           topTest: tests.top,
+                          height: cellHeight,
+                          showNumber: false,
                         );
                       }),
                     ),
                 ],
               );
-              if (fitsFixed) return table;
-              return ScrollableMinWidth(
-                minWidth: columns.length * 56.0,
-                child: table,
+
+              // Same row heights and border widths as the grid (transparent
+              // borders still take up space), so the numbers line up.
+              final labels = Table(
+                defaultColumnWidth: const FixedColumnWidth(labelWidth),
+                border: TableBorder.all(color: Colors.transparent, width: 1),
+                children: [
+                  const TableRow(
+                    children: [SizedBox(height: headerHeight)],
+                  ),
+                  for (int row = maxRow; row >= minRow; row--)
+                    TableRow(
+                      children: [
+                        SizedBox(
+                          height: cellHeight,
+                          child: Align(
+                            alignment: Alignment.centerRight,
+                            child: Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: Text(
+                                '$row',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                ],
+              );
+
+              final grid = fitsFixed
+                  ? table
+                  : ScrollableMinWidth(
+                      minWidth: columns.length * 56.0,
+                      child: table,
+                    );
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  labels,
+                  Flexible(child: grid),
+                ],
               );
             },
           ),
