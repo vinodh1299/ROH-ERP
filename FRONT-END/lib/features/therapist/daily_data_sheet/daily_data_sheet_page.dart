@@ -286,6 +286,7 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
                 'id': r['id'],
                 'date': sessionDateRaw.split('T')[0],
                 'label': targetSkill,
+                'savedLabel': targetSkill,
                 'counts': counts,
                 'savedCounts': List<int>.from(counts),
                 'time_in': notesJson['time_in']?.toString(),
@@ -688,6 +689,7 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
   /// Shows the manding rows recorded on the selected date.
   void _applyMandingDate() {
     final date = _apiDate(_mandingDate);
+    _autofocusMandRow = null;
     _mandingRows
       ..clear()
       ..addAll(_allMandingRows.where((r) => r['date'] == date));
@@ -727,6 +729,10 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
     final counts = r['counts'] as List<int>;
     if (r['id'] == null) return counts.any((c) => c > 0);
     final saved = r['savedCounts'] as List<int>;
+    if ((r['label'] ?? '').toString().trim() !=
+        (r['savedLabel'] ?? '').toString().trim()) {
+      return true;
+    }
     return List.generate(counts.length, (i) => counts[i] != saved[i])
         .any((d) => d);
   }
@@ -872,6 +878,15 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
       _showSnack('No new or changed trials to save.', error: true);
       return;
     }
+    for (final r in newRows) {
+      if ((r['label'] ?? '').toString().trim().isEmpty) {
+        _showSnack(
+            'Enter an item name for row ${_mandingRows.indexOf(r) + 1} '
+            'before saving.',
+            error: true);
+        return;
+      }
+    }
     setState(() => _savingManding = true);
     final ok = await DailyDataQueries.saveSheet(
       studentId: studentId,
@@ -886,7 +901,7 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
             return <String, dynamic>{
               if (r['id'] != null) 'id': r['id'],
               'domain': 'Manding',
-              'target_skill': r['label'] ?? 'Mand',
+              'target_skill': r['label'].toString().trim(),
               'prompt_level': _mandPromptLevel(counts),
               'trials_completed': counts.fold<int>(0, (a, b) => a + b),
               'trials_successful': unprompted,
@@ -949,15 +964,19 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
     await _loadStudentData();
   }
 
+  /// The row just added; its item-name field takes focus when it appears.
+  Map<String, dynamic>? _autofocusMandRow;
+
   void _addNewMandRow() {
     setState(() {
       final row = <String, dynamic>{
         'date': _apiDate(_mandingDate),
-        'label': 'Item ${_mandingRows.length + 1}',
+        'label': '',
         'counts': List.generate(10, (_) => 0),
       };
       _allMandingRows.add(row);
       _mandingRows.add(row);
+      _autofocusMandRow = row;
     });
   }
 
@@ -1193,9 +1212,9 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
             ),
           )
         else
-          // Min width: 120 label + 10 prompt columns x 56 + 70 vocal + gaps.
+          // Min width: label column + 10 prompt columns x 56 + 70 vocal + gaps.
           ScrollableMinWidth(
-            minWidth: 120 + 8 + _mandingColumns.length * 56 + 8 + 70,
+            minWidth: _mandLabelWidth + 8 + _mandingColumns.length * 56 + 8 + 70,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -1209,7 +1228,7 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
                   child: Row(
                     children: [
                       Container(
-                        width: 120,
+                        width: _mandLabelWidth,
                         alignment: Alignment.center,
                         decoration: BoxDecoration(
                           color: const Color(0xFFC084FC),
@@ -1260,7 +1279,7 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
                     child: Row(
                       children: [
                         Container(
-                          width: 120,
+                          width: _mandLabelWidth,
                           height: 38,
                           decoration: BoxDecoration(
                             color: Colors.white,
@@ -1286,12 +1305,11 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
                                         fontSize: 12)),
                               ),
                               Expanded(
-                                child: Center(
-                                  child: Text(row['label'] ?? 'Mand',
-                                      style: const TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 13,
-                                          color: Colors.black87)),
+                                child: _MandItemNameField(
+                                  key: ObjectKey(row),
+                                  initialValue: (row['label'] ?? '').toString(),
+                                  autofocus: identical(row, _autofocusMandRow),
+                                  onChanged: (v) => row['label'] = v,
                                 ),
                               ),
                             ],
@@ -1380,6 +1398,8 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
                             border: Border.all(color: const Color(0xFFE9D5FF)),
                           ),
                           child: Text(row['label'] ?? 'Vocal',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
                                   fontWeight: FontWeight.bold,
                                   fontSize: 13,
@@ -3327,6 +3347,62 @@ class _DailyDataSheetPageState extends State<DailyDataSheetPage> {
               child: child,
             ),
         ],
+      ),
+    );
+  }
+}
+
+
+/// Width of the item-name column (index chip + editable name).
+const double _mandLabelWidth = 160;
+
+/// Editable item name for a manding row. Owns its controller so typing
+/// survives the sheet rebuilding on every +/- tap.
+class _MandItemNameField extends StatefulWidget {
+  final String initialValue;
+  final bool autofocus;
+  final ValueChanged<String> onChanged;
+
+  const _MandItemNameField({
+    super.key,
+    required this.initialValue,
+    required this.autofocus,
+    required this.onChanged,
+  });
+
+  @override
+  State<_MandItemNameField> createState() => _MandItemNameFieldState();
+}
+
+class _MandItemNameFieldState extends State<_MandItemNameField> {
+  late final TextEditingController _controller =
+      TextEditingController(text: widget.initialValue);
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: _controller,
+      autofocus: widget.autofocus,
+      onChanged: widget.onChanged,
+      textAlign: TextAlign.center,
+      maxLines: 1,
+      style: const TextStyle(
+          fontWeight: FontWeight.bold, fontSize: 13, color: Colors.black87),
+      decoration: const InputDecoration(
+        hintText: 'Item name',
+        hintStyle: TextStyle(
+            fontWeight: FontWeight.normal, fontSize: 12, color: Colors.black38),
+        isDense: true,
+        border: InputBorder.none,
+        enabledBorder: InputBorder.none,
+        focusedBorder: InputBorder.none,
+        contentPadding: EdgeInsets.symmetric(horizontal: 6, vertical: 10),
       ),
     );
   }
