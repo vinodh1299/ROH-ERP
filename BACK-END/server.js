@@ -26,9 +26,10 @@ const PORT = process.env.PORT || 8000;
 const JWT_SECRET = process.env.JWT_SECRET;
 
 // ── Security Headers & Middlewares ──
-// Behind the DreamHost proxy on this machine: take the client IP from X-Forwarded-For
-// only when the request comes from loopback.
-app.set('trust proxy', 'loopback');
+// Behind the DreamHost proxy: take the client IP from X-Forwarded-For only when the
+// request comes from a trusted proxy address. On the VPS the proxy connects from the
+// server's own public IP, so production sets TRUST_PROXY=loopback,<that IP>.
+app.set('trust proxy', (process.env.TRUST_PROXY || 'loopback').split(',').map((v) => v.trim()).filter(Boolean));
 app.disable('x-powered-by');
 
 // Allowed browser origins (comma-separated). Without ALLOWED_ORIGIN only local dev origins
