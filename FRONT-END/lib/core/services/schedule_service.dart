@@ -1,9 +1,9 @@
 // lib/core/services/schedule_service.dart
-import 'dart:async';
-import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import '../models/schedule_model.dart';
 import 'api_service.dart';
 import 'notification_service.dart';
+import 'poller.dart';
 import 'session_reminders.dart';
 
 class ScheduleService extends ChangeNotifier {
@@ -21,15 +21,27 @@ class ScheduleService extends ChangeNotifier {
   factory ScheduleService() => _instance;
 
   final ApiService _api = ApiService();
-  Timer? _periodicTimer;
+  late final Poller _poller =
+      Poller(const Duration(seconds: 60), syncWithBackend);
 
-  ScheduleService._internal() {
-    syncWithBackend();
-    // Continuous background sync every 4 seconds across browser tabs
-    _periodicTimer = Timer.periodic(const Duration(seconds: 4), (_) {
-      syncWithBackend();
-    });
+  ScheduleService._internal();
+
+  /// Begins the 60-second background refresh (idempotent). Called by
+  /// AuthService once a user is signed in.
+  void startPolling() => _poller.start();
+
+  /// Stops refreshing and forgets the previous user's data (on sign-out).
+  void stopPolling() {
+    _poller.stop();
+    _sessions.clear();
+    _directorAppointments.clear();
+    _therapistsList.clear();
+    _studentsList.clear();
+    notifyListeners();
   }
+
+  /// Pauses polling while the app is in the background; refreshes on return.
+  void setForeground(bool foreground) => _poller.setForeground(foreground);
 
   Future<void> syncWithBackend() async {
     try {
@@ -383,7 +395,9 @@ class ScheduleService extends ChangeNotifier {
         'notes': appointment.notes,
       });
 
-      debugPrint('ScheduleService: Appointment saved successfully: $res');
+      if (kDebugMode) {
+        debugPrint('ScheduleService: Appointment saved successfully: $res');
+      }
 
       // Trigger immediate notification refresh across all listeners
       NotificationService().fetchNotifications(silent: true);

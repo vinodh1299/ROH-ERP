@@ -1,4 +1,6 @@
 require('dotenv').config();
+require('./ops/production_guard')('clean_for_demo.js');
+
 const mysql = require('mysql2/promise');
 const bcrypt = require('bcryptjs');
 

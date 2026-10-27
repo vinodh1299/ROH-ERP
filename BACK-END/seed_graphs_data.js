@@ -1,4 +1,6 @@
 require('dotenv').config();
+require('./ops/production_guard')('seed_graphs_data.js');
+
 const mysql = require('mysql2/promise');
 
 async function seed() {

@@ -174,8 +174,7 @@ class StudentQueries {
 
   static Future<bool> delete(String studentId) async {
     try {
-      final result =
-          await _api.get('delete_student', params: {'id': studentId});
+      final result = await _api.post('delete_student', {'id': studentId});
       return result is Map && result['error'] == null;
     } catch (_) {}
     return false;

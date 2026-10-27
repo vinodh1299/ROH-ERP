@@ -10,8 +10,8 @@ const mysql = require('mysql2/promise');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
-const swaggerUi = require('swagger-ui-express');
-const swaggerSpec = require('./swagger_spec.json');
+// API docs are only served when ENABLE_API_DOCS=true (never in production by default).
+const API_DOCS = process.env.ENABLE_API_DOCS === 'true';
 
 // Refuse to start without real secrets — never fall back to hardcoded credentials
 for (const key of ['JWT_SECRET', 'DB_PASSWORD']) {
@@ -25,14 +25,50 @@ const app = express();
 const PORT = process.env.PORT || 8000;
 const JWT_SECRET = process.env.JWT_SECRET;
 
-// // ── Security Headers & Middlewares ──
+// ── Security Headers & Middlewares ──
+// Behind the DreamHost proxy on this machine: take the client IP from X-Forwarded-For
+// only when the request comes from loopback.
+app.set('trust proxy', 'loopback');
+app.disable('x-powered-by');
+
+// Allowed browser origins (comma-separated). Without ALLOWED_ORIGIN only local dev origins
+// are allowed — never "*". Native apps send no Origin and are unaffected.
+const allowedOrigins = (process.env.ALLOWED_ORIGIN || 'http://localhost:8080,http://127.0.0.1:8080')
+  .split(',').map((o) => o.trim()).filter(Boolean);
 app.use(cors({
-  origin: process.env.ALLOWED_ORIGIN || '*',
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  // An explicit "*" (local development only) allows any origin.
+  origin: (origin, cb) => cb(null, !origin || allowedOrigins.includes('*') || allowedOrigins.includes(origin)),
+  methods: ['GET', 'POST', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
 }));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
+
+// In-memory fixed-window rate limiter (single pm2 process). Returns 429 when a client
+// exceeds `max` requests per `windowMs` for the given bucket.
+const rateBuckets = new Map();
+function rateLimited(bucket, key, max, windowMs) {
+  const now = Date.now();
+  const id = `${bucket}:${key}`;
+  let entry = rateBuckets.get(id);
+  if (!entry || now >= entry.reset) {
+    entry = { count: 0, reset: now + windowMs };
+    rateBuckets.set(id, entry);
+  }
+  entry.count += 1;
+  return entry.count > max;
+}
+setInterval(() => {
+  const now = Date.now();
+  for (const [id, entry] of rateBuckets) if (now >= entry.reset) rateBuckets.delete(id);
+}, 60000).unref();
+
+app.use((req, res, next) => {
+  if (rateLimited('api', req.ip, 600, 60000)) {
+    return res.status(429).json({ error: 'Too many requests. Please wait a minute and try again.' });
+  }
+  next();
+});
 
 // Request Logger Middleware
 app.use((req, res, next) => {
@@ -41,16 +77,25 @@ app.use((req, res, next) => {
   next();
 });
 
-// ── Mount Swagger UI Documentation ──
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
-app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+// ── Swagger UI (development only) ──
+if (API_DOCS) {
+  const swaggerUi = require('swagger-ui-express');
+  const swaggerSpec = require('./swagger_spec.json');
+  app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+  app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+}
 
 // Defense-in-depth security headers
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
-  res.setHeader('X-XSS-Protection', '1; mode=block');
-  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'no-referrer');
+  res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  res.setHeader('Cross-Origin-Resource-Policy', 'same-site');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  // The API only returns JSON; nothing may be loaded or framed from its responses.
+  if (!API_DOCS) res.setHeader('Content-Security-Policy', "default-src 'none'; frame-ancestors 'none'");
+  res.setHeader('Cache-Control', 'no-store');
   next();
 });
 
@@ -151,6 +196,11 @@ async function createNotification(recipientUserId, eventType, title, message, me
   }
 }
 
+// Session length: staff tokens last 12 hours, parent tokens 7 days. The app refreshes
+// an unexpired token while it's in use (refresh_token), so an idle or lost device signs
+// out on its own.
+const TOKEN_LIFETIME = { admin: '12h', director: '12h', therapist: '12h', parent: '7d' };
+
 function generateToken(user) {
   return jwt.sign(
     {
@@ -161,7 +211,7 @@ function generateToken(user) {
       token_version: user.token_version || 1,
     },
     JWT_SECRET,
-    { expiresIn: '30d' }
+    { expiresIn: TOKEN_LIFETIME[user.role] || '12h' }
   );
 }
 
@@ -307,6 +357,12 @@ function requireAuth(allowedRoles = []) {
 // ── Unified API Dispatcher (supports ?action=xxx for exact backwards compatibility with Flutter ApiService) ──
 app.all(['/api.php', '/api', '/api/api.php', '/api/v1'], async (req, res) => {
   const action = req.query.action || req.body.action || '';
+  // Reads may use GET; anything that changes data must be a POST (so writes can't be
+  // triggered by a link, and request bodies stay out of URLs and logs).
+  if (!['GET', 'POST'].includes(req.method)) return res.status(405).json({ error: 'Method not allowed' });
+  if (req.method === 'GET' && action && !/^(get_|list_)/.test(action)) {
+    return res.status(405).json({ error: 'Use POST for this action' });
+  }
   const input = { ...req.query, ...req.body };
   const ip = req.ip || req.connection.remoteAddress || '127.0.0.1';
   const ua = req.headers['user-agent'] || 'Unknown';
@@ -323,6 +379,10 @@ app.all(['/api.php', '/api', '/api/api.php', '/api/v1'], async (req, res) => {
         if (!email || !password) {
           return res.status(400).json({ error: 'Email and password are required' });
         }
+        // 10 sign-in attempts per 15 minutes per address, whatever the account.
+        if (rateLimited('login', ip, 10, 15 * 60000)) {
+          return res.status(429).json({ error: 'Too many sign-in attempts. Please wait 15 minutes and try again.' });
+        }
 
         const [users] = await pool.query(
           'SELECT id, name, email, password, role, status, must_change_password, failed_login_attempts, locked_until, token_version FROM users WHERE LOWER(email) = ? LIMIT 1',
@@ -330,21 +390,23 @@ app.all(['/api.php', '/api', '/api/api.php', '/api/v1'], async (req, res) => {
         );
 
         if (!users.length) {
-          await auditLog(null, null, 'LOGIN_FAILED', 'users', null, ip, ua, `Unknown email: ${email}`);
-          return res.status(401).json({ error: 'Invalid email or password' });
+          await auditLog(null, null, 'LOGIN_FAILED', 'users', null, ip, ua, 'Unknown account');
+          return res.status(401).json({ error: 'Invalid email or password.' });
         }
 
         const user = users[0];
 
-        // Check if locked
+        // Only bcrypt hashes are accepted; a non-hash value never matches.
+        const passwordMatches = user.password.startsWith('$2') && await bcrypt.compare(password, user.password);
+
+        // A locked account only says so to someone who knows the password; anyone else
+        // gets the same answer as a wrong password, so the message reveals nothing.
         if (user.locked_until && new Date(user.locked_until) > new Date()) {
           const waitMins = Math.ceil((new Date(user.locked_until) - new Date()) / 60000);
           await auditLog(user.id, user.role, 'LOGIN_LOCKED', 'users', user.id, ip, ua, `Locked attempt. ${waitMins}m remaining`);
-          return res.status(403).json({ error: `Account locked due to consecutive failed logins. Try again in ${waitMins} minute(s) or contact Admin.` });
+          if (!passwordMatches) return res.status(401).json({ error: 'Invalid email or password.' });
+          return res.status(403).json({ error: `This account is temporarily locked after several failed sign-ins. Try again in ${waitMins} minute(s) or contact the centre.` });
         }
-
-        // Only bcrypt hashes are accepted; a non-hash value never matches.
-        const passwordMatches = user.password.startsWith('$2') && await bcrypt.compare(password, user.password);
 
         if (passwordMatches) {
           if (user.status !== 'Active') {
@@ -371,12 +433,11 @@ app.all(['/api.php', '/api', '/api/api.php', '/api/v1'], async (req, res) => {
             await pool.query('UPDATE users SET failed_login_attempts = ?, locked_until = ? WHERE id = ?', [attempts, lockUntil, user.id]);
             await notifyRole('admin', 'ACCOUNT_LOCKED', 'Security Alert: Account Locked', `A ${user.role} account was locked after 5 failed attempts.`);
             await auditLog(user.id, user.role, 'ACCOUNT_LOCKED', 'users', user.id, ip, ua, `Locked after ${attempts} attempts`);
-            return res.status(403).json({ error: 'Account locked after 5 consecutive failed login attempts. Please wait 15 minutes or contact Admin.' });
+            return res.status(401).json({ error: 'Invalid email or password.' });
           } else {
             await pool.query('UPDATE users SET failed_login_attempts = ? WHERE id = ?', [attempts, user.id]);
-            const remaining = 5 - attempts;
             await auditLog(user.id, user.role, 'LOGIN_FAILED', 'users', user.id, ip, ua, `Failed attempt (${attempts}/5)`);
-            return res.status(401).json({ error: `Invalid email or password. ${remaining} attempt(s) remaining before account lockout.` });
+            return res.status(401).json({ error: 'Invalid email or password.' });
           }
         }
       }
@@ -416,6 +477,11 @@ app.all(['/api.php', '/api', '/api/api.php', '/api/v1'], async (req, res) => {
 
         const [targets] = await pool.query('SELECT id, name, email, role FROM users WHERE id = ? LIMIT 1', [targetUserId]);
         if (!targets.length) return res.status(404).json({ error: 'Target user account not found' });
+        // Only therapist and parent passwords can be reset this way; admins and directors
+        // (including the requester) change their own passwords.
+        if (targetUserId === auth.sub || !['therapist', 'parent'].includes(targets[0].role)) {
+          return res.status(403).json({ error: 'Only therapist and parent passwords can be reset here.' });
+        }
 
         const expiresAt = new Date(Date.now() + 48 * 3600000); // 48 hrs
         const [result] = await pool.query(
@@ -488,10 +554,27 @@ app.all(['/api.php', '/api', '/api/api.php', '/api/v1'], async (req, res) => {
         }
       }
 
+      // Swaps a still-valid token for a fresh one (same version), keeping an active
+      // session signed in. Expired or revoked tokens are refused.
+      case 'refresh_token': {
+        const auth = await verifyAuth(req);
+        if (!auth) return res.status(401).json({ error: 'Session expired. Please sign in again.' });
+        const [rows] = await pool.query('SELECT id, role, name, email, token_version FROM users WHERE id = ? LIMIT 1', [auth.sub]);
+        if (!rows.length) return res.status(401).json({ error: 'Session expired. Please sign in again.' });
+        return res.json({ success: true, token: generateToken(rows[0]) });
+      }
+
       case 'logout_all_devices': {
         const auth = await verifyAuth(req);
         if (!auth) return res.status(401).json({ error: 'Unauthorized' });
-        const targetUserId = (auth.role === 'admin' || auth.role === 'director') ? parseInt(input.user_id || auth.sub) : auth.sub;
+        let targetUserId = auth.sub;
+        if (['admin', 'director'].includes(auth.role) && input.user_id && parseInt(input.user_id) !== auth.sub) {
+          // Staff may sign out therapists and parents, not each other.
+          const [t] = await pool.query('SELECT id, role FROM users WHERE id = ? LIMIT 1', [parseInt(input.user_id)]);
+          if (!t.length) return res.status(404).json({ error: 'User not found' });
+          if (!['therapist', 'parent'].includes(t[0].role)) return res.status(403).json({ error: 'Forbidden' });
+          targetUserId = t[0].id;
+        }
 
         await pool.query('UPDATE users SET token_version = token_version + 1 WHERE id = ?', [targetUserId]);
         await auditLog(auth.sub, auth.role, 'LOGOUT_ALL_DEVICES', 'users', targetUserId, ip, ua, 'Revoked all active tokens');
@@ -2103,28 +2186,28 @@ app.all(['/api.php', '/api', '/api/api.php', '/api/v1'], async (req, res) => {
 
       // Default Health Check
       default:
-        return res.json({
-          status: 'ROH ERP Secure Node.js Gateway Online',
-          version: '2.5.0-nodejs',
-          database: 'Connected (MySQL roh_erp)',
-          timestamp: new Date().toISOString(),
-        });
+        if (action) return res.status(400).json({ error: 'Unknown action' });
+        return res.json({ status: 'ok' });
     }
   } catch (err) {
+    // Details stay in the server log; clients get a generic message.
     console.error(`Error processing action ${action}:`, err);
-    return res.status(500).json({ error: 'Internal Server Error', message: err.message });
+    return res.status(500).json({ error: 'Something went wrong. Please try again.' });
   }
 });
 
-// Root health check
-app.get('/', (req, res) => {
-  res.json({
-    app: 'Ray of Hope Center for Autism ERP',
-    status: 'Operational',
-    runtime: 'Node.js ' + process.version,
-    framework: 'Express',
-    database: 'MySQL2 / roh_erp',
-  });
+// Root health check (no version or stack details)
+app.get('/', (req, res) => res.json({ status: 'ok' }));
+
+// Unknown paths and malformed requests: JSON only, never an HTML stack trace.
+app.use((req, res) => res.status(404).json({ error: 'Not found' }));
+app.use((err, req, res, next) => {
+  if (err && (err.type === 'entity.parse.failed' || err instanceof SyntaxError)) {
+    return res.status(400).json({ error: 'Invalid request body' });
+  }
+  if (err && err.type === 'entity.too.large') return res.status(413).json({ error: 'Request too large' });
+  console.error('Unhandled request error:', err && err.message);
+  return res.status(500).json({ error: 'Something went wrong. Please try again.' });
 });
 
 app.listen(PORT, '0.0.0.0', () => {

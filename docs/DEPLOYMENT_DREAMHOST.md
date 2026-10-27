@@ -28,7 +28,8 @@
 - **Nightly backup:** `dh_tdq9bh`'s crontab runs `~/roh-erp-api/ops/backup_db.sh` at 02:30 server time. It writes a compressed `mysqldump` to `~/backups/roh-erp/roherp-YYYYMMDD-HHMM.sql.gz`, keeps 14 days, and logs to `~/backups/roh-erp/backup.log`.
   - Credentials come from `~/.my.cnf` (`[mysqldump]` section, mode 600), generated from the API's `.env`. If the DB password changes, update that file too.
   - Restore: `zcat FILE.sql.gz | mysql --defaults-extra-file=~/.my.cnf --ssl-mode=REQUIRED roherp`. Test a restore into a scratch database before relying on it.
-  - These copies live on the same server; also download one periodically, e.g. `scp dh_tdq9bh@vps18579.dreamhostps.com:backups/roh-erp/<file> .`.
+  - **Off-server copy:** `BACK-END/ops/pull_backups.sh` copies new backups to `~/ROH-Backups` on this Mac (only files it doesn't have yet; keeps 90 days). Run it weekly, or schedule it.
+  - **Restore test (27 Oct 2026):** the 26 Oct backup restored into a scratch local database with all 25 tables and the expected row counts, then the scratch database was dropped. Repeat this after major schema changes.
 - **Encrypted DB connection:** `DB_SSL=require` in the API's `.env` makes the API connect to MySQL over TLS. DreamHost's MySQL uses a self-signed certificate, so `DB_SSL=verify` fails; `require` still encrypts. On startup the log prints `Database connection encryption: <cipher>`.
 
 ## Redeploying (packages in `deploy/`, git-ignored)

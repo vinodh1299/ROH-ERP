@@ -1,3 +1,5 @@
+require('dotenv').config();
+require('./ops/production_guard')('test_backend_e2e.js');
 // test_backend_e2e.js
 // Comprehensive Integration & Unit Test Suite for ROH-ERP MySQL Database & API Endpoints
 const mysql = require('mysql2/promise');
