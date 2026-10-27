@@ -20,24 +20,50 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 
+/// A decoded API response together with its HTTP status code
+/// (null when the request never reached the server).
+class ApiResponse {
+  final int? statusCode;
+  final dynamic body;
+  const ApiResponse(this.statusCode, this.body);
+}
+
 class ApiService {
   // ── Singleton ────────────────────────────────────────────────────────────
   static final ApiService _instance = ApiService._internal();
   factory ApiService() => _instance;
   ApiService._internal();
 
+  /// Called once when a request that carried the current bearer token is
+  /// answered with 401 (expired or revoked session). Registered by
+  /// AuthService. Re-armed whenever a new token is set.
+  static void Function()? onSessionExpired;
+
+  /// Actions whose 401 means "wrong credentials" / "can't refresh", not
+  /// "your session ended mid-use"; the caller handles those itself.
+  static const _authActions = {'login', 'refresh_token'};
+
   String? _authToken;
+  bool _expiryReported = false;
+  int? _lastStatusCode;
+
+  /// HTTP status of the most recently completed request (null if it failed
+  /// before a response arrived).
+  int? get lastStatusCode => _lastStatusCode;
+
+  bool get hasAuthToken => _authToken != null && _authToken!.isNotEmpty;
 
   void setAuthToken(String? token) {
     _authToken = token;
+    if (token != null && token.isNotEmpty) _expiryReported = false;
   }
 
-  Map<String, String> get _headers {
+  Map<String, String> _headersFor(String? token) {
     final h = <String, String>{
       'Content-Type': 'application/json',
     };
-    if (_authToken != null && _authToken!.isNotEmpty) {
-      h['Authorization'] = 'Bearer $_authToken';
+    if (token != null && token.isNotEmpty) {
+      h['Authorization'] = 'Bearer $token';
     }
     return h;
   }
@@ -64,39 +90,73 @@ class ApiService {
   String get _apiFile => '${baseUrl}api';
 
   // ── GET request  →  /api?action=xxx&key=value ───────────────────────────
-  Future<dynamic> get(String action, {Map<String, String>? params}) async {
+  Future<dynamic> get(String action, {Map<String, String>? params}) async =>
+      (await getWithStatus(action, params: params)).body;
+
+  Future<ApiResponse> getWithStatus(String action,
+      {Map<String, String>? params}) async {
+    final token = _authToken;
     try {
       final query = {'action': action, ...(params ?? {})};
       final uri = Uri.parse(_apiFile).replace(queryParameters: query);
-      debugPrint('ApiService GET → $uri');
-      final response = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 15));
-      return _decode(response);
+      if (kDebugMode) debugPrint('ApiService GET → $uri');
+      final response = await http
+          .get(uri, headers: _headersFor(token))
+          .timeout(const Duration(seconds: 15));
+      return _complete(action, token, response);
     } catch (e) {
-      debugPrint('ApiService.get error: $e');
-      return {'error': e.toString()};
+      _lastStatusCode = null;
+      if (kDebugMode) debugPrint('ApiService.get($action) error: $e');
+      return ApiResponse(null, {'error': e.toString()});
     }
   }
 
   // ── POST request  →  api.php?action=xxx  with JSON body ─────────────────
-  Future<dynamic> post(String action, Map<String, dynamic> body) async {
+  Future<dynamic> post(String action, Map<String, dynamic> body) async =>
+      (await postWithStatus(action, body)).body;
+
+  Future<ApiResponse> postWithStatus(
+      String action, Map<String, dynamic> body) async {
+    final token = _authToken;
     try {
-      final uri = Uri.parse(_apiFile).replace(queryParameters: {'action': action});
-      debugPrint('ApiService POST → $uri');
+      final uri =
+          Uri.parse(_apiFile).replace(queryParameters: {'action': action});
+      if (kDebugMode) debugPrint('ApiService POST → $uri');
       final response = await http
-          .post(uri, headers: _headers, body: jsonEncode(body))
+          .post(uri, headers: _headersFor(token), body: jsonEncode(body))
           .timeout(const Duration(seconds: 15));
-      return _decode(response);
+      return _complete(action, token, response);
     } catch (e) {
-      debugPrint('ApiService.post error: $e');
-      return {'error': e.toString()};
+      _lastStatusCode = null;
+      if (kDebugMode) debugPrint('ApiService.post($action) error: $e');
+      return ApiResponse(null, {'error': e.toString()});
     }
+  }
+
+  ApiResponse _complete(String action, String? token, http.Response response) {
+    _lastStatusCode = response.statusCode;
+    if (response.statusCode == 401 &&
+        token != null &&
+        token.isNotEmpty &&
+        token == _authToken &&
+        !_authActions.contains(action) &&
+        !_expiryReported) {
+      // Only the token still in use counts: a 401 for a token that has since
+      // been refreshed or cleared is stale.
+      _expiryReported = true;
+      onSessionExpired?.call();
+    }
+    return ApiResponse(response.statusCode, _decode(response));
   }
 
   dynamic _decode(http.Response response) {
     try {
       return jsonDecode(response.body);
     } catch (e) {
-      debugPrint('ApiService decode error: $e — raw body: ${response.body}');
+      if (kDebugMode) {
+        debugPrint('ApiService decode error (HTTP ${response.statusCode}): '
+            '$e — raw body: ${response.body}');
+      }
       return {'error': 'Invalid response from server'};
     }
   }

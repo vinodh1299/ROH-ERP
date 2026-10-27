@@ -14,13 +14,15 @@ import 'web_storage/web_storage.dart';
 class SystemNotifications {
   SystemNotifications._();
 
-  static final FlutterLocalNotificationsPlugin _plugin = FlutterLocalNotificationsPlugin();
+  static final FlutterLocalNotificationsPlugin _plugin =
+      FlutterLocalNotificationsPlugin();
   static const MethodChannel _windowChannel = MethodChannel('roh_erp/window');
   static const String _androidChannelId = 'roh_erp_alerts';
 
   static bool _initialized = false;
   static bool _permissionRequested = false;
-  static const String _requestedKey = 'system_notifications_permission_requested';
+  static const String _requestedKey =
+      'system_notifications_permission_requested';
 
   /// True once the OS permission prompt has been requested on this install (macOS shows it only once).
   static bool wasRequestedBefore = false;
@@ -40,7 +42,9 @@ class SystemNotifications {
     if (_initialized || !_nativeSupported) return;
     _initialized = true;
     try {
-      wasRequestedBefore = (await SharedPreferences.getInstance()).getBool(_requestedKey) ?? false;
+      wasRequestedBefore =
+          (await SharedPreferences.getInstance()).getBool(_requestedKey) ??
+              false;
     } catch (_) {}
     const darwin = DarwinInitializationSettings(
       requestAlertPermission: false,
@@ -77,17 +81,20 @@ class SystemNotifications {
       switch (defaultTargetPlatform) {
         case TargetPlatform.macOS:
           return (await _plugin
-                  .resolvePlatformSpecificImplementation<MacOSFlutterLocalNotificationsPlugin>()
+                  .resolvePlatformSpecificImplementation<
+                      MacOSFlutterLocalNotificationsPlugin>()
                   ?.checkPermissions())
               ?.isEnabled;
         case TargetPlatform.iOS:
           return (await _plugin
-                  .resolvePlatformSpecificImplementation<IOSFlutterLocalNotificationsPlugin>()
+                  .resolvePlatformSpecificImplementation<
+                      IOSFlutterLocalNotificationsPlugin>()
                   ?.checkPermissions())
               ?.isEnabled;
         case TargetPlatform.android:
           return await _plugin
-              .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+              .resolvePlatformSpecificImplementation<
+                  AndroidFlutterLocalNotificationsPlugin>()
               ?.areNotificationsEnabled();
         default:
           return true;
@@ -117,16 +124,20 @@ class SystemNotifications {
       switch (defaultTargetPlatform) {
         case TargetPlatform.macOS:
           final granted = await _plugin
-              .resolvePlatformSpecificImplementation<MacOSFlutterLocalNotificationsPlugin>()
+              .resolvePlatformSpecificImplementation<
+                  MacOSFlutterLocalNotificationsPlugin>()
               ?.requestPermissions(alert: true, badge: true, sound: true);
-          debugPrint('🔔 [SystemNotifications] macOS permission granted: $granted');
+          debugPrint(
+              '🔔 [SystemNotifications] macOS permission granted: $granted');
         case TargetPlatform.iOS:
           await _plugin
-              .resolvePlatformSpecificImplementation<IOSFlutterLocalNotificationsPlugin>()
+              .resolvePlatformSpecificImplementation<
+                  IOSFlutterLocalNotificationsPlugin>()
               ?.requestPermissions(alert: true, badge: true, sound: true);
         case TargetPlatform.android:
           await _plugin
-              .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+              .resolvePlatformSpecificImplementation<
+                  AndroidFlutterLocalNotificationsPlugin>()
               ?.requestNotificationsPermission();
         default:
           break;
@@ -136,7 +147,8 @@ class SystemNotifications {
     }
   }
 
-  static Future<void> show({required int id, required String title, required String body}) async {
+  static Future<void> show(
+      {required int id, required String title, required String body}) async {
     if (kIsWeb) {
       showWebSystemNotification(title, body, () => _handleTap());
       return;
@@ -149,7 +161,10 @@ class SystemNotifications {
       presentList: true,
       presentSound: true,
     );
-    debugPrint('🔔 [SystemNotifications] posting OS notification #$id: $title');
+    if (kDebugMode) {
+      debugPrint(
+          '🔔 [SystemNotifications] posting OS notification #$id: $title');
+    }
     try {
       await _plugin.show(
         id: id,
@@ -159,7 +174,8 @@ class SystemNotifications {
           android: AndroidNotificationDetails(
             _androidChannelId,
             'ROH ERP alerts',
-            channelDescription: 'Sessions, appointments and other ROH ERP updates',
+            channelDescription:
+                'Sessions, appointments and other ROH ERP updates',
             importance: Importance.high,
             priority: Priority.high,
           ),
@@ -215,7 +231,8 @@ class SystemNotifications {
           android: AndroidNotificationDetails(
             _androidChannelId,
             'ROH ERP alerts',
-            channelDescription: 'Sessions, appointments and other ROH ERP updates',
+            channelDescription:
+                'Sessions, appointments and other ROH ERP updates',
             importance: Importance.high,
             priority: Priority.high,
           ),
@@ -235,7 +252,9 @@ class SystemNotifications {
     if (!canScheduleNatively) return const [];
     await init();
     try {
-      return [for (final r in await _plugin.pendingNotificationRequests()) r.id];
+      return [
+        for (final r in await _plugin.pendingNotificationRequests()) r.id
+      ];
     } catch (_) {
       return const [];
     }

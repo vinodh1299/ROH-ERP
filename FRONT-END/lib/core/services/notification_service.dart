@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../constants/app_constants.dart';
 import 'api_service.dart';
+import 'poller.dart';
 import 'system_notifications.dart';
 import 'web_storage/web_storage.dart';
 
@@ -31,7 +33,8 @@ class NotificationItem {
     if (map['metadata_json'] != null) {
       if (map['metadata_json'] is Map) {
         parsedMeta = Map<String, dynamic>.from(map['metadata_json'] as Map);
-      } else if (map['metadata_json'] is String && (map['metadata_json'] as String).isNotEmpty) {
+      } else if (map['metadata_json'] is String &&
+          (map['metadata_json'] as String).isNotEmpty) {
         try {
           final decoded = jsonDecode(map['metadata_json'] as String);
           if (decoded is Map) {
@@ -48,7 +51,9 @@ class NotificationItem {
       eventType: map['event_type'] ?? 'GENERAL',
       title: map['title'] ?? 'Notification',
       message: map['message'] ?? '',
-      isRead: map['is_read'] == 1 || map['is_read'] == true || '${map['is_read']}' == '1',
+      isRead: map['is_read'] == 1 ||
+          map['is_read'] == true ||
+          '${map['is_read']}' == '1',
       createdAt: map['created_at'] ?? '',
       metadata: parsedMeta,
     );
@@ -62,30 +67,41 @@ class NotificationService extends ChangeNotifier {
   List<NotificationItem> _notifications = [];
   int _unreadCount = 0;
   bool _isLoading = false;
-  Timer? _pollingTimer;
+  late final Poller _poller = Poller(
+      const Duration(seconds: 30), () => fetchNotifications(silent: true));
 
-  final StreamController<NotificationItem> _bannerStreamController = StreamController<NotificationItem>.broadcast();
-  Stream<NotificationItem> get onNewNotification => _bannerStreamController.stream;
+  final StreamController<NotificationItem> _bannerStreamController =
+      StreamController<NotificationItem>.broadcast();
+  Stream<NotificationItem> get onNewNotification =>
+      _bannerStreamController.stream;
 
   NotificationItem? activeBannerNotification;
-  Timer? _bannerDismissTimer;
   Set<int> _knownNotificationIds = {};
   bool _isFirstFetch = true;
-  int _sessionGeneration = 0; // bumped by reset() so in-flight polls from a previous session are dropped
+  int _sessionGeneration =
+      0; // bumped by reset() so in-flight polls from a previous session are dropped
 
-  NotificationService._internal() {
-    // Start real-time background notification polling every 3 seconds
-    _pollingTimer = Timer.periodic(const Duration(seconds: 3), (_) {
-      fetchNotifications(silent: true);
-    });
-  }
+  NotificationService._internal();
+
+  /// Begins the 30-second inbox refresh (idempotent). Called by AuthService
+  /// once a user is signed in.
+  void startPolling() => _poller.start();
+
+  /// Stops refreshing (on sign-out).
+  void stopPolling() => _poller.stop();
+
+  /// Pauses polling while the app is in the background; refreshes on return.
+  void setForeground(bool foreground) => _poller.setForeground(foreground);
 
   List<NotificationItem> get notifications => _notifications;
   int get unreadCount => _unreadCount;
   bool get isLoading => _isLoading;
 
   void showInAppBanner(NotificationItem item) {
-    debugPrint('🔔 [NotificationService] showInAppBanner triggered: "${item.title}"');
+    if (kDebugMode) {
+      debugPrint(
+          '🔔 [NotificationService] showInAppBanner triggered: "${item.title}"');
+    }
     activeBannerNotification = item;
     playWebNotificationSound();
     notifyListeners();
@@ -122,12 +138,7 @@ class NotificationService extends ChangeNotifier {
     try {
       final prefs = await SharedPreferences.getInstance();
 
-      // Sync auth token from web storage if not yet initialized in ApiService
-      final token = getWebStorage('jwt_token') ??
-          getWebStorage('auth_token') ??
-          prefs.getString('jwt_token') ??
-          prefs.getString('auth_token');
-      if (token == null || token.isEmpty) {
+      if (!_api.hasAuthToken) {
         // Not logged in: nothing to poll.
         if (_isLoading) {
           _isLoading = false;
@@ -135,7 +146,6 @@ class NotificationService extends ChangeNotifier {
         }
         return;
       }
-      _api.setAuthToken(token);
 
       // Resolve current user ID and role with immediate webStorage and prefs fallback
       final webUserId = getWebStorage('user_id');
@@ -159,9 +169,15 @@ class NotificationService extends ChangeNotifier {
         final resMap = Map<String, dynamic>.from(res);
         _unreadCount = resMap['unread_count'] ?? 0;
         final list = resMap['notifications'] as List? ?? [];
-        final items = list.map((e) => NotificationItem.fromMap(Map<String, dynamic>.from(e as Map))).toList();
+        final items = list
+            .map((e) =>
+                NotificationItem.fromMap(Map<String, dynamic>.from(e as Map)))
+            .toList();
 
-        debugPrint('🔔 [NotificationService] User #$userId ($role) Poll count: ${items.length}, unread: $_unreadCount, isFirst: $_isFirstFetch');
+        if (kDebugMode) {
+          debugPrint(
+              '🔔 [NotificationService] User #$userId ($role) Poll count: ${items.length}, unread: $_unreadCount, isFirst: $_isFirstFetch');
+        }
 
         // Highest notification id already alerted for this user, persisted so that
         // items which arrived while the app was closed still alert on next launch.
@@ -171,22 +187,30 @@ class NotificationService extends ChangeNotifier {
         // Check if there are newly arrived unread notifications
         {
           final newItems = items
-              .where((item) => !item.isRead &&
-                  (_isFirstFetch ? item.id > lastAlertedId : !_knownNotificationIds.contains(item.id)))
+              .where((item) =>
+                  !item.isRead &&
+                  (_isFirstFetch
+                      ? item.id > lastAlertedId
+                      : !_knownNotificationIds.contains(item.id)))
               .toList();
           if (newItems.isNotEmpty) {
-            debugPrint('🎉 [NotificationService] New unread notification detected: #${newItems.first.id} "${newItems.first.title}"');
+            if (kDebugMode) {
+              debugPrint(
+                  '🎉 [NotificationService] New unread notification detected: #${newItems.first.id} "${newItems.first.title}"');
+            }
             showInAppBanner(newItems.first); // Show most recent new banner
             // OS-level banner (Notification Center) for each new item, capped to avoid a flood.
             for (final item in newItems.take(3)) {
-              SystemNotifications.show(id: item.id, title: item.title, body: item.message);
+              SystemNotifications.show(
+                  id: item.id, title: item.title, body: item.message);
             }
           }
         }
 
         _knownNotificationIds = items.map((e) => e.id).toSet();
         _isFirstFetch = false;
-        final maxId = items.fold<int>(lastAlertedId, (m, e) => e.id > m ? e.id : m);
+        final maxId =
+            items.fold<int>(lastAlertedId, (m, e) => e.id > m ? e.id : m);
         if (maxId > lastAlertedId) await prefs.setInt(alertedKey, maxId);
         _notifications = items;
       }
@@ -229,19 +253,20 @@ class NotificationService extends ChangeNotifier {
         );
       }
     } else {
-      _notifications = _notifications.map((n) => NotificationItem(
-        id: n.id,
-        eventType: n.eventType,
-        title: n.title,
-        message: n.message,
-        isRead: true,
-        createdAt: n.createdAt,
-        metadata: n.metadata,
-      )).toList();
+      _notifications = _notifications
+          .map((n) => NotificationItem(
+                id: n.id,
+                eventType: n.eventType,
+                title: n.title,
+                message: n.message,
+                isRead: true,
+                createdAt: n.createdAt,
+                metadata: n.metadata,
+              ))
+          .toList();
     }
 
     _unreadCount = _notifications.where((n) => !n.isRead).length;
     notifyListeners();
   }
 }
-

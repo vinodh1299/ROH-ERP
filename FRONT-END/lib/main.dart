@@ -39,6 +39,25 @@ void main(List<String> args) async {
   };
   await SystemNotifications.init();
 
+  // An expired or revoked session (a 401 mid-use, or a failed token refresh)
+  // has already been signed out locally by AuthService; take the user to the
+  // login screen and say why.
+  authService.onSessionExpired = () {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      RohApp.navigatorKey.currentState?.pushNamedAndRemoveUntil(
+        AppConstants.routeLogin,
+        (route) => false,
+      );
+      RohApp.showSessionExpiredMessage();
+    });
+    WidgetsBinding.instance.scheduleFrame();
+  };
+  if (authService.expiredAtStartup) {
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => RohApp.showSessionExpiredMessage(),
+    );
+  }
+
   int initialTab = 0;
   for (final arg in args) {
     if (arg.startsWith('--tab=')) {
@@ -59,7 +78,23 @@ void main(List<String> args) async {
 }
 
 class RohApp extends StatelessWidget {
-  static final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+  static final GlobalKey<NavigatorState> navigatorKey =
+      GlobalKey<NavigatorState>();
+  static final GlobalKey<ScaffoldMessengerState> messengerKey =
+      GlobalKey<ScaffoldMessengerState>();
+
+  static void showSessionExpiredMessage() {
+    messengerKey.currentState
+      ?..hideCurrentSnackBar()
+      ..showSnackBar(
+        const SnackBar(
+          content: Text('Your session has expired. Please sign in again.'),
+          behavior: SnackBarBehavior.floating,
+          duration: Duration(seconds: 6),
+        ),
+      );
+  }
+
   final int initialTab;
   const RohApp({super.key, this.initialTab = 0});
 
@@ -69,6 +104,7 @@ class RohApp extends StatelessWidget {
       builder: (context, auth, _) {
         return MaterialApp(
           navigatorKey: navigatorKey,
+          scaffoldMessengerKey: messengerKey,
           title: AppConstants.appName,
           debugShowCheckedModeBanner: false,
           theme: AppTheme.light,
@@ -83,10 +119,13 @@ class RohApp extends StatelessWidget {
           // signed-in user, so every portal ran twice (duplicate polling,
           // dialogs, and a hidden copy consuming "open this student" requests).
           onGenerateInitialRoutes: (initialRoute) => [
-            _generateGuardedRoute(context, auth, RouteSettings(name: initialRoute)),
+            _generateGuardedRoute(
+                context, auth, RouteSettings(name: initialRoute)),
           ],
-          onGenerateRoute: (settings) => _generateGuardedRoute(context, auth, settings),
-          onUnknownRoute: (settings) => _generateGuardedRoute(context, auth, settings),
+          onGenerateRoute: (settings) =>
+              _generateGuardedRoute(context, auth, settings),
+          onUnknownRoute: (settings) =>
+              _generateGuardedRoute(context, auth, settings),
         );
       },
     );
@@ -128,13 +167,15 @@ class RohApp extends StatelessWidget {
     final rawName = settings.name ?? AppConstants.routeLogin;
     final cleanRoute = rawName.split('?').first;
 
-    debugPrint('🛡️ ROUTE GUARD: Navigation request to "$cleanRoute" | LoggedIn: ${auth.isLoggedIn} | Current Role: ${auth.currentUser?.role}');
+    debugPrint(
+        '🛡️ ROUTE GUARD: Navigation request to "$cleanRoute" | LoggedIn: ${auth.isLoggedIn} | Current Role: ${auth.currentUser?.role}');
 
     // 1. Handling the Login route
     if (cleanRoute == AppConstants.routeLogin || cleanRoute == '/') {
       if (auth.isLoggedIn) {
         final authorizedHome = _roleHome(auth.currentUser?.role);
-        debugPrint('🛡️ ROUTE GUARD: User already authenticated as ${auth.currentUser?.role}. Redirecting to $authorizedHome.');
+        debugPrint(
+            '🛡️ ROUTE GUARD: User already authenticated as ${auth.currentUser?.role}. Redirecting to $authorizedHome.');
         return MaterialPageRoute(
           settings: RouteSettings(name: authorizedHome),
           builder: (_) => _buildRoleShell(auth.currentUser?.role),
@@ -148,7 +189,8 @@ class RohApp extends StatelessWidget {
 
     // 2. Unauthenticated check: Block any protected route if not logged in
     if (!auth.isLoggedIn) {
-      debugPrint('🚨 ROUTE GUARD DENIED: Unauthenticated access attempt to "$cleanRoute". Redirecting to /login.');
+      debugPrint(
+          '🚨 ROUTE GUARD DENIED: Unauthenticated access attempt to "$cleanRoute". Redirecting to /login.');
       return MaterialPageRoute(
         settings: const RouteSettings(name: AppConstants.routeLogin),
         builder: (_) => const LoginPage(),
@@ -160,7 +202,8 @@ class RohApp extends StatelessWidget {
     final requiredRole = _requiredRoleForRoute(cleanRoute);
 
     if (requiredRole != null && userRole != requiredRole) {
-      debugPrint('🚨 ROUTE GUARD DENIED: Role mismatch! User is "$userRole", but "$cleanRoute" requires "$requiredRole". Redirecting to authorized home.');
+      debugPrint(
+          '🚨 ROUTE GUARD DENIED: Role mismatch! User is "$userRole", but "$cleanRoute" requires "$requiredRole". Redirecting to authorized home.');
       final authorizedHome = _roleHome(userRole);
       return MaterialPageRoute(
         settings: RouteSettings(name: authorizedHome),
@@ -169,7 +212,8 @@ class RohApp extends StatelessWidget {
     }
 
     // 4. Authorized access: return the appropriate shell
-    final tabParam = int.tryParse(Uri.tryParse(rawName)?.queryParameters['tab'] ?? '');
+    final tabParam =
+        int.tryParse(Uri.tryParse(rawName)?.queryParameters['tab'] ?? '');
     final tab = tabParam ?? initialTab;
 
     switch (cleanRoute) {
@@ -194,10 +238,13 @@ class RohApp extends StatelessWidget {
           builder: (_) => ParentShell(initialTab: tab),
         );
       default:
-        final fallback = auth.isLoggedIn ? _roleHome(userRole) : AppConstants.routeLogin;
+        final fallback =
+            auth.isLoggedIn ? _roleHome(userRole) : AppConstants.routeLogin;
         return MaterialPageRoute(
           settings: RouteSettings(name: fallback),
-          builder: (_) => auth.isLoggedIn ? _buildRoleShell(userRole, tab) : const LoginPage(),
+          builder: (_) => auth.isLoggedIn
+              ? _buildRoleShell(userRole, tab)
+              : const LoginPage(),
         );
     }
   }

@@ -1,3 +1,5 @@
+require('dotenv').config();
+require('./ops/production_guard')('reset_and_seed_realtime.js');
 // reset_and_seed_realtime.js
 // Completely purges all data from all tables, resets auto-increment counters,
 // and inserts fresh, realistic real-time clinical production data.
