@@ -78,6 +78,13 @@ class RohApp extends StatelessWidget {
               child: child ?? const SizedBox(),
             ),
           ),
+          // Exactly one starting route. Flutter's default would also push "/"
+          // under e.g. "/therapist", and "/" builds the role shell for a
+          // signed-in user, so every portal ran twice (duplicate polling,
+          // dialogs, and a hidden copy consuming "open this student" requests).
+          onGenerateInitialRoutes: (initialRoute) => [
+            _generateGuardedRoute(context, auth, RouteSettings(name: initialRoute)),
+          ],
           onGenerateRoute: (settings) => _generateGuardedRoute(context, auth, settings),
           onUnknownRoute: (settings) => _generateGuardedRoute(context, auth, settings),
         );

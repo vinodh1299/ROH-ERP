@@ -9,6 +9,7 @@ import 'package:roh_erp/core/services/web_storage/web_storage.dart';
 import 'package:roh_erp/features/auth/auth_service.dart';
 import 'package:roh_erp/features/therapist/daily_data_sheet/daily_data_sheet_page.dart';
 import 'package:roh_erp/features/therapist/iep/iep_page.dart';
+import 'package:roh_erp/features/therapist/widgets/complete_session.dart';
 
 class TherapistDashboardPage extends StatefulWidget {
   final Function(int)? onNavigateTab;
@@ -607,43 +608,12 @@ class _TherapistDashboardPageState extends State<TherapistDashboardPage> {
                           // Action Buttons Row
                           Row(
                             children: [
-                              // Status toggler
-                              if (session.status == SessionStatus.upcoming)
+                              // Completion (no separate Start step)
+                              if (sessionAwaitingCompletion(session) &&
+                                  sessionHasStarted(session))
                                 InkWell(
                                   onTap: () =>
-                                      scheduleService.updateSessionStatus(
-                                          session.id, SessionStatus.inProgress),
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 8, vertical: 4),
-                                    decoration: BoxDecoration(
-                                      border: Border.all(
-                                          color: const Color(0xFF4CAF50)),
-                                      borderRadius: BorderRadius.circular(6),
-                                    ),
-                                    child: const Row(
-                                      children: [
-                                        Icon(Icons.play_arrow,
-                                            size: 12, color: Color(0xFF2E7D32)),
-                                        SizedBox(width: 2),
-                                        Text(
-                                          'Start',
-                                          style: TextStyle(
-                                            fontSize: 11,
-                                            color: Color(0xFF2E7D32),
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                )
-                              else if (session.status ==
-                                  SessionStatus.inProgress)
-                                InkWell(
-                                  onTap: () =>
-                                      scheduleService.updateSessionStatus(
-                                          session.id, SessionStatus.completed),
+                                      confirmSessionCompleted(context, session),
                                   child: Container(
                                     padding: const EdgeInsets.symmetric(
                                         horizontal: 8, vertical: 4),
@@ -657,7 +627,7 @@ class _TherapistDashboardPageState extends State<TherapistDashboardPage> {
                                             size: 12, color: Colors.white),
                                         SizedBox(width: 2),
                                         Text(
-                                          'Complete',
+                                          'Mark Completed',
                                           style: TextStyle(
                                             fontSize: 11,
                                             color: Colors.white,
@@ -673,14 +643,6 @@ class _TherapistDashboardPageState extends State<TherapistDashboardPage> {
                               // Open Data Sheet Button
                               InkWell(
                                 onTap: () {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(
-                                          'Opening Daily Data Sheet for ${session.studentName}...'),
-                                      backgroundColor: AppColors.primary,
-                                      duration: const Duration(seconds: 2),
-                                    ),
-                                  );
                                   final id = int.tryParse(session.studentId);
                                   if (id != null) {
                                     DailyDataSheetPage.openStudent.value =

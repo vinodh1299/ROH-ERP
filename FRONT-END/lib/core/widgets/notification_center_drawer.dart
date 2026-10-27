@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../constants/app_colors.dart';
 import '../services/notification_service.dart';
 import '../services/web_storage/web_storage.dart';
-import 'notification_detail_dialog.dart';
 
 class NotificationCenterDrawer extends StatefulWidget {
   const NotificationCenterDrawer({super.key});
@@ -56,6 +55,7 @@ class _NotificationCenterDrawerState extends State<NotificationCenterDrawer> {
       case 'SESSION_ASSIGNED':
       case 'SESSION_STARTED':
       case 'SESSION_ENDED':
+      case 'SESSION_COMPLETED':
         return Icons.calendar_today_rounded;
       case 'APPOINTMENT_SCHEDULED':
       case 'APPOINTMENT_CONFIRMED':
@@ -120,9 +120,25 @@ class _NotificationCenterDrawerState extends State<NotificationCenterDrawer> {
               )
             ],
           ),
-          child: _selectedNotification != null
-              ? _buildDetailView(_selectedNotification!)
-              : _buildListView(),
+          // Keep the header (and its Back/close buttons) clear of the
+          // status bar and notch on phones.
+          child: SafeArea(
+            left: false,
+            right: false,
+            bottom: false,
+            // System back / swipe-back: details → list → close.
+            child: PopScope(
+              canPop: _selectedNotification == null,
+              onPopInvokedWithResult: (didPop, _) {
+                if (!didPop && _selectedNotification != null) {
+                  setState(() => _selectedNotification = null);
+                }
+              },
+              child: _selectedNotification != null
+                  ? _buildDetailView(_selectedNotification!)
+                  : _buildListView(),
+            ),
+          ),
         ),
       ),
     );
@@ -147,7 +163,7 @@ class _NotificationCenterDrawerState extends State<NotificationCenterDrawer> {
       children: [
         // Header
         Container(
-          padding: const EdgeInsets.fromLTRB(24, 24, 20, 16),
+          padding: const EdgeInsets.fromLTRB(12, 16, 12, 16),
           decoration: const BoxDecoration(
             border: Border(bottom: BorderSide(color: Color(0xFFF1F5F9), width: 1.5)),
           ),
@@ -156,6 +172,12 @@ class _NotificationCenterDrawerState extends State<NotificationCenterDrawer> {
             children: [
               Row(
                 children: [
+                  IconButton(
+                    tooltip: 'Back',
+                    icon: const Icon(Icons.arrow_back_rounded, color: AppColors.textPrimary),
+                    onPressed: () => Navigator.of(context).maybePop(),
+                  ),
+                  const SizedBox(width: 4),
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
@@ -165,15 +187,17 @@ class _NotificationCenterDrawerState extends State<NotificationCenterDrawer> {
                     child: const Icon(Icons.notifications_active_rounded, color: AppColors.primary, size: 22),
                   ),
                   const SizedBox(width: 12),
-                  const Text(
-                    'Notification Center',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.textPrimary,
+                  const Expanded(
+                    child: Text(
+                      'Notifications',
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.textPrimary,
+                      ),
                     ),
                   ),
-                  const Spacer(),
                   if (_service.unreadCount > 0)
                     TextButton(
                       onPressed: () => _service.markAsRead(),
@@ -185,8 +209,9 @@ class _NotificationCenterDrawerState extends State<NotificationCenterDrawer> {
                       child: const Text('Mark all as read', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.primary)),
                     ),
                   IconButton(
+                    tooltip: 'Close',
                     icon: const Icon(Icons.close_rounded, size: 22, color: Color(0xFF64748B)),
-                    onPressed: () => Navigator.of(context).pop(),
+                    onPressed: () => Navigator.of(context).maybePop(),
                   ),
                 ],
               ),

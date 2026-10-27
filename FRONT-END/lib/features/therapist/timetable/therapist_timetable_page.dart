@@ -1,5 +1,6 @@
 // lib/features/therapist/timetable/therapist_timetable_page.dart
 import 'package:flutter/material.dart';
+import '../widgets/complete_session.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:roh_erp/core/constants/app_colors.dart';
@@ -87,11 +88,9 @@ class _TherapistTimetablePageState extends State<TherapistTimetablePage> {
 
     final filteredSessions = sessions.where((s) {
       if (_statusFilter == 'All') return true;
-      if (_statusFilter == 'In Progress') {
-        return s.status == SessionStatus.inProgress;
-      }
       if (_statusFilter == 'Upcoming') {
-        return s.status == SessionStatus.upcoming;
+        return s.status == SessionStatus.upcoming ||
+            s.status == SessionStatus.inProgress;
       }
       if (_statusFilter == 'Completed') {
         return s.status == SessionStatus.completed;
@@ -284,8 +283,7 @@ class _TherapistTimetablePageState extends State<TherapistTimetablePage> {
               final filterChips = Wrap(
                 spacing: 8,
                 runSpacing: 8,
-                children: ['All', 'In Progress', 'Upcoming', 'Completed']
-                    .map((filter) {
+                children: ['All', 'Upcoming', 'Completed'].map((filter) {
                   final isSelected = _statusFilter == filter;
                   return ChoiceChip(
                     label: Text(filter),
@@ -666,13 +664,6 @@ class _TherapistTimetablePageState extends State<TherapistTimetablePage> {
           children: [
             ElevatedButton.icon(
               onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                        'Opening Daily Data Sheet for ${session.studentName}...'),
-                    backgroundColor: AppColors.primary,
-                  ),
-                );
                 final id = int.tryParse(session.studentId);
                 if (id != null) {
                   DailyDataSheetPage.openStudent.value =
@@ -698,41 +689,38 @@ class _TherapistTimetablePageState extends State<TherapistTimetablePage> {
                     borderRadius: BorderRadius.circular(8)),
               ),
             ),
-            if (session.status == SessionStatus.upcoming)
-              OutlinedButton.icon(
-                onPressed: () {
-                  service.updateSessionStatus(
-                      session.id, SessionStatus.inProgress);
-                },
-                icon: const Icon(Icons.play_arrow,
-                    size: 14, color: Color(0xFF2E7D32)),
-                label: const Text('Start Session',
-                    style: TextStyle(color: Color(0xFF2E7D32), fontSize: 12)),
-                style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: Color(0xFF4CAF50)),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8)),
-                ),
-              )
-            else if (session.status == SessionStatus.inProgress)
-              ElevatedButton.icon(
-                onPressed: () {
-                  service.updateSessionStatus(
-                      session.id, SessionStatus.completed);
-                },
-                icon: const Icon(Icons.check, size: 14, color: Colors.white),
-                label: const Text('Mark Completed',
-                    style: TextStyle(color: Colors.white, fontSize: 12)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF2E7D32),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8)),
-                ),
-              ),
+            // No "Start" step: once the session time has begun the therapist
+            // marks it completed, which notifies the Clinical Director.
+            if (sessionAwaitingCompletion(session))
+              sessionHasStarted(session)
+                  ? ElevatedButton.icon(
+                      onPressed: () =>
+                          confirmSessionCompleted(context, session),
+                      icon: const Icon(Icons.check,
+                          size: 14, color: Colors.white),
+                      label: const Text('Mark Completed',
+                          style: TextStyle(color: Colors.white, fontSize: 12)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF2E7D32),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 8),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8)),
+                      ),
+                    )
+                  : Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 9),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        'Starts at ${session.startTime} · reminder 5 min before',
+                        style: const TextStyle(
+                            fontSize: 12, color: AppColors.textSecondary),
+                      ),
+                    ),
           ],
         );
 

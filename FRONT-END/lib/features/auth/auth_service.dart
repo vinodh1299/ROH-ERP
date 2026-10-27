@@ -5,6 +5,7 @@ import 'package:roh_erp/core/constants/app_constants.dart';
 import '../../core/models/user_model.dart';
 import '../../core/services/api_service.dart';
 import '../../core/services/notification_service.dart';
+import '../../core/services/session_reminders.dart';
 import '../../core/services/web_storage/web_storage.dart';
 
 class AuthService extends ChangeNotifier {
@@ -100,6 +101,7 @@ class AuthService extends ChangeNotifier {
   Future<void> _setSession(UserModel user, [String? token]) async {
     _currentUser = user;
     NotificationService().reset();
+    SessionReminders.clear();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(AppConstants.prefIsLoggedIn, true);
     await prefs.setInt(AppConstants.prefUserId, user.id);
@@ -198,6 +200,7 @@ class AuthService extends ChangeNotifier {
     clearAllWebStorage();
     ApiService().setAuthToken(null);
     NotificationService().reset();
+    SessionReminders.clear();
     notifyListeners();
   }
 }

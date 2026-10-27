@@ -131,12 +131,14 @@ String? milestoneScoreColumn(String colName) {
 }
 
 /// One matrix cell split into a top and bottom half by a thin divider,
-/// with the milestone number on top.
+/// with the milestone number on top (unless [showNumber] is false, e.g. when
+/// the number is shown in a label column outside the grid).
 class MilestoneMatrixCell extends StatelessWidget {
   final int row;
   final int? bottomTest;
   final int? topTest;
   final double height;
+  final bool showNumber;
 
   const MilestoneMatrixCell({
     super.key,
@@ -144,6 +146,7 @@ class MilestoneMatrixCell extends StatelessWidget {
     required this.bottomTest,
     required this.topTest,
     this.height = 38,
+    this.showNumber = true,
   });
 
   @override
@@ -162,16 +165,17 @@ class MilestoneMatrixCell extends StatelessWidget {
               Expanded(child: Container(color: bottom)),
             ],
           ),
-          Center(
-            child: Text(
-              '$row',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: filled ? Colors.black87 : AppColors.textSecondary,
+          if (showNumber)
+            Center(
+              child: Text(
+                '$row',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: filled ? Colors.black87 : AppColors.textSecondary,
+                ),
               ),
             ),
-          ),
         ],
       ),
     );
