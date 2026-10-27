@@ -30,6 +30,7 @@
   - Restore: `zcat FILE.sql.gz | mysql --defaults-extra-file=~/.my.cnf --ssl-mode=REQUIRED roherp`. Test a restore into a scratch database before relying on it.
   - **Off-server copy:** `BACK-END/ops/pull_backups.sh` copies new backups to `~/ROH-Backups` on this Mac (only files it doesn't have yet; keeps 90 days). Run it weekly, or schedule it.
   - **Restore test (27 Oct 2026):** the 26 Oct backup restored into a scratch local database with all 25 tables and the expected row counts, then the scratch database was dropped. Repeat this after major schema changes.
+- **Client IP behind the proxy:** the panel proxy connects to the API from the server's own public IP (208.113.150.95), so the API's `.env` sets `TRUST_PROXY=loopback,208.113.150.95`. Without it every visitor looks like one address and the sign-in rate limit (10 per 15 min) would apply to the whole centre. After moving servers, update this IP and check `audit_logs.ip_address` on a fresh login.
 - **Encrypted DB connection:** `DB_SSL=require` in the API's `.env` makes the API connect to MySQL over TLS. DreamHost's MySQL uses a self-signed certificate, so `DB_SSL=verify` fails; `require` still encrypts. On startup the log prints `Database connection encryption: <cipher>`.
 
 ## Redeploying (packages in `deploy/`, git-ignored)
